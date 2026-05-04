@@ -17,7 +17,21 @@ export default function AppShell() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [pageTitle, setPageTitleState] = useState({ title: 'Tableau de bord', breadcrumb: 'Accueil' });
+
+  const pageTitles = {
+    'dashboard': { title: 'Tableau de bord', breadcrumb: 'Accueil' },
+    'beneficiaires': { title: 'Bénéficiaires', breadcrumb: 'Gestion des bénéficiaires' },
+    'ordonnances': { title: 'Ordonnances', breadcrumb: 'Gestion des ordonnances' },
+    'devis': { title: 'Devis', breadcrumb: 'Gestion des devis' },
+    'remboursements': { title: 'Remboursements', breadcrumb: 'Gestion des remboursements' },
+    'prises-en-charge': { title: 'Prises en charge', breadcrumb: 'Gestion des prises en charge' },
+    'maladies': { title: 'Maladies spéciales', breadcrumb: 'Gestion des maladies spéciales' },
+    'etablissements': { title: 'Établissements médicaux', breadcrumb: 'Référentiel' },
+    'entites': { title: 'Entités organisationnelles', breadcrumb: 'Référentiel' },
+    'utilisateurs': { title: 'Utilisateurs', breadcrumb: 'Administration' }
+  };
+  const pageTitle = pageTitles[currentPage] || { title: 'Page en construction', breadcrumb: 'Inconnu' };
+
   const [toasts, setToasts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -27,7 +41,7 @@ export default function AppShell() {
     setUser(JSON.parse(userData));
   }, [navigate]);
 
-  const setPageTitle = (title, breadcrumb) => setPageTitleState({ title, breadcrumb });
+  const setPageTitle = (title, breadcrumb) => {}; // No-op to prevent infinite render loops from child components
 
   const addToast = (type, message) => {
     const id = Date.now();
