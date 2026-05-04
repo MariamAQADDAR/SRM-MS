@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Application CRM de gestion de mutuelle — SRM-MS Marrakech-Safi">
+  <title>SRM-MS Mutuelle — Application</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="app-layout">
+
+    <!-- ====== SIDEBAR ====== -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="s-logo">🏥</div>
+        <div class="s-info">
+          <h2>SRM Mutuelle</h2>
+          <span>Marrakech-Safi</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" id="sidebarNav">
+        <!-- Populated by JS -->
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user" id="sidebarUser">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- ====== MAIN CONTENT ====== -->
+    <main class="main-content">
+
+      <!-- Top Bar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <div>
+            <div class="page-title" id="pageTitle">Tableau de bord</div>
+            <div class="breadcrumb" id="breadcrumb">
+              <span>Accueil</span>
+            </div>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" placeholder="Rechercher..." id="globalSearch">
+          </div>
+          <button class="topbar-btn" title="Notifications">
+            🔔
+            <span class="notif-dot"></span>
+          </button>
+          <button class="topbar-btn" title="Paramètres">⚙️</button>
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <div class="page-content" id="pageContent">
+        <div style="text-align:center;padding:60px;">
+          <div class="spinner" style="margin:0 auto;"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ====== MODAL ====== -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Titre</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- ====== TOASTS ====== -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ====== SCRIPTS ====== -->
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

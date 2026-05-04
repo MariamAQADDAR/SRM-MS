@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Application de gestion de mutuelle pour SRM-MS — Connexion">
+  <title>SRM-MS Mutuelle — Connexion</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-icon">🏥</div>
+        <h1>SRM — Mutuelle</h1>
+        <p>Gestion de la Mutuelle — Marrakech-Safi</p>
+      </div>
+
+      <form class="login-form" id="loginForm" autocomplete="off">
+        <div class="form-group">
+          <label for="loginEmail">Adresse email</label>
+          <div class="input-wrapper">
+            <input type="email" id="loginEmail" placeholder="votre.email@srm-ms.ma" required>
+            <span class="input-icon">📧</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="loginPassword">Mot de passe</label>
+          <div class="input-wrapper">
+            <input type="password" id="loginPassword" placeholder="••••••••" required>
+            <span class="input-icon">🔒</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="loginRole">Se connecter en tant que</label>
+          <div class="input-wrapper">
+            <select id="loginRole" required>
+              <option value="">— Sélectionnez un rôle —</option>
+              <option value="admin">Administrateur</option>
+              <option value="operateur">Opérateur</option>
+              <option value="consultateur">Consultateur</option>
+            </select>
+            <span class="input-icon">👤</span>
+          </div>
+        </div>
+
+        <div class="login-remember">
+          <label>
+            <input type="checkbox" id="rememberMe"> Se souvenir de moi
+          </label>
+          <a href="#">Mot de passe oublié?</a>
+        </div>
+
+        <button type="submit" class="btn-login" id="btnLogin">
+          Se connecter
+        </button>
+      </form>
+
+      <div class="login-footer">
+        <p>© 2025 SRM-MS — Direction SI & Transformation Digitale</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    // Simulated users
+    const users = {
+      admin: { email: 'admin@srm-ms.ma', password: 'admin123', name: 'AQADDAR Marieme', role: 'Administrateur' },
+      operateur: { email: 'operateur@srm-ms.ma', password: 'oper123', name: 'Youssef Benali', role: 'Opérateur' },
+      consultateur: { email: 'consult@srm-ms.ma', password: 'cons123', name: 'Fatima Zahrae', role: 'Consultateur' }
+    };
+
+    function showToast(type, message) {
+      const container = document.getElementById('toastContainer');
+      const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `
+        <span class="toast-icon">${icons[type]}</span>
+        <span class="toast-msg">${message}</span>
+        <button class="toast-close" onclick="this.parentElement.classList.add('toast-exit'); setTimeout(()=>this.parentElement.remove(),300)">✕</button>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => { toast.classList.add('toast-exit'); setTimeout(() => toast.remove(), 300); }, 4000);
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const role = document.getElementById('loginRole').value;
+
+      if (!role) {
+        showToast('warning', 'Veuillez sélectionner un rôle.');
+        return;
+      }
+
+      // For simulation: accept any credentials
+      const btn = document.getElementById('btnLogin');
+      btn.innerHTML = '<span class="spinner" style="width:20px;height:20px;border-width:2px;margin:0 auto;"></span>';
+      btn.disabled = true;
+
+      setTimeout(() => {
+        const userData = users[role] || { name: email.split('@')[0], role: role };
+        userData.email = email;
+        userData.role = role === 'admin' ? 'Administrateur' : role === 'operateur' ? 'Opérateur' : 'Consultateur';
+        sessionStorage.setItem('mutuelle_user', JSON.stringify(userData));
+        showToast('success', `Bienvenue, ${userData.name || 'Utilisateur'} !`);
+        setTimeout(() => {
+          window.location.href = 'app.html';
+        }, 600);
+      }, 1200);
+    });
+
+    // Auto-fill demo
+    document.getElementById('loginRole').addEventListener('change', function() {
+      const role = this.value;
+      if (users[role]) {
+        document.getElementById('loginEmail').value = users[role].email;
+        document.getElementById('loginPassword').value = users[role].password;
+      }
+    });
+  </script>
+</body>
+</html>
