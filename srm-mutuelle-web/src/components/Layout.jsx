@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SimData from '../data';
+import FaIcon from './FaIcon';
 
 export default function Layout({ children, currentPage, onNavigate }) {
   const navigate = useNavigate();
@@ -21,25 +22,25 @@ export default function Layout({ children, currentPage, onNavigate }) {
     {
       section: 'Principal',
       items: [
-        { id: 'dashboard', icon: '📊', label: 'Tableau de bord' },
+        { id: 'dashboard', fa: 'chart-line', label: 'Tableau de bord' },
       ]
     },
     {
       section: 'Gestion',
       items: [
-        { id: 'beneficiaires', icon: '👥', label: 'Bénéficiaires', badge: SimData.agents.length },
-        { id: 'ordonnances', icon: '📋', label: 'Ordonnances', badge: SimData.ordonnances.length },
-        { id: 'devis', icon: '📄', label: 'Devis', badge: SimData.devis.length },
-        { id: 'remboursements', icon: '💰', label: 'Remboursements', badge: enAttente },
-        { id: 'prises-en-charge', icon: '🏥', label: 'Prises en charge' },
-        { id: 'maladies', icon: '🩺', label: 'Maladies spéciales' },
+        { id: 'beneficiaires', fa: 'users', label: 'Bénéficiaires', badge: SimData.agents.length },
+        { id: 'ordonnances', fa: 'clipboard-list', label: 'Ordonnances', badge: SimData.ordonnances.length },
+        { id: 'devis', fa: 'file-invoice', label: 'Devis', badge: SimData.devis.length },
+        { id: 'remboursements', fa: 'money-bill-wave', label: 'Remboursements', badge: enAttente },
+        { id: 'prises-en-charge', fa: 'hospital', label: 'Prises en charge' },
+        { id: 'maladies', fa: 'stethoscope', label: 'Maladies spéciales' },
       ]
     },
     {
       section: 'Référentiel',
       items: [
-        { id: 'etablissements', icon: '🏢', label: 'Établissements' },
-        { id: 'entites', icon: '🏛️', label: 'Entités org.' },
+        { id: 'etablissements', fa: 'building', label: 'Établissements' },
+        { id: 'entites', fa: 'landmark', label: 'Entités org.' },
       ]
     },
   ];
@@ -48,7 +49,7 @@ export default function Layout({ children, currentPage, onNavigate }) {
     navSections.push({
       section: 'Administration',
       items: [
-        { id: 'utilisateurs', icon: '🔐', label: 'Utilisateurs', badge: SimData.utilisateurs.length },
+        { id: 'utilisateurs', fa: 'user-shield', label: 'Utilisateurs', badge: SimData.utilisateurs.length },
       ]
     });
   }
@@ -59,10 +60,12 @@ export default function Layout({ children, currentPage, onNavigate }) {
     <div className="app-layout">
       <div className="sidebar">
         <div className="sidebar-header">
-          <div className="s-logo">🏥</div>
-          <div className="s-info">
-            <h2>SRM Mutuelle</h2>
-            <span>Marrakech-Safi</span>
+          <div className="s-brand">
+            <img
+              src="/srm-brand-logo.png"
+              alt="SRM-MS — Société Régionale Multiservices Marrakech-Safi"
+              className="s-brand-img"
+            />
           </div>
         </div>
         <div className="sidebar-nav" id="sidebarNav">
@@ -75,7 +78,7 @@ export default function Layout({ children, currentPage, onNavigate }) {
                   className={`nav-item${currentPage === item.id ? ' active' : ''}`}
                   onClick={() => onNavigate(item.id)}
                 >
-                  <span className="nav-icon">{item.icon}</span>
+                  <span className="nav-icon"><FaIcon name={item.fa} /></span>
                   <span>{item.label}</span>
                   {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
                 </div>
@@ -95,7 +98,7 @@ export default function Layout({ children, currentPage, onNavigate }) {
               id="logoutBtn"
               title="Déconnexion"
               onClick={() => { sessionStorage.removeItem('mutuelle_user'); navigate('/'); }}
-            >🚪</span>
+            ><FaIcon name="right-from-bracket" title="Déconnexion" /></span>
           </div>
         </div>
       </div>

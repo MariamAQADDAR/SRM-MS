@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SimData from '../data';
 import Modal from '../components/Modal';
+import FaIcon from '../components/FaIcon';
 
 function statusBadge(statut) {
   const map = {'Traité':'badge-success','En cours':'badge-primary','En attente':'badge-warning'};
@@ -27,7 +28,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
       </div>
       <div className="modal-footer" style={{padding:'16px 0 0'}}>
         <button type="button" className="btn btn-outline" onClick={()=>setModal(null)}>Annuler</button>
-        <button type="submit" className="btn btn-primary">💾 Enregistrer</button>
+        <button type="submit" className="btn btn-primary"><FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer</button>
       </div>
     </form>
   );
@@ -36,9 +37,9 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
     <>
       {modal && <Modal title={modal.title} onClose={()=>setModal(null)}>{modal.content}</Modal>}
       <div className="stats-grid" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
-        <div className="stat-card"><div className="stat-icon green">✅</div><div className="stat-info"><h4>Traités</h4><div className="stat-value">{SimData.remboursements.filter(r=>r.statut==='Traité').length}</div></div></div>
-        <div className="stat-card"><div className="stat-icon orange">🔄</div><div className="stat-info"><h4>En cours</h4><div className="stat-value">{SimData.remboursements.filter(r=>r.statut==='En cours').length}</div></div></div>
-        <div className="stat-card"><div className="stat-icon red">⏳</div><div className="stat-info"><h4>En attente</h4><div className="stat-value">{SimData.remboursements.filter(r=>r.statut==='En attente').length}</div></div></div>
+        <div className="stat-card"><div className="stat-icon green"><FaIcon name="circle-check" /></div><div className="stat-info"><h4>Traités</h4><div className="stat-value">{SimData.remboursements.filter(r=>r.statut==='Traité').length}</div></div></div>
+        <div className="stat-card"><div className="stat-icon orange"><FaIcon name="arrows-rotate" /></div><div className="stat-info"><h4>En cours</h4><div className="stat-value">{SimData.remboursements.filter(r=>r.statut==='En cours').length}</div></div></div>
+        <div className="stat-card"><div className="stat-icon red"><FaIcon name="hourglass-half" /></div><div className="stat-info"><h4>En attente</h4><div className="stat-value">{SimData.remboursements.filter(r=>r.statut==='En attente').length}</div></div></div>
       </div>
       <div className="toolbar">
         <div className="toolbar-left">
@@ -49,7 +50,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
           </div>
         </div>
         <div className="toolbar-right">
-          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouvelle demande de remboursement',content:form})}>➕ Nouvelle demande</button>}
+          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouvelle demande de remboursement',content:form})}><FaIcon name="plus" className="fa-inline-icon" /> Nouvelle demande</button>}
         </div>
       </div>
       <div className="card">
@@ -65,8 +66,8 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
                     <td>{r.montantValide>0 ? r.montantValide.toLocaleString('fr-FR')+' DH' : '—'}</td>
                     <td>{statusBadge(r.statut)}</td>
                     <td className="actions-cell">
-                      <button className="btn btn-icon btn-view">👁️</button>
-                      {!isConsult && <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:'Modifier remboursement',content:form})}>✏️</button>}
+                      <button className="btn btn-icon btn-view"><FaIcon name="eye" /></button>
+                      {!isConsult && <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:'Modifier remboursement',content:form})}><FaIcon name="pen-to-square" /></button>}
                     </td>
                   </tr>
                 ))}

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import FaIcon from './FaIcon';
 
 export default function Modal({ title, children, onClose }) {
   if (!children) return null;
@@ -7,7 +8,7 @@ export default function Modal({ title, children, onClose }) {
       <div className="modal active">
         <div className="modal-header">
           <h3 className="modal-title">{title}</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer"><FaIcon name="xmark" /></button>
         </div>
         <div className="modal-body">
           {children}

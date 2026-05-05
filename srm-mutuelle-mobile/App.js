@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, SafeAreaView, StatusBar, Platform, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, SafeAreaView, StatusBar, Platform, Dimensions, Image } from 'react-native';
+import { FontAwesome5 } from '@expo/vector-icons';
 import SimData from './data';
+import { API_BASE_URL } from './config';
+import ChatbotScreen from './ChatbotScreen';
 
 const { width } = Dimensions.get('window');
 
@@ -21,22 +24,35 @@ const COLORS = {
 };
 
 const MENU_ITEMS = [
-  { id: 'agents', title: 'Bénéficiaires', icon: '👥', color: '#3b82f6' },
-  { id: 'ordonnances', title: 'Ordonnances', icon: '📋', color: '#8b5cf6' },
-  { id: 'devis', title: 'Devis', icon: '📄', color: '#f59e0b' },
-  { id: 'remboursements', title: 'Remboursements', icon: '💰', color: '#10b981' },
-  { id: 'prisesEnCharge', title: 'Prises en charge', icon: '🏥', color: '#ec4899' },
-  { id: 'maladiesSpeciales', title: 'Maladies', icon: '🩺', color: '#ef4444' },
-  { id: 'etablissements', title: 'Établissements', icon: '🏢', color: '#6366f1' },
-  { id: 'entites', title: 'Entités Org.', icon: '🏛️', color: '#14b8a6' },
-  { id: 'utilisateurs', title: 'Utilisateurs', icon: '🔐', color: '#64748b' }
+  { id: 'agents', title: 'Bénéficiaires', fa: 'users', color: '#3b82f6' },
+  { id: 'ordonnances', title: 'Ordonnances', fa: 'clipboard-list', color: '#8b5cf6' },
+  { id: 'devis', title: 'Devis', fa: 'file-invoice', color: '#f59e0b' },
+  { id: 'remboursements', title: 'Remboursements', fa: 'money-bill-wave', color: '#10b981' },
+  { id: 'prisesEnCharge', title: 'Prises en charge', fa: 'hospital', color: '#ec4899' },
+  { id: 'maladiesSpeciales', title: 'Maladies', fa: 'stethoscope', color: '#ef4444' },
+  { id: 'etablissements', title: 'Établissements', fa: 'building', color: '#6366f1' },
+  { id: 'entites', title: 'Entités Org.', fa: 'landmark', color: '#14b8a6' },
+  { id: 'utilisateurs', title: 'Utilisateurs', fa: 'user-shield', color: '#64748b' },
 ];
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState('home');
+  const [loginError, setLoginError] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
 
-  const handleLogin = () => setUser({ name: 'Admin SRM', role: 'Administrateur' });
+  const handleLogin = async () => {
+    try {
+      setLoginError('');
+      const response = await fetch(`${API_BASE_URL}/api/health`);
+      if (!response.ok) {
+        throw new Error('Backend non disponible');
+      }
+      setUser({ name: 'Admin SRM', role: 'Administrateur' });
+    } catch (error) {
+      setLoginError(`Connexion backend echouee: ${error.message}`);
+    }
+  };
   const logout = () => setUser(null);
 
   if (!user) {
@@ -44,14 +60,21 @@ export default function App() {
       <View style={styles.loginContainer}>
         <StatusBar barStyle="light-content" />
         <View style={styles.loginHeader}>
-          <Text style={styles.loginTitle}>SRM Mutuelle</Text>
-          <Text style={styles.loginSubtitle}>Espace Professionnel</Text>
+          <Image
+            source={require('./assets/srm-brand-logo.png')}
+            style={styles.loginBrandImg}
+            resizeMode="contain"
+            accessibilityLabel="SRM-MS — Société Régionale Multiservices Marrakech-Safi"
+          />
+          <Text style={styles.loginSubtitle}>Espace professionnel</Text>
         </View>
         <View style={styles.loginForm}>
           <Text style={styles.label}>Adresse email</Text>
           <TextInput style={styles.input} placeholder="Entrez votre email" placeholderTextColor={COLORS.textLight} keyboardType="email-address" />
           <Text style={styles.label}>Mot de passe</Text>
           <TextInput style={styles.input} placeholder="Votre mot de passe" placeholderTextColor={COLORS.textLight} secureTextEntry />
+          <Text style={styles.apiHint}>API: {API_BASE_URL}</Text>
+          {loginError ? <Text style={styles.errorText}>{loginError}</Text> : null}
           <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
             <Text style={styles.primaryButtonText}>Se connecter</Text>
           </TouchableOpacity>
@@ -72,17 +95,17 @@ export default function App() {
 
       <Text style={styles.sectionTitle}>Vue d'ensemble</Text>
       <View style={styles.statsGrid}>
-        <View style={styles.statCard}><Text style={styles.statIcon}>👥</Text><Text style={styles.statValue}>{SimData.agents.length}</Text><Text style={styles.statLabel}>Agents</Text></View>
-        <View style={styles.statCard}><Text style={styles.statIcon}>💰</Text><Text style={styles.statValue}>{SimData.remboursements.filter(r=>r.statut==='En attente').length}</Text><Text style={styles.statLabel}>À traiter</Text></View>
-        <View style={styles.statCard}><Text style={styles.statIcon}>📋</Text><Text style={styles.statValue}>{SimData.ordonnances.length}</Text><Text style={styles.statLabel}>Ordonnances</Text></View>
-        <View style={styles.statCard}><Text style={styles.statIcon}>🏥</Text><Text style={styles.statValue}>{SimData.etablissements.length}</Text><Text style={styles.statLabel}>Centres</Text></View>
+        <View style={styles.statCard}><FontAwesome5 name="users" size={26} color={COLORS.primary} solid style={styles.statIconFa} /><Text style={styles.statValue}>{SimData.agents.length}</Text><Text style={styles.statLabel}>Agents</Text></View>
+        <View style={styles.statCard}><FontAwesome5 name="money-bill-wave" size={26} color={COLORS.primary} solid style={styles.statIconFa} /><Text style={styles.statValue}>{SimData.remboursements.filter(r=>r.statut==='En attente').length}</Text><Text style={styles.statLabel}>À traiter</Text></View>
+        <View style={styles.statCard}><FontAwesome5 name="clipboard-list" size={26} color={COLORS.primary} solid style={styles.statIconFa} /><Text style={styles.statValue}>{SimData.ordonnances.length}</Text><Text style={styles.statLabel}>Ordonnances</Text></View>
+        <View style={styles.statCard}><FontAwesome5 name="hospital" size={26} color={COLORS.primary} solid style={styles.statIconFa} /><Text style={styles.statValue}>{SimData.etablissements.length}</Text><Text style={styles.statLabel}>Centres</Text></View>
       </View>
 
       <Text style={styles.sectionTitle}>Dernières demandes</Text>
       {SimData.remboursements.slice(0, 3).map((r) => (
         <View key={r.id} style={styles.listItem}>
           <View style={styles.listItemLeft}>
-            <View style={[styles.iconBox, {backgroundColor: COLORS.primary + '20'}]}><Text>📄</Text></View>
+            <View style={[styles.iconBox, {backgroundColor: COLORS.primary + '20'}]}><FontAwesome5 name="file-alt" size={20} color={COLORS.primary} solid /></View>
             <View>
               <Text style={styles.itemTitle}>{r.montantDemande} DH</Text>
               <Text style={styles.itemSub}>{r.dateDemande} • {r.beneficiaire}</Text>
@@ -104,7 +127,7 @@ export default function App() {
         {MENU_ITEMS.map(item => (
           <TouchableOpacity key={item.id} style={styles.gridItem} onPress={() => setTab(item.id)}>
             <View style={[styles.gridIconBox, { backgroundColor: item.color + '15' }]}>
-              <Text style={styles.gridIcon}>{item.icon}</Text>
+              <FontAwesome5 name={item.fa} size={22} color={item.color} solid />
             </View>
             <Text style={styles.gridItemText}>{item.title}</Text>
           </TouchableOpacity>
@@ -127,15 +150,19 @@ export default function App() {
     const data = SimData[type] || [];
     const menuItem = MENU_ITEMS.find(m => m.id === type);
     const title = menuItem?.title || type;
-    const icon = menuItem?.icon || '📄';
+    const faName = menuItem?.fa || 'file-alt';
 
     return (
       <View style={styles.page}>
         <View style={styles.listHeader}>
-           <TouchableOpacity onPress={() => setTab('menu')} style={styles.backBtn}>
-             <Text style={styles.backBtnText}>← Retour</Text>
+           <TouchableOpacity onPress={() => setTab('menu')} style={styles.backBtnRow}>
+             <FontAwesome5 name="chevron-left" size={14} color={COLORS.primary} solid />
+             <Text style={styles.backBtnText}>Retour</Text>
            </TouchableOpacity>
-           <Text style={styles.pageTitleSmall}>{icon} {title}</Text>
+           <View style={styles.pageTitleRow}>
+             <FontAwesome5 name={faName} size={20} color={COLORS.text} solid />
+             <Text style={styles.pageTitleSmall}>{title}</Text>
+           </View>
         </View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 80}}>
           {data.length === 0 && <Text style={{textAlign:'center', marginTop:40, color: COLORS.textLight}}>Aucune donnée trouvée.</Text>}
@@ -184,35 +211,45 @@ export default function App() {
         <Text style={styles.profileRole}>{user.role}</Text>
       </View>
       <View style={styles.profileOptions}>
-        <TouchableOpacity style={styles.optionItem}><Text style={styles.optionIcon}>⚙️</Text><Text style={styles.optionText}>Paramètres</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.optionItem}><Text style={styles.optionIcon}>🔔</Text><Text style={styles.optionText}>Notifications</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.optionItem} onPress={logout}><Text style={styles.optionIcon}>🚪</Text><Text style={[styles.optionText, { color: COLORS.danger }]}>Déconnexion</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.optionItem}><FontAwesome5 name="cog" size={18} color={COLORS.text} solid style={styles.optionFa} /><Text style={styles.optionText}>Paramètres</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.optionItem}><FontAwesome5 name="bell" size={18} color={COLORS.text} solid style={styles.optionFa} /><Text style={styles.optionText}>Notifications</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.optionItem} onPress={logout}><FontAwesome5 name="sign-out-alt" size={18} color={COLORS.danger} solid style={styles.optionFa} /><Text style={[styles.optionText, { color: COLORS.danger }]}>Déconnexion</Text></TouchableOpacity>
       </View>
     </View>
   );
 
   const renderContent = () => {
-    if(tab === 'home') return renderHome();
-    if(tab === 'menu') return renderMenu();
-    if(tab === 'profile') return renderProfile();
+    if (tab === 'home') return renderHome();
+    if (tab === 'menu') return renderMenu();
+    if (tab === 'profile') return renderProfile();
     return renderGenericList(tab);
   };
+
+  const isMenuTabActive = tab === 'menu' || MENU_ITEMS.some((m) => m.id === tab);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
       <View style={styles.main}>{renderContent()}</View>
+      <TouchableOpacity style={styles.chatFab} onPress={() => setChatOpen(true)} accessibilityLabel="Ouvrir l’assistant SRM">
+        <FontAwesome5 name="comment-dots" size={22} color="#fff" solid />
+      </TouchableOpacity>
+      {chatOpen ? (
+        <View style={styles.chatOverlay}>
+          <ChatbotScreen onBack={() => setChatOpen(false)} userName={user.name} />
+        </View>
+      ) : null}
       <View style={styles.tabBar}>
         <TouchableOpacity style={styles.tab} onPress={() => setTab('home')}>
-          <Text style={[styles.tabIcon, tab === 'home' && styles.tabActive]}>🏠</Text>
+          <FontAwesome5 name="home" size={22} color={tab === 'home' ? COLORS.primary : COLORS.textLight} solid />
           <Text style={[styles.tabLabel, tab === 'home' && styles.tabActive]}>Accueil</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tab} onPress={() => setTab('menu')}>
-          <Text style={[styles.tabIcon, (tab !== 'home' && tab !== 'profile') && styles.tabActive]}>🗂️</Text>
-          <Text style={[styles.tabLabel, (tab !== 'home' && tab !== 'profile') && styles.tabActive]}>Menu</Text>
+          <FontAwesome5 name="th-large" size={20} color={isMenuTabActive ? COLORS.primary : COLORS.textLight} solid />
+          <Text style={[styles.tabLabel, isMenuTabActive && styles.tabActive]}>Menu</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tab} onPress={() => setTab('profile')}>
-          <Text style={[styles.tabIcon, tab === 'profile' && styles.tabActive]}>👤</Text>
+          <FontAwesome5 name="user" size={22} color={tab === 'profile' ? COLORS.primary : COLORS.textLight} solid />
           <Text style={[styles.tabLabel, tab === 'profile' && styles.tabActive]}>Profil</Text>
         </TouchableOpacity>
       </View>
@@ -227,12 +264,18 @@ const styles = StyleSheet.create({
   
   // Login
   loginContainer: { flex: 1, backgroundColor: COLORS.primary },
-  loginHeader: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 },
-  loginTitle: { fontSize: 36, fontWeight: 'bold', color: 'white', marginBottom: 10 },
-  loginSubtitle: { fontSize: 18, color: 'rgba(255,255,255,0.8)' },
+  loginHeader: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60, paddingHorizontal: 24 },
+  loginBrandImg: {
+    width: Math.min(width * 0.88, 320),
+    height: 120,
+    marginBottom: 16,
+  },
+  loginSubtitle: { fontSize: 18, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
   loginForm: { backgroundColor: COLORS.surface, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 30, paddingTop: 40, shadowColor: '#000', shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 10 },
   label: { fontSize: 14, fontWeight: '600', color: COLORS.text, marginBottom: 8 },
   input: { backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.text, marginBottom: 20 },
+  apiHint: { fontSize: 12, color: COLORS.textLight, marginBottom: 8 },
+  errorText: { color: COLORS.danger, marginBottom: 10, fontSize: 13 },
   primaryButton: { backgroundColor: COLORS.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 10, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   primaryButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
 
@@ -245,7 +288,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 16, marginTop: 10 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 20 },
   statCard: { width: (width - 60) / 2, backgroundColor: COLORS.surface, borderRadius: 20, padding: 20, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  statIcon: { fontSize: 28, marginBottom: 12 },
+  statIconFa: { marginBottom: 12 },
   statValue: { fontSize: 24, fontWeight: 'bold', color: COLORS.text, marginBottom: 4 },
   statLabel: { fontSize: 14, color: COLORS.textLight },
 
@@ -269,14 +312,14 @@ const styles = StyleSheet.create({
   gridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   gridItem: { width: (width - 60) / 3, backgroundColor: COLORS.surface, borderRadius: 20, padding: 16, alignItems: 'center', marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   gridIconBox: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  gridIcon: { fontSize: 24 },
   gridItemText: { fontSize: 12, color: COLORS.text, fontWeight: '600', textAlign: 'center' },
 
   // Generic List Screen
-  listHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, marginTop: 10 },
-  backBtn: { marginRight: 16, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: COLORS.surface, borderRadius: 10 },
-  backBtnText: { color: COLORS.primary, fontWeight: '600' },
-  pageTitleSmall: { fontSize: 20, fontWeight: 'bold', color: COLORS.text },
+  listHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, marginTop: 10, flexWrap: 'wrap', gap: 8 },
+  backBtnRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: 12, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: COLORS.surface, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border },
+  backBtnText: { color: COLORS.primary, fontWeight: '600', fontSize: 15 },
+  pageTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 120 },
+  pageTitleSmall: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, flex: 1 },
   card: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.text, marginBottom: 4 },
@@ -295,13 +338,38 @@ const styles = StyleSheet.create({
   profileRole: { fontSize: 16, color: COLORS.textLight },
   profileOptions: { backgroundColor: COLORS.surface, borderRadius: 20, padding: 10, marginTop: 20 },
   optionItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  optionIcon: { fontSize: 20, marginRight: 16 },
+  optionFa: { width: 28, marginRight: 12 },
   optionText: { fontSize: 16, color: COLORS.text, fontWeight: '500' },
 
   // TabBar
   tabBar: { flexDirection: 'row', backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border, paddingBottom: Platform.OS === 'ios' ? 20 : 10, paddingTop: 10 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tabIcon: { fontSize: 24, color: COLORS.textLight, marginBottom: 4 },
-  tabLabel: { fontSize: 12, color: COLORS.textLight, fontWeight: '500' },
+  tabLabel: { fontSize: 12, color: COLORS.textLight, fontWeight: '500', marginTop: 4 },
   tabActive: { color: COLORS.primary },
+  chatFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: Platform.OS === 'ios' ? 92 : 84,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 9,
+  },
+  chatOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: COLORS.background,
+    zIndex: 12,
+  },
 });

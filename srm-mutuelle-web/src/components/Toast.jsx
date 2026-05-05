@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
+import FaIcon from './FaIcon';
 
 export default function Toast({ toasts, removeToast }) {
   return (
@@ -6,10 +7,10 @@ export default function Toast({ toasts, removeToast }) {
       {toasts.map(t => (
         <div key={t.id} className={`toast ${t.type}`}>
           <span className="toast-icon">
-            {t.type === 'success' ? '✅' : t.type === 'error' ? '❌' : t.type === 'warning' ? '⚠️' : 'ℹ️'}
+            {t.type === 'success' ? <FaIcon name="circle-check" /> : t.type === 'error' ? <FaIcon name="circle-xmark" /> : t.type === 'warning' ? <FaIcon name="triangle-exclamation" /> : <FaIcon name="circle-info" />}
           </span>
           <span className="toast-msg">{t.message}</span>
-          <button className="toast-close" onClick={() => removeToast(t.id)}>✕</button>
+          <button type="button" className="toast-close" onClick={() => removeToast(t.id)} aria-label="Fermer"><FaIcon name="xmark" /></button>
         </div>
       ))}
     </div>

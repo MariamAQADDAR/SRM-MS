@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import FaIcon from './FaIcon';
 
 const users = {
   admin: { email: 'admin@srm-ms.ma', password: 'admin123', name: 'AQADDAR Marieme', role: 'Administrateur' },
@@ -48,9 +49,12 @@ export default function Login() {
     <div className="login-wrapper">
       <div className="login-card">
         <div className="login-logo">
-          <div className="logo-icon">🏥</div>
-          <h1>SRM — Mutuelle</h1>
-          <p>Gestion de la Mutuelle — Marrakech-Safi</p>
+          <img
+            src="/srm-brand-logo.png"
+            alt="SRM-MS — Société Régionale Multiservices Marrakech-Safi"
+            className="login-brand-img"
+          />
+          <p className="login-tagline">Espace professionnel</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit} autoComplete="off">
@@ -65,7 +69,7 @@ export default function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 required 
               />
-              <span className="input-icon">📧</span>
+              <span className="input-icon"><FaIcon name="envelope" /></span>
             </div>
           </div>
 
@@ -80,7 +84,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 required 
               />
-              <span className="input-icon">🔒</span>
+              <span className="input-icon"><FaIcon name="lock" /></span>
             </div>
           </div>
 
@@ -93,7 +97,7 @@ export default function Login() {
                 <option value="operateur">Opérateur</option>
                 <option value="consultateur">Consultateur</option>
               </select>
-              <span className="input-icon">👤</span>
+              <span className="input-icon"><FaIcon name="user" /></span>
             </div>
           </div>
 

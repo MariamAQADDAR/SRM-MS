@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SimData from '../data';
+import FaIcon from './FaIcon';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -28,7 +29,7 @@ export default function Dashboard() {
       {/* Sidebar */}
       <div className="sidebar">
         <div className="sidebar-header">
-          <div className="s-logo">🏥</div>
+          <div className="s-logo"><FaIcon name="hospital" /></div>
           <div className="s-info">
             <h2>SRM Mutuelle</h2>
             <span>Portail Web</span>
@@ -38,29 +39,29 @@ export default function Dashboard() {
           <div className="nav-section">
             <div className="nav-section-title">Principal</div>
             <div className="nav-item active">
-              <span className="nav-icon">📊</span>
+              <span className="nav-icon"><FaIcon name="chart-line" /></span>
               <span>Tableau de bord</span>
             </div>
           </div>
           <div className="nav-section">
             <div className="nav-section-title">Gestion</div>
             <div className="nav-item">
-              <span className="nav-icon">👥</span>
+              <span className="nav-icon"><FaIcon name="users" /></span>
               <span>Bénéficiaires</span>
               <span className="nav-badge">{SimData.agents.length}</span>
             </div>
             <div className="nav-item">
-              <span className="nav-icon">📋</span>
+              <span className="nav-icon"><FaIcon name="clipboard-list" /></span>
               <span>Ordonnances</span>
               <span className="nav-badge">{SimData.ordonnances.length}</span>
             </div>
             <div className="nav-item">
-              <span className="nav-icon">💰</span>
+              <span className="nav-icon"><FaIcon name="money-bill-wave" /></span>
               <span>Remboursements</span>
               <span className="nav-badge">{enAttente}</span>
             </div>
             <div className="nav-item">
-              <span className="nav-icon">🏥</span>
+              <span className="nav-icon"><FaIcon name="hospital" /></span>
               <span>Prises en charge</span>
             </div>
           </div>
@@ -75,7 +76,7 @@ export default function Dashboard() {
               <div className="user-name">{user.name}</div>
               <div className="user-role">{user.role}</div>
             </div>
-            <span className="logout-icon" title="Déconnexion">🚪</span>
+            <span className="logout-icon" title="Déconnexion"><FaIcon name="right-from-bracket" /></span>
           </div>
         </div>
       </div>
@@ -91,11 +92,11 @@ export default function Dashboard() {
           </div>
           <div className="topbar-right">
             <div className="topbar-search">
-              <span className="search-icon">🔍</span>
+              <span className="search-icon"><FaIcon name="magnifying-glass" /></span>
               <input type="text" placeholder="Rechercher..." />
             </div>
             <div className="topbar-btn">
-              🔔<span className="notif-dot"></span>
+              <FaIcon name="bell" /><span className="notif-dot"></span>
             </div>
           </div>
         </div>
@@ -103,7 +104,7 @@ export default function Dashboard() {
         <div className="page-content">
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-icon blue">👥</div>
+              <div className="stat-icon blue"><FaIcon name="users" /></div>
               <div className="stat-info">
                 <h4>Bénéficiaires</h4>
                 <div className="stat-value">{totalAgents + SimData.proches.length}</div>
@@ -111,7 +112,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon green">📋</div>
+              <div className="stat-icon green"><FaIcon name="clipboard-list" /></div>
               <div className="stat-info">
                 <h4>Ordonnances</h4>
                 <div className="stat-value">{totalOrdonnances}</div>
@@ -119,7 +120,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon orange">💰</div>
+              <div className="stat-icon orange"><FaIcon name="money-bill-wave" /></div>
               <div className="stat-info">
                 <h4>Remboursements traités</h4>
                 <div className="stat-value">{totalMontant.toLocaleString('fr-FR')} <small style={{fontSize:'14px'}}>DH</small></div>
@@ -127,7 +128,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon red">⏳</div>
+              <div className="stat-icon red"><FaIcon name="hourglass-half" /></div>
               <div className="stat-info">
                 <h4>En attente</h4>
                 <div className="stat-value">{enAttente}</div>
@@ -138,7 +139,7 @@ export default function Dashboard() {
 
           <div className="card mt-3">
             <div className="card-header">
-              <h3>🕐 Dernières activités</h3>
+              <h3><FaIcon name="clock-rotate-left" className="fa-inline-icon" /> Dernières activités</h3>
               <button className="btn btn-outline btn-sm">Voir tout</button>
             </div>
             <div className="card-body" style={{padding:0}}>

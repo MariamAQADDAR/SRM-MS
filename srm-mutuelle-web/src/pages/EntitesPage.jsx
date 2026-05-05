@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SimData from '../data';
 import Modal from '../components/Modal';
+import FaIcon from '../components/FaIcon';
 
 export default function EntitesPage({ setPageTitle, addToast, user }) {
   setPageTitle('Entités organisationnelles','Référentiel');
@@ -21,7 +22,7 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
       </div>
       <div className="modal-footer" style={{padding:'16px 0 0'}}>
         <button type="button" className="btn btn-outline" onClick={()=>setModal(null)}>Annuler</button>
-        <button type="submit" className="btn btn-primary">💾 Enregistrer</button>
+        <button type="submit" className="btn btn-primary"><FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer</button>
       </div>
     </form>
   );
@@ -30,9 +31,9 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
     <>
       {modal && <Modal title={modal.title} onClose={()=>setModal(null)}>{modal.content}</Modal>}
       <div className="toolbar">
-        <div className="toolbar-left"><h4 style={{color:'var(--gray-700)'}}>🏛️ {SimData.entites.length} entités organisationnelles</h4></div>
+        <div className="toolbar-left"><h4 style={{color:'var(--gray-700)'}}><FaIcon name="landmark" className="fa-inline-icon" /> {SimData.entites.length} entités organisationnelles</h4></div>
         <div className="toolbar-right">
-          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouvelle entité',content:form})}>➕ Nouvelle entité</button>}
+          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouvelle entité',content:form})}><FaIcon name="plus" className="fa-inline-icon" /> Nouvelle entité</button>}
         </div>
       </div>
       <div className="card">
@@ -48,8 +49,8 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
                     <td><span className={`badge ${typeColors[e.type]||'badge-info'}`}>{e.type}</span></td>
                     <td style={{color:'var(--gray-500)'}}>{e.parent}</td>
                     <td className="actions-cell">
-                      <button className="btn btn-icon btn-view">👁️</button>
-                      {!isConsult && <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:`Modifier: ${e.nom}`,content:form})}>✏️</button>}
+                      <button className="btn btn-icon btn-view"><FaIcon name="eye" /></button>
+                      {!isConsult && <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:`Modifier: ${e.nom}`,content:form})}><FaIcon name="pen-to-square" /></button>}
                     </td>
                   </tr>
                 ))}

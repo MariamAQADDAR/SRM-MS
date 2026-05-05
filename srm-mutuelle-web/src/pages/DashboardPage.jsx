@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import SimData from '../data';
+import FaIcon from '../components/FaIcon';
 
 function statusBadge(statut) {
   const map = {
@@ -31,7 +32,7 @@ export default function DashboardPage({ setPageTitle, addToast }) {
     <>
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon blue">👥</div>
+          <div className="stat-icon blue"><FaIcon name="users" /></div>
           <div className="stat-info">
             <h4>Bénéficiaires</h4>
             <div className="stat-value">{totalAgents + SimData.proches.length}</div>
@@ -39,7 +40,7 @@ export default function DashboardPage({ setPageTitle, addToast }) {
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon green">📋</div>
+          <div className="stat-icon green"><FaIcon name="clipboard-list" /></div>
           <div className="stat-info">
             <h4>Ordonnances</h4>
             <div className="stat-value">{totalOrdonnances}</div>
@@ -47,7 +48,7 @@ export default function DashboardPage({ setPageTitle, addToast }) {
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon orange">💰</div>
+          <div className="stat-icon orange"><FaIcon name="money-bill-wave" /></div>
           <div className="stat-info">
             <h4>Remboursements traités</h4>
             <div className="stat-value">{totalMontant.toLocaleString('fr-FR')} <small style={{fontSize:'14px'}}>DH</small></div>
@@ -55,7 +56,7 @@ export default function DashboardPage({ setPageTitle, addToast }) {
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon red">⏳</div>
+          <div className="stat-icon red"><FaIcon name="hourglass-half" /></div>
           <div className="stat-info">
             <h4>En attente</h4>
             <div className="stat-value">{enAttente}</div>
@@ -66,7 +67,7 @@ export default function DashboardPage({ setPageTitle, addToast }) {
 
       <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'20px',marginBottom:'20px'}}>
         <div className="card">
-          <div className="card-header"><h3>📈 Coûts mensuels (DH)</h3></div>
+          <div className="card-header"><h3><FaIcon name="chart-line" className="fa-inline-icon" /> Coûts mensuels (DH)</h3></div>
           <div className="card-body">
             <div className="chart-container">
               {data.map((d, i) => (
@@ -79,7 +80,7 @@ export default function DashboardPage({ setPageTitle, addToast }) {
           </div>
         </div>
         <div className="card">
-          <div className="card-header"><h3>📊 Répartition par type</h3></div>
+          <div className="card-header"><h3><FaIcon name="chart-pie" className="fa-inline-icon" /> Répartition par type</h3></div>
           <div className="card-body">
             {[
               {label:'Médicaments', pct:42, color:'var(--primary-500)'},
@@ -107,7 +108,7 @@ export default function DashboardPage({ setPageTitle, addToast }) {
 
       <div className="card">
         <div className="card-header">
-          <h3>🕐 Dernières activités</h3>
+          <h3><FaIcon name="clock-rotate-left" className="fa-inline-icon" /> Dernières activités</h3>
           <button className="btn btn-outline btn-sm">Voir tout</button>
         </div>
         <div className="card-body" style={{padding:0}}>

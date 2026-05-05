@@ -12,6 +12,8 @@ import MaladiesPage from '../pages/MaladiesPage';
 import EtablissementsPage from '../pages/EtablissementsPage';
 import EntitesPage from '../pages/EntitesPage';
 import UtilisateursPage from '../pages/UtilisateursPage';
+import ChatbotWidget from './ChatbotWidget';
+import FaIcon from './FaIcon';
 
 export default function AppShell() {
   const navigate = useNavigate();
@@ -72,7 +74,7 @@ export default function AppShell() {
       default:
         return (
           <div className="empty-state">
-            <div className="empty-icon">🚧</div>
+            <div className="empty-icon"><FaIcon name="triangle-exclamation" /></div>
             <h4>Page en construction</h4>
           </div>
         );
@@ -95,7 +97,7 @@ export default function AppShell() {
           </div>
           <div className="topbar-right">
             <div className="topbar-search">
-              <span className="search-icon">🔍</span>
+              <span className="search-icon"><FaIcon name="magnifying-glass" /></span>
               <input
                 type="text"
                 placeholder="Rechercher..."
@@ -104,10 +106,10 @@ export default function AppShell() {
               />
             </div>
             <div className="topbar-btn" onClick={() => addToast('info', 'Aucune nouvelle notification.')}>
-              🔔<span className="notif-dot"></span>
+              <FaIcon name="bell" /><span className="notif-dot"></span>
             </div>
             <div className="topbar-btn" title={`Connecté: ${user.role}`}>
-              👤
+              <FaIcon name="user" />
             </div>
           </div>
         </div>
@@ -115,6 +117,7 @@ export default function AppShell() {
           {renderPage()}
         </div>
       </Layout>
+      <ChatbotWidget />
       <Toast toasts={toasts} removeToast={removeToast} />
     </>
   );

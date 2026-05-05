@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SimData from '../data';
 import Modal from '../components/Modal';
+import FaIcon from '../components/FaIcon';
 
 export default function EtablissementsPage({ setPageTitle, addToast, user }) {
   setPageTitle('Établissements médicaux','Référentiel');
@@ -22,12 +23,12 @@ export default function EtablissementsPage({ setPageTitle, addToast, user }) {
       </div>
       <div className="modal-footer" style={{padding:'16px 0 0'}}>
         <button type="button" className="btn btn-outline" onClick={()=>setModal(null)}>Annuler</button>
-        <button type="submit" className="btn btn-primary">💾 Enregistrer</button>
+        <button type="submit" className="btn btn-primary"><FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer</button>
       </div>
     </form>
   );
 
-  const typeIcon = {Hôpital:'🏥',Clinique:'🏢',Opticien:'👓',Laboratoire:'🔬'};
+  const typeFa = { Hôpital: 'hospital', Clinique: 'building', Opticien: 'glasses', Laboratoire: 'flask' };
   const typeBadgeClass = {Hôpital:'badge-danger',Clinique:'badge-primary',Opticien:'badge-info',Laboratoire:'badge-success'};
 
   return (
@@ -42,19 +43,19 @@ export default function EtablissementsPage({ setPageTitle, addToast, user }) {
           </div>
         </div>
         <div className="toolbar-right">
-          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouvel établissement',content:form})}>➕ Nouvel établissement</button>}
+          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouvel établissement',content:form})}><FaIcon name="plus" className="fa-inline-icon" /> Nouvel établissement</button>}
         </div>
       </div>
       <div className="detail-grid">
         {data.map(e=>(
           <div className="card" key={e.id} style={{overflow:'hidden'}}>
             <div className="card-header" style={{background:'linear-gradient(135deg, var(--primary-50), var(--gray-50))'}}>
-              <h3 style={{fontSize:'15px'}}>{typeIcon[e.type]||'🏢'} {e.nom}</h3>
+              <h3 style={{fontSize:'15px',display:'flex',alignItems:'center',gap:'8px'}}><FaIcon name={typeFa[e.type]||'building'} /> {e.nom}</h3>
               <span className={`badge ${typeBadgeClass[e.type]||'badge-info'}`}>{e.type}</span>
             </div>
             <div className="card-body">
-              <p style={{fontSize:'13px',color:'var(--gray-600)',marginBottom:'8px'}}>📍 {e.adresse}</p>
-              <p style={{fontSize:'13px',color:'var(--gray-600)',marginBottom:'12px'}}>📞 {e.telephone}</p>
+              <p style={{fontSize:'13px',color:'var(--gray-600)',marginBottom:'8px'}}><FaIcon name="location-dot" className="fa-inline-icon" />{e.adresse}</p>
+              <p style={{fontSize:'13px',color:'var(--gray-600)',marginBottom:'12px'}}><FaIcon name="phone" className="fa-inline-icon" />{e.telephone}</p>
               {e.medecins && e.medecins.length > 0 && (
                 <div>
                   <p style={{fontSize:'12px',fontWeight:'600',color:'var(--gray-500)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'0.05em'}}>Médecins</p>
@@ -65,7 +66,7 @@ export default function EtablissementsPage({ setPageTitle, addToast, user }) {
               )}
               {!isConsult && (
                 <div style={{marginTop:'16px',display:'flex',gap:'8px'}}>
-                  <button className="btn btn-outline btn-sm" onClick={()=>setModal({title:`Modifier: ${e.nom}`,content:form})}>✏️ Modifier</button>
+                  <button className="btn btn-outline btn-sm" onClick={()=>setModal({title:`Modifier: ${e.nom}`,content:form})}><FaIcon name="pen-to-square" className="fa-inline-icon" /> Modifier</button>
                 </div>
               )}
             </div>

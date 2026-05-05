@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SimData from '../data';
 import Modal from '../components/Modal';
+import FaIcon from '../components/FaIcon';
 
 function statusBadge(statut) {
   const map = {'Validé':'badge-success','En cours':'badge-primary','En attente':'badge-warning'};
@@ -23,7 +24,7 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
       </div>
       <div className="modal-footer" style={{padding:'16px 0 0'}}>
         <button type="button" className="btn btn-outline" onClick={()=>setModal(null)}>Annuler</button>
-        <button type="submit" className="btn btn-primary">💾 Enregistrer</button>
+        <button type="submit" className="btn btn-primary"><FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer</button>
       </div>
     </form>
   );
@@ -32,9 +33,9 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
     <>
       {modal && <Modal title={modal.title} onClose={()=>setModal(null)}>{modal.content}</Modal>}
       <div className="toolbar">
-        <div className="toolbar-left"><h4 style={{color:'var(--gray-700)'}}>🩺 {SimData.maladiesSpeciales.length} dossiers enregistrés</h4></div>
+        <div className="toolbar-left"><h4 style={{color:'var(--gray-700)'}}><FaIcon name="stethoscope" className="fa-inline-icon" /> {SimData.maladiesSpeciales.length} dossiers enregistrés</h4></div>
         <div className="toolbar-right">
-          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouveau dossier maladie spéciale',content:form})}>➕ Nouveau dossier</button>}
+          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouveau dossier maladie spéciale',content:form})}><FaIcon name="plus" className="fa-inline-icon" /> Nouveau dossier</button>}
         </div>
       </div>
       <div className="card">
@@ -51,8 +52,8 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
                     <td>{m.beneficiaire}</td>
                     <td>{statusBadge(m.statut)}</td>
                     <td className="actions-cell">
-                      <button className="btn btn-icon btn-view">👁️</button>
-                      {!isConsult && <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:'Modifier dossier',content:form})}>✏️</button>}
+                      <button className="btn btn-icon btn-view"><FaIcon name="eye" /></button>
+                      {!isConsult && <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:'Modifier dossier',content:form})}><FaIcon name="pen-to-square" /></button>}
                     </td>
                   </tr>
                 ))}

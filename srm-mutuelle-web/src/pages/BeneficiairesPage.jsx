@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SimData from '../data';
 import Modal from '../components/Modal';
+import FaIcon from '../components/FaIcon';
 
 function statusBadge(statut) {
   const map = {
@@ -41,7 +42,7 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
           </div>
           {proches.length > 0 && (
             <>
-              <h4 style={{margin:'20px 0 12px',fontSize:'15px',color:'var(--gray-700)'}}>👨‍👩‍👧 Proches ({proches.length})</h4>
+              <h4 style={{margin:'20px 0 12px',fontSize:'15px',color:'var(--gray-700)'}}><FaIcon name="user-group" className="fa-inline-icon" /> Proches ({proches.length})</h4>
               <table className="data-table" style={{fontSize:'13px'}}>
                 <thead><tr><th>Nom</th><th>Prénom</th><th>Type</th><th>Date naiss.</th></tr></thead>
                 <tbody>{proches.map(p=><tr key={p.id}><td>{p.nom}</td><td>{p.prenom}</td><td><span className="badge badge-info">{p.type}</span></td><td>{formatDate(p.dateNaissance)}</td></tr>)}</tbody>
@@ -68,7 +69,7 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
       </div>
       <div className="modal-footer" style={{padding:'16px 0 0'}}>
         <button type="button" className="btn btn-outline" onClick={()=>setModal(null)}>Annuler</button>
-        <button type="submit" className="btn btn-primary">💾 Enregistrer</button>
+        <button type="submit" className="btn btn-primary"><FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer</button>
       </div>
     </form>
   );
@@ -91,12 +92,12 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
           </div>
         </div>
         <div className="toolbar-right">
-          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Ajouter un agent',content:agentForm})}>➕ Nouvel agent</button>}
+          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Ajouter un agent',content:agentForm})}><FaIcon name="plus" className="fa-inline-icon" /> Nouvel agent</button>}
         </div>
       </div>
       <div className="tabs">
-        <div className={`tab-item${tab==='agents'?' active':''}`} onClick={()=>setTab('agents')}>👤 Agents</div>
-        <div className={`tab-item${tab==='proches'?' active':''}`} onClick={()=>setTab('proches')}>👨‍👩‍👧‍👦 Proches</div>
+        <div className={`tab-item${tab==='agents'?' active':''}`} onClick={()=>setTab('agents')}><FaIcon name="user" className="fa-inline-icon" /> Agents</div>
+        <div className={`tab-item${tab==='proches'?' active':''}`} onClick={()=>setTab('proches')}><FaIcon name="user-group" className="fa-inline-icon" /> Proches</div>
       </div>
       <div className="card">
         <div className="card-body" style={{padding:0}}>
@@ -111,8 +112,8 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
                       <td><span className={`badge ${a.situation.startsWith('Marié')?'badge-success':'badge-info'}`}>{a.situation}</span></td>
                       <td>{a.entite}</td>
                       <td className="actions-cell">
-                        <button className="btn btn-icon btn-view" title="Voir" onClick={()=>viewAgent(a)}>👁️</button>
-                        {!isConsult && <button className="btn btn-icon btn-edit" title="Modifier" onClick={()=>setModal({title:`Modifier: ${a.prenom} ${a.nom}`,content:agentForm})}>✏️</button>}
+                        <button className="btn btn-icon btn-view" title="Voir" onClick={()=>viewAgent(a)}><FaIcon name="eye" /></button>
+                        {!isConsult && <button className="btn btn-icon btn-edit" title="Modifier" onClick={()=>setModal({title:`Modifier: ${a.prenom} ${a.nom}`,content:agentForm})}><FaIcon name="pen-to-square" /></button>}
                       </td>
                     </tr>
                   ))}
@@ -131,8 +132,8 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
                         <td>{agent ? `${agent.prenom} ${agent.nom}` : '—'}</td>
                         <td>{formatDate(p.dateNaissance)}</td>
                         <td className="actions-cell">
-                          <button className="btn btn-icon btn-view" title="Voir">👁️</button>
-                          {!isConsult && <button className="btn btn-icon btn-edit" title="Modifier">✏️</button>}
+                          <button className="btn btn-icon btn-view" title="Voir"><FaIcon name="eye" /></button>
+                          {!isConsult && <button className="btn btn-icon btn-edit" title="Modifier"><FaIcon name="pen-to-square" /></button>}
                         </td>
                       </tr>
                     );

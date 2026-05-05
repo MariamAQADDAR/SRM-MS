@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SimData from '../data';
 import Modal from '../components/Modal';
+import FaIcon from '../components/FaIcon';
 
 function statusBadge(statut) {
   const map = {'Approuvé':'badge-success','En attente':'badge-warning','Rejeté':'badge-danger'};
@@ -32,7 +33,7 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
       </div>
       <div className="modal-footer" style={{padding:'16px 0 0'}}>
         <button type="button" className="btn btn-outline" onClick={()=>setModal(null)}>Annuler</button>
-        <button type="submit" className="btn btn-primary">💾 Enregistrer</button>
+        <button type="submit" className="btn btn-primary"><FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer</button>
       </div>
     </form>
   );
@@ -41,9 +42,9 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
     <>
       {modal && <Modal title={modal.title} onClose={()=>setModal(null)}>{modal.content}</Modal>}
       <div className="stats-grid" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
-        <div className="stat-card"><div className="stat-icon cyan">👓</div><div className="stat-info"><h4>Devis Optique</h4><div className="stat-value">{SimData.devis.filter(d=>d.type==='Optique').length}</div></div></div>
-        <div className="stat-card"><div className="stat-icon purple">🦷</div><div className="stat-info"><h4>Devis Dentaire</h4><div className="stat-value">{SimData.devis.filter(d=>d.type==='Dentaire').length}</div></div></div>
-        <div className="stat-card"><div className="stat-icon green">✅</div><div className="stat-info"><h4>Approuvés</h4><div className="stat-value">{SimData.devis.filter(d=>d.etat==='Approuvé').length}</div></div></div>
+        <div className="stat-card"><div className="stat-icon cyan"><FaIcon name="glasses" /></div><div className="stat-info"><h4>Devis Optique</h4><div className="stat-value">{SimData.devis.filter(d=>d.type==='Optique').length}</div></div></div>
+        <div className="stat-card"><div className="stat-icon purple"><FaIcon name="tooth" /></div><div className="stat-info"><h4>Devis Dentaire</h4><div className="stat-value">{SimData.devis.filter(d=>d.type==='Dentaire').length}</div></div></div>
+        <div className="stat-card"><div className="stat-icon green"><FaIcon name="circle-check" /></div><div className="stat-info"><h4>Approuvés</h4><div className="stat-value">{SimData.devis.filter(d=>d.etat==='Approuvé').length}</div></div></div>
       </div>
       <div className="toolbar">
         <div className="toolbar-left">
@@ -57,7 +58,7 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
           </div>
         </div>
         <div className="toolbar-right">
-          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouveau devis',content:form})}>➕ Nouveau devis</button>}
+          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouveau devis',content:form})}><FaIcon name="plus" className="fa-inline-icon" /> Nouveau devis</button>}
         </div>
       </div>
       <div className="card">
@@ -74,8 +75,8 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
                     <td>{d.montant.toLocaleString('fr-FR')} DH</td><td>{d.taux}%</td>
                     <td>{statusBadge(d.etat)}</td>
                     <td className="actions-cell">
-                      <button className="btn btn-icon btn-view">👁️</button>
-                      {!isConsult && <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:'Modifier devis',content:form})}>✏️</button>}
+                      <button className="btn btn-icon btn-view"><FaIcon name="eye" /></button>
+                      {!isConsult && <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:'Modifier devis',content:form})}><FaIcon name="pen-to-square" /></button>}
                     </td>
                   </tr>
                 ))}

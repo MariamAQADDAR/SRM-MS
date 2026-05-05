@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SimData from '../data';
 import Modal from '../components/Modal';
+import FaIcon from '../components/FaIcon';
 
 export default function UtilisateursPage({ setPageTitle, addToast, user }) {
   setPageTitle('Utilisateurs','Administration');
@@ -22,7 +23,7 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
       </div>
       <div className="modal-footer" style={{padding:'16px 0 0'}}>
         <button type="button" className="btn btn-outline" onClick={()=>setModal(null)}>Annuler</button>
-        <button type="submit" className="btn btn-primary">💾 Enregistrer</button>
+        <button type="submit" className="btn btn-primary"><FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer</button>
       </div>
     </form>
   );
@@ -31,14 +32,14 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
     <>
       {modal && <Modal title={modal.title} onClose={()=>setModal(null)}>{modal.content}</Modal>}
       <div className="stats-grid" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
-        <div className="stat-card"><div className="stat-icon red">🔐</div><div className="stat-info"><h4>Total utilisateurs</h4><div className="stat-value">{SimData.utilisateurs.length}</div></div></div>
-        <div className="stat-card"><div className="stat-icon green">✅</div><div className="stat-info"><h4>Actifs</h4><div className="stat-value">{SimData.utilisateurs.filter(u=>u.statut==='Actif').length}</div></div></div>
-        <div className="stat-card"><div className="stat-icon orange">⚠️</div><div className="stat-info"><h4>Inactifs</h4><div className="stat-value">{SimData.utilisateurs.filter(u=>u.statut==='Inactif').length}</div></div></div>
+        <div className="stat-card"><div className="stat-icon red"><FaIcon name="user-shield" /></div><div className="stat-info"><h4>Total utilisateurs</h4><div className="stat-value">{SimData.utilisateurs.length}</div></div></div>
+        <div className="stat-card"><div className="stat-icon green"><FaIcon name="circle-check" /></div><div className="stat-info"><h4>Actifs</h4><div className="stat-value">{SimData.utilisateurs.filter(u=>u.statut==='Actif').length}</div></div></div>
+        <div className="stat-card"><div className="stat-icon orange"><FaIcon name="triangle-exclamation" /></div><div className="stat-info"><h4>Inactifs</h4><div className="stat-value">{SimData.utilisateurs.filter(u=>u.statut==='Inactif').length}</div></div></div>
       </div>
       <div className="toolbar">
-        <div className="toolbar-left"><h4 style={{color:'var(--gray-700)'}}>🔐 Gestion des accès utilisateurs</h4></div>
+        <div className="toolbar-left"><h4 style={{color:'var(--gray-700)'}}><FaIcon name="user-shield" className="fa-inline-icon" /> Gestion des accès utilisateurs</h4></div>
         <div className="toolbar-right">
-          <button className="btn btn-primary" onClick={()=>setModal({title:'Nouvel utilisateur',content:form})}>➕ Nouvel utilisateur</button>
+          <button className="btn btn-primary" onClick={()=>setModal({title:'Nouvel utilisateur',content:form})}><FaIcon name="plus" className="fa-inline-icon" /> Nouvel utilisateur</button>
         </div>
       </div>
       <div className="card">
@@ -55,9 +56,9 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
                     <td><span className={`badge ${statutColors[u.statut]||'badge-info'}`}>{u.statut}</span></td>
                     <td style={{fontSize:'13px',color:'var(--gray-500)'}}>{u.dernierAcces}</td>
                     <td className="actions-cell">
-                      <button className="btn btn-icon btn-view">👁️</button>
-                      <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:`Modifier: ${u.nom}`,content:form})}>✏️</button>
-                      <button className="btn btn-icon btn-delete" title="Supprimer" onClick={()=>addToast('warning','Suppression désactivée en mode démo.')}>🗑️</button>
+                      <button className="btn btn-icon btn-view"><FaIcon name="eye" /></button>
+                      <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:`Modifier: ${u.nom}`,content:form})}><FaIcon name="pen-to-square" /></button>
+                      <button className="btn btn-icon btn-delete" title="Supprimer" onClick={()=>addToast('warning','Suppression désactivée en mode démo.')}><FaIcon name="trash" /></button>
                     </td>
                   </tr>
                 ))}
