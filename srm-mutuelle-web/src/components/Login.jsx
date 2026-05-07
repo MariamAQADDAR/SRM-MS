@@ -1,48 +1,45 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FaIcon from './FaIcon';
+import { apiLogin } from '../api/client';
 
-const users = {
-  admin: { email: 'admin@srm-ms.ma', password: 'admin123', name: 'AQADDAR Marieme', role: 'Administrateur' },
-  operateur: { email: 'operateur@srm-ms.ma', password: 'oper123', name: 'Youssef Benali', role: 'Opérateur' },
-  consultateur: { email: 'consult@srm-ms.ma', password: 'cons123', name: 'Fatima Zahrae', role: 'Consultateur' }
-};
+function sessionUserFromLoginResponse(data) {
+  const u = data.user || {};
+  return {
+    token: data.accessToken,
+    id: u.id ?? null,
+    email: u.email,
+    name: u.fullName,
+    role: u.roleLabel || u.role,
+    roleCode: u.role,
+    agentId: u.agentId ?? null,
+  };
+}
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleRoleChange = (e) => {
-    const selectedRole = e.target.value;
-    setRole(selectedRole);
-    if (users[selectedRole]) {
-      setEmail(users[selectedRole].email);
-      setPassword(users[selectedRole].password);
-    } else {
-      setEmail('');
-      setPassword('');
-    }
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!role) {
-      alert('Veuillez sélectionner un rôle.');
-      return;
-    }
-
+    setError('');
     setLoading(true);
-    setTimeout(() => {
-      const userData = users[role] || { name: email.split('@')[0], role: role };
-      userData.email = email;
-      userData.role = role === 'admin' ? 'Administrateur' : role === 'operateur' ? 'Opérateur' : 'Consultateur';
-      
-      sessionStorage.setItem('mutuelle_user', JSON.stringify(userData));
+    try {
+      const data = await apiLogin(email, password);
+      const payload = sessionUserFromLoginResponse(data);
+      if (!payload.token) {
+        throw new Error('Réponse serveur invalide');
+      }
+      sessionStorage.setItem('mutuelle_user', JSON.stringify(payload));
       navigate('/app');
-    }, 1200);
+    } catch (err) {
+      setError(err.message || 'Connexion impossible');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -57,17 +54,23 @@ export default function Login() {
           <p className="login-tagline">Espace professionnel</p>
         </div>
 
+        {error ? (
+          <div className="form-group" style={{ color: '#c0392b', fontSize: '0.9rem' }}>
+            {error}
+          </div>
+        ) : null}
+
         <form className="login-form" onSubmit={handleSubmit} autoComplete="off">
           <div className="form-group">
             <label htmlFor="loginEmail">Adresse email</label>
             <div className="input-wrapper">
-              <input 
-                type="email" 
-                id="loginEmail" 
-                placeholder="votre.email@srm-ms.ma" 
+              <input
+                type="email"
+                id="loginEmail"
+                placeholder="votre.email@srm-ms.ma"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required 
+                required
               />
               <span className="input-icon"><FaIcon name="envelope" /></span>
             </div>
@@ -76,28 +79,15 @@ export default function Login() {
           <div className="form-group">
             <label htmlFor="loginPassword">Mot de passe</label>
             <div className="input-wrapper">
-              <input 
-                type="password" 
-                id="loginPassword" 
-                placeholder="••••••••" 
+              <input
+                type="password"
+                id="loginPassword"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required 
+                required
               />
               <span className="input-icon"><FaIcon name="lock" /></span>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="loginRole">Se connecter en tant que</label>
-            <div className="input-wrapper">
-              <select id="loginRole" value={role} onChange={handleRoleChange} required>
-                <option value="">— Sélectionnez un rôle —</option>
-                <option value="admin">Administrateur</option>
-                <option value="operateur">Opérateur</option>
-                <option value="consultateur">Consultateur</option>
-              </select>
-              <span className="input-icon"><FaIcon name="user" /></span>
             </div>
           </div>
 
@@ -108,9 +98,12 @@ export default function Login() {
             <a href="#">Mot de passe oublié?</a>
           </div>
 
-          <button type="submit" className="btn-login" disabled={loading}>
+          <button type="submit" className="btn-login" disabled={!!loading}>
             {loading ? (
-              <span className="spinner" style={{width:'20px',height:'20px',borderWidth:'2px',margin:'0 auto'}}></span>
+              <span
+                className="spinner"
+                style={{ width: '20px', height: '20px', borderWidth: '2px', margin: '0 auto' }}
+              ></span>
             ) : (
               'Se connecter'
             )}

@@ -1,17 +1,47 @@
 # SRM-MS — Mutuelle Marrakech-Safi
 
-Monorepo : **API Spring Boot** (PostgreSQL), **application web** (React + Vite), **application mobile** (Expo / React Native).
+Monorepo : **API Spring Boot** (PostgreSQL, JWT, Flyway), **application web** (React + Vite), **application mobile** (Expo / React Native).
+
+Ce dépôt regroupe le travail suivant : **API REST complète**, **contrôle d’accès par rôles (RBAC)**, **notifications** (publications + boîte de réception), **intégration web dynamique** (remplacement des données statiques par l’API), **écrans alignés sur l’ancien système** (devis dentaire, remboursements, ordonnances analyse / ordonnance / radio), **page Paramétrage** pour les listes de « types » (plus de valeurs en dur dans le code), et **confirmations SweetAlert2** sur les actions sensibles.
+
+Pour un guide pas à pas en français, voir aussi **[`GUIDE_UTILISATION.txt`](GUIDE_UTILISATION.txt)**. La matrice des rôles et endpoints : **[`srm-mutuelle-backend/docs/RBAC_MATRIX.md`](srm-mutuelle-backend/docs/RBAC_MATRIX.md)**.
+
+---
+
+## Fonctionnalités principales
+
+| Domaine | Contenu |
+|--------|---------|
+| **Authentification** | JWT, profil `/api/auth/me`, changement de mot de passe |
+| **RBAC** | Rôles hiérarchiques (`@PreAuthorize`, filtrage menu côté web) |
+| **Référentiels** | Utilisateurs, agents, bénéficiaires, entités, établissements, maladies spéciales, PEC, etc. |
+| **Métier** | Devis, remboursements, ordonnances, cartes mutuelle, statistiques |
+| **Notifications** | Centre de publication (brouillon → publier), inbox utilisateur |
+| **Paramétrage** | Listes configurables (types devis, ordonnance, radio, soin, établissement, entité, maladie) stockées côté navigateur |
+| **UX** | SweetAlert2 pour les confirmations critiques (ex. suppression utilisateur, publication) |
+
+**Note — champs « legacy »** : certaines colonnes ajoutées pour coller aux anciens écrans (dates, scans, observations, etc.) sont **persistées dans le `localStorage` du navigateur** jusqu’à migration éventuelle en base ; le reste du métier passe par l’API et PostgreSQL.
+
+---
+
+## Stack technique
+
+- **Backend** : Java 17, Spring Boot, Spring Security, JPA, Flyway (migrations + jeux de données), PostgreSQL  
+- **Frontend** : React, Vite, client API dédié, SweetAlert2  
+- **Mobile** : Expo / React Native (optionnel)
+
+---
 
 ## Prérequis
 
 | Outil | Version recommandée |
 |--------|---------------------|
-| [Node.js](https://nodejs.org/) | **20 LTS** ou **22.12+** (pour éviter les avertissements ESLint / Vite) |
+| [Node.js](https://nodejs.org/) | **20 LTS** ou **22.12+** |
 | [Java](https://adoptium.net/) | **17** |
-| [PostgreSQL](https://www.postgresql.org/download/) | 14+ |
+| [PostgreSQL](https://www.postgresql.org/download/) | **14+** (PG **16** : dépendance Flyway `flyway-database-postgresql` incluse dans le `pom.xml`) |
 | [Git](https://git-scm.com/) | récent |
 
-**Mobile (optionnel)** : [Expo Go](https://expo.dev/go) sur le téléphone, même réseau Wi‑Fi que le PC pour le mode `--lan`.
+**Mobile (optionnel)** : [Expo Go](https://expo.dev/go), même réseau Wi‑Fi que le PC pour `npx expo start --lan`.
 
 ---
 
@@ -28,41 +58,40 @@ cd SRM-MS
 
 Créer une base et un utilisateur (adapter nom et mot de passe).
 
-Exemple avec une base nommée `srm_mutuelle` (sans tiret, plus simple en SQL) :
+Exemple :
 
 ```sql
 CREATE DATABASE srm_mutuelle;
--- ou, si vous utilisez un nom avec tiret :
+-- ou, avec tiret dans le nom :
 -- CREATE DATABASE "SRM-MS";
 
 CREATE USER srm_user WITH PASSWORD 'votre_mot_de_passe';
 GRANT ALL PRIVILEGES ON DATABASE srm_mutuelle TO srm_user;
--- Pour PostgreSQL 15+ : donner les droits sur le schéma public si besoin
 \c srm_mutuelle
 GRANT ALL ON SCHEMA public TO srm_user;
 ```
 
-Noter l’URL JDBC : `jdbc:postgresql://localhost:5432/nom_de_la_base`.
+URL JDBC typique : `jdbc:postgresql://localhost:5432/nom_de_la_base`.
 
 ---
 
 ## 2. Backend (Spring Boot)
 
-Répertoire : `srm-mutuelle-backend/`
+Répertoire : **`srm-mutuelle-backend/`**
 
-### Fichier `.env` — rôle et sécurité
+### Fichier `.env` (obligatoire en pratique)
 
-- Le backend lit la **base PostgreSQL** et le **port** via des variables d’environnement, alignées sur `application.properties`.
-- Le fichier **`.env`** contient des **secrets** (mot de passe DB). Il est **exclu de Git** (`.gitignore`). Seul **`.env.example`** est versionné, comme modèle sans mot de passe réel sensible.
-- **Ne jamais** pousser `.env` sur GitHub. Chaque développeur / serveur copie `.env.example` → `.env` puis adapte les valeurs.
+- Les secrets et l’URL DB ne doivent **pas** être commités : **`.env` est dans `.gitignore`**.
+- Modèle sans secrets sensibles versionné : **`.env.example`** — à copier vers **`.env`**.
+- Le fichier `application.properties` importe optionnellement `.env` :  
+  `spring.config.import=optional:file:.env[.properties]`
 
-### Créer votre `.env`
+**Windows (PowerShell)** :
 
-**Windows (cmd)** :
-
-```bat
+```powershell
 cd srm-mutuelle-backend
-copy .env.example .env
+Copy-Item .env.example .env
+# Éditer .env : DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET (≥ 32 caractères), CORS_ALLOWED_ORIGINS
 ```
 
 **Linux / macOS** :
@@ -72,83 +101,53 @@ cd srm-mutuelle-backend
 cp .env.example .env
 ```
 
-Ouvrir `.env` dans un éditeur et remplacer au minimum **`DB_PASSWORD`**, et si besoin **`DB_URL`**, **`DB_USERNAME`**, **`SERVER_PORT`**.
+Variables importantes (voir commentaires dans `.env.example`) : `SERVER_PORT`, `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JPA_DDL_AUTO`, `JPA_SHOW_SQL`, `JWT_SECRET`, `JWT_EXPIRATION_MS`, `CORS_ALLOWED_ORIGINS`.
 
-Les lignes commençant par `#` sont des commentaires. Le script Windows `start-backend.ps1` les ignore.
-
-### Détail de chaque variable
-
-| Variable | Obligatoire | Description |
-|----------|-------------|-------------|
-| `SERVER_PORT` | Non | Port HTTP de l’API. Défaut Spring si absent : **8080**. |
-| `DB_URL` | Non* | URL JDBC PostgreSQL : `jdbc:postgresql://HÔTE:PORT/NOM_BASE`. Ex. local : `jdbc:postgresql://localhost:5432/srm_mutuelle`. *Si absent, la valeur par défaut dans `application.properties` est utilisée. |
-| `DB_USERNAME` | Non* | Utilisateur PostgreSQL (ex. `postgres` ou utilisateur dédié). *Défaut : `postgres`. |
-| `DB_PASSWORD` | Non* | Mot de passe de l’utilisateur DB. *Défaut dans le code : `postgres` — **à changer** sur une vraie machine. |
-| `JPA_DDL_AUTO` | Non | Comportement Hibernate sur les tables : **`update`** (recommandé en dev : met à jour le schéma sans tout supprimer). Autres : `none`, `validate`, `create`, `create-drop`. |
-| `JPA_SHOW_SQL` | Non | `true` = afficher les SQL dans la console (pratique en dev) ; `false` en production. |
-
-**Base PostgreSQL dont le nom contient un tiret** (ex. `SRM-MS`) : créer la base avec des guillemets en SQL, puis dans `DB_URL` utiliser le même nom, par exemple :
-
-`DB_URL=jdbc:postgresql://localhost:5432/SRM-MS`
-
-(adaptez si votre instance exige une casse ou un encodage différent).
-
-### Exemple de `.env` complet (valeurs fictives)
-
-```env
-SERVER_PORT=8080
-DB_URL=jdbc:postgresql://localhost:5432/srm_mutuelle
-DB_USERNAME=postgres
-DB_PASSWORD=MonMotDePasseSecurise
-JPA_DDL_AUTO=update
-JPA_SHOW_SQL=true
-```
-
-### Démarrer l’API **sans** `start-backend.ps1` (Linux / macOS, ou variables manuelles)
-
-Le script `start-backend.ps1` charge `.env` automatiquement sous Windows. Ailleurs, exportez les variables **avant** `mvnw`, ou utilisez votre IDE pour les définir.
-
-Exemple **bash** (une ligne par variable, sans fichier `.env` lu par Maven — export manuel) :
-
-```bash
-cd srm-mutuelle-backend
-export SERVER_PORT=8080
-export DB_URL=jdbc:postgresql://localhost:5432/srm_mutuelle
-export DB_USERNAME=postgres
-export DB_PASSWORD=votre_mot_de_passe
-export JPA_DDL_AUTO=update
-export JPA_SHOW_SQL=true
-./mvnw spring-boot:run
-```
+**PostgreSQL 16** : le projet inclut la dépendance Maven `flyway-database-postgresql` pour la compatibilité Flyway.
 
 ### Démarrer l’API
 
-**Windows (PowerShell)** — charge automatiquement `.env` puis lance Maven :
+**Windows** :
 
 ```powershell
 cd srm-mutuelle-backend
-.\start-backend.ps1
+.\mvnw.cmd spring-boot:run
 ```
 
-**Sans script** (après avoir défini les variables dans le terminal, ou avec les valeurs par défaut de `application.properties`) :
+Si le script `start-backend.ps1` existe, il peut charger `.env` automatiquement.
+
+**Linux / macOS** :
 
 ```bash
 cd srm-mutuelle-backend
-# Windows
-.\mvnw.cmd spring-boot:run
-
-# Linux / macOS
 chmod +x mvnw
 ./mvnw spring-boot:run
 ```
 
-**Vérification** : ouvrir [http://localhost:8080/api/health](http://localhost:8080/api/health) — la réponse doit confirmer que le service est joignable (et la base, si tout est bien configuré).
+**Vérification** : [http://localhost:8080/api/health](http://localhost:8080/api/health)
+
+**Autre port** : dans `.env`, `SERVER_PORT=8081` (par exemple), puis aligner `VITE_API_BASE_URL` côté frontend.
+
+**Tests** :
+
+```bash
+cd srm-mutuelle-backend
+./mvnw test    # ou .\mvnw.cmd test sous Windows
+```
 
 ---
 
-## 3. Application web (Node / Vite / React)
+## 3. Application web (React + Vite)
 
-Répertoire : `srm-mutuelle-web/`
+Répertoire : **`srm-mutuelle-web/`**
+
+Créer **`srm-mutuelle-web/.env`** à partir de **`srm-mutuelle-web/.env.example`** :
+
+```env
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+Puis :
 
 ```bash
 cd srm-mutuelle-web
@@ -156,35 +155,42 @@ npm install
 npm run dev
 ```
 
-L’interface démarre en général sur [http://localhost:5173](http://localhost:5173).
+Interface : [http://localhost:5173](http://localhost:5173)
 
-Autres commandes utiles :
-
-```bash
-npm run build      # build de production → dossier dist/
-npm run preview    # prévisualiser le build localement
-npm run lint       # ESLint
-```
-
-**Note (Windows / Rolldown)** : si une erreur liée à un binding natif apparaît, réinstaller les dépendances ou installer le paquet `@rolldown/binding-win32-x64-msvc` comme indiqué par le message d’erreur.
+Autres commandes : `npm run build`, `npm run preview`, `npm run lint`.
 
 ---
 
-## 4. Application mobile (Expo / React Native)
+## 4. Comptes de démonstration (seed)
 
-Répertoire : `srm-mutuelle-mobile/`
+Après un premier démarrage réussi (Flyway + initialiseur Java `DevUserDataInitializer`), les comptes suivants sont disponibles : **à réserver au développement / démo**.
 
-### API depuis le téléphone
+| Rôle (résumé) | Email | Mot de passe |
+|---------------|-------|--------------|
+| Administrateur | `admin@srm-ms.ma` | `admin123` |
+| Opérateur | `operateur@srm-ms.ma` | `oper123` |
+| Consultateur | `consult@srm-ms.ma` | `cons123` |
+| Adhérent | `adherent@srm-ms.ma` | `adh123` |
+| Opérateur inactif | `h.moussaoui@srm-ms.ma` | `oper123` |
 
-Le fichier `config.js` doit pointer vers **l’adresse IP locale du PC** (pas `localhost`), sur le **même port que le backend** (souvent `8080`), pour que le téléphone puisse joindre l’API :
+La page de connexion utilise uniquement **email + mot de passe** (pas de sélecteur de compte démo).
 
-```js
-export const API_BASE_URL = 'http://192.168.x.x:8080';
-```
+---
 
-Remplacer `192.168.x.x` par l’IPv4 du PC (invite de commande : `ipconfig` sous Windows).
+## 5. Pages web notables
 
-### Commandes
+- **Tableau de bord**, **Bénéficiaires**, **Devis** (filtres et colonnes type ancien écran dentaire), **Remboursements**, **Ordonnances** (vues Analyse / Ordonnance / Radio), **Notifications**, **Profil**
+- **Administration** : utilisateurs, etc. selon rôles
+- **Paramétrage** : édition des listes de types (stockage navigateur)
+- **Communication** (rôles autorisés) : **Centre de publication**
+
+---
+
+## 6. Application mobile (Expo)
+
+Répertoire : **`srm-mutuelle-mobile/`**
+
+Dans `config.js`, utiliser **l’IP locale du PC** (pas `localhost`) et le port du backend.
 
 ```bash
 cd srm-mutuelle-mobile
@@ -192,23 +198,12 @@ npm install
 npx expo start --lan
 ```
 
-Scanner le QR code avec **Expo Go** (Android / iOS). Préférer `--lan` sur le même Wi‑Fi que le PC ; le mode tunnel peut échouer selon le réseau.
-
-Scripts npm :
-
-```bash
-npm start          # équivalent à expo start
-npm run android
-npm run ios
-npm run web
-```
-
 ---
 
-## Récap des URLs
+## URLs habituelles
 
-| Service | URL habituelle |
-|---------|----------------|
+| Service | URL |
+|---------|-----|
 | API health | http://localhost:8080/api/health |
 | Web (dev) | http://localhost:5173 |
 
@@ -218,9 +213,10 @@ npm run web
 
 ```
 SRM-MS/
-├── srm-mutuelle-backend/   # Spring Boot, Maven, PostgreSQL
-├── srm-mutuelle-web/       # React + Vite + Font Awesome
-├── srm-mutuelle-mobile/    # Expo + React Native
+├── srm-mutuelle-backend/     # Spring Boot, Flyway (db/migration), docs/RBAC_MATRIX.md
+├── srm-mutuelle-web/         # React + Vite, api/, config/typeConfig.js
+├── srm-mutuelle-mobile/      # Expo + React Native
+├── GUIDE_UTILISATION.txt     # Guide utilisateur détaillé (FR)
 └── README.md
 ```
 
@@ -228,12 +224,17 @@ SRM-MS/
 
 ## Dépannage rapide
 
-- **PostgreSQL : authentication failed** — vérifier utilisateur, mot de passe et `DB_URL` dans `.env`.
-- **Mobile : backend inaccessible** — firewall Windows, bonne IP dans `config.js`, backend démarré, même Wi‑Fi.
-- **Node : EBADENGINE** — mettre à jour Node vers une version supportée par les paquets (voir tableau des prérequis).
+| Problème | Piste |
+|----------|--------|
+| Authentification PostgreSQL | Vérifier `.env` : URL, utilisateur, mot de passe |
+| Flyway / PG 16 | Dépendance `flyway-database-postgresql` déjà dans le projet |
+| CORS | `CORS_ALLOWED_ORIGINS` doit inclure l’origine du front (ex. `http://localhost:5173`) |
+| Port 8080 occupé | Changer `SERVER_PORT` dans `.env` et `VITE_API_BASE_URL` |
+| Variables non prises en compte | Vérifier que `.env` est bien à la racine de `srm-mutuelle-backend` et que `spring.config.import` est actif |
 
 ---
 
-## Licence / projet
+## Licence / contexte
 
-Projet SRM-MS — usage interne / démonstration selon le contexte du dépôt.
+Projet **SRM-MS** — usage interne ou démonstration selon le contexte du dépôt.  
+**Ne pas committer** de fichiers `.env` contenant de vrais secrets en production.

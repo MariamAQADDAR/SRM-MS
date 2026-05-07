@@ -8,3 +8,9 @@ target/
 .idea/
 .vscode/
 .env.local
+
+# Fichiers temporaires Microsoft Office
+~$*
+
+# Brouillons / images générées locales à la racine du dépôt
+/Gemini_Generated_Image*.png

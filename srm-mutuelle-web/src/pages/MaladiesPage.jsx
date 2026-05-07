@@ -1,59 +1,194 @@
-import React, { useState } from 'react';
-import SimData from '../data';
+import React, { useEffect, useState } from 'react';
+import { isAdherentRole, isConsultateurRole } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import { apiFetch, parseJsonOrThrow } from '../api/client';
+import { getTypeOptions } from '../config/typeConfig';
 
 function statusBadge(statut) {
-  const map = {'Validé':'badge-success','En cours':'badge-primary','En attente':'badge-warning'};
-  return <span className={`badge ${map[statut]||'badge-info'}`}>{statut}</span>;
+  const map = { Validé: 'badge-success', 'En cours': 'badge-primary', 'En attente': 'badge-warning' };
+  return <span className={`badge ${map[statut] || 'badge-info'}`}>{statut}</span>;
 }
-function formatDate(d) { if(!d)return'—'; const[y,m,day]=d.split('-'); return`${day}/${m}/${y}`; }
+
+function formatDate(d) {
+  if (!d) return '—';
+  const s = typeof d === 'string' ? d : '';
+  if (!s) return '—';
+  const [y, m, day] = s.split('-');
+  return `${day}/${m}/${y}`;
+}
 
 export default function MaladiesPage({ setPageTitle, addToast, user }) {
-  setPageTitle('Maladies spéciales','Gestion des maladies spéciales');
-  const isConsult = user.role==='Consultateur';
+  setPageTitle('Maladies spéciales', 'Gestion des maladies spéciales');
+  const isConsult = isConsultateurRole(user);
+  const adherent = isAdherentRole(user);
   const [modal, setModal] = useState(null);
+  const [diseases, setDiseases] = useState([]);
+  const [medicines, setMedicines] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const maladieTypes = getTypeOptions('maladieTypes');
+
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const dRes = await apiFetch('/api/special-diseases');
+      setDiseases(await parseJsonOrThrow(dRes));
+      if (adherent) {
+        const mRes = await apiFetch('/api/medicines');
+        setMedicines(await parseJsonOrThrow(mRes));
+      } else if (!isConsult) {
+        const aRes = await apiFetch('/api/agents');
+        setAgents(await parseJsonOrThrow(aRes));
+      }
+    } catch (e) {
+      addToast('error', e.message || 'Chargement impossible');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reload();
+  }, [adherent, isConsult]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const agentLabel = fd.get('beneficiaire');
+    const agent = agents.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
+    if (!agent) {
+      addToast('error', 'Agent invalide');
+      return;
+    }
+    const body = {
+      typeMaladie: fd.get('typeMaladie'),
+      dateDeclaration: fd.get('dateDeclaration'),
+      agentId: agent.id,
+      beneficiaire: agentLabel,
+      statut: 'En attente',
+    };
+    try {
+      await parseJsonOrThrow(await apiFetch('/api/special-diseases', { method: 'POST', body }));
+      setModal(null);
+      addToast('success', 'Dossier créé !');
+      reload();
+    } catch (err) {
+      addToast('error', err.message || 'Erreur');
+    }
+  };
 
   const form = (
-    <form onSubmit={e=>{e.preventDefault();setModal(null);addToast('success','Dossier créé !');}}>
+    <form onSubmit={submit}>
       <div className="form-grid">
-        <div className="form-group"><label>Bénéficiaire</label>
-          <select className="form-control">{SimData.agents.map(a=><option key={a.id}>{a.prenom} {a.nom}</option>)}</select></div>
-        <div className="form-group"><label>Type de maladie</label><input className="form-control" placeholder="Ex: Diabète, Hypertension..."/></div>
-        <div className="form-group" style={{gridColumn:'1/-1'}}><label>Date de déclaration</label><input type="date" className="form-control" defaultValue={new Date().toISOString().split('T')[0]}/></div>
+        <div className="form-group">
+          <label>Bénéficiaire</label>
+          <select name="beneficiaire" className="form-control" required>
+            {agents.map((a) => (
+              <option key={a.id} value={`${a.prenom} ${a.nom}`}>
+                {a.prenom} {a.nom}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Type de maladie</label>
+          <select name="typeMaladie" className="form-control" required>
+            {maladieTypes.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group" style={{ gridColumn: '1/-1' }}>
+          <label>Date de déclaration</label>
+          <input name="dateDeclaration" type="date" className="form-control" defaultValue={new Date().toISOString().split('T')[0]} required />
+        </div>
       </div>
-      <div className="modal-footer" style={{padding:'16px 0 0'}}>
-        <button type="button" className="btn btn-outline" onClick={()=>setModal(null)}>Annuler</button>
-        <button type="submit" className="btn btn-primary"><FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer</button>
+      <div className="modal-footer" style={{ padding: '16px 0 0' }}>
+        <button type="button" className="btn btn-outline" onClick={() => setModal(null)}>
+          Annuler
+        </button>
+        <button type="submit" className="btn btn-primary">
+          <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer
+        </button>
       </div>
     </form>
   );
 
+  if (loading) {
+    return <div className="card"><div className="card-body">Chargement…</div></div>;
+  }
+
   return (
     <>
-      {modal && <Modal title={modal.title} onClose={()=>setModal(null)}>{modal.content}</Modal>}
+      {modal && (
+        <Modal title={modal.title} onClose={() => setModal(null)}>
+          {modal.content}
+        </Modal>
+      )}
       <div className="toolbar">
-        <div className="toolbar-left"><h4 style={{color:'var(--gray-700)'}}><FaIcon name="stethoscope" className="fa-inline-icon" /> {SimData.maladiesSpeciales.length} dossiers enregistrés</h4></div>
+        <div className="toolbar-left">
+          <h4 style={{ color: 'var(--gray-700)' }}>
+            <FaIcon name="stethoscope" className="fa-inline-icon" /> {diseases.length} dossiers maladies spéciales
+          </h4>
+        </div>
         <div className="toolbar-right">
-          {!isConsult && <button className="btn btn-primary" onClick={()=>setModal({title:'Nouveau dossier maladie spéciale',content:form})}><FaIcon name="plus" className="fa-inline-icon" /> Nouveau dossier</button>}
+          {!isConsult && !adherent && (
+            <button className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau dossier maladie spéciale', content: form })}>
+              <FaIcon name="plus" className="fa-inline-icon" /> Nouveau dossier
+            </button>
+          )}
         </div>
       </div>
+
+      {adherent && (
+        <div className="card" style={{ marginBottom: '16px' }}>
+          <div className="card-header">
+            <h3>
+              <FaIcon name="pills" className="fa-inline-icon" /> Médicaments (référentiel)
+            </h3>
+          </div>
+          <div className="card-body">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {medicines.slice(0, 40).map((m) => (
+                <span key={m.id} className={`badge ${m.reimbursed ? 'badge-success' : 'badge-info'}`}>
+                  {m.name}
+                </span>
+              ))}
+              {medicines.length === 0 && <span style={{ color: 'var(--gray-500)' }}>Aucune entrée.</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card">
-        <div className="card-body" style={{padding:0}}>
+        <div className="card-body" style={{ padding: 0 }}>
           <div className="data-table-wrapper">
             <table className="data-table">
-              <thead><tr><th>N°</th><th>Type maladie</th><th>Date déclaration</th><th>Bénéficiaire</th><th>Statut</th><th>Actions</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>N°</th>
+                  <th>Type maladie</th>
+                  <th>Date déclaration</th>
+                  <th>Bénéficiaire</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
               <tbody>
-                {SimData.maladiesSpeciales.map(m=>(
+                {diseases.map((m) => (
                   <tr key={m.id}>
                     <td>{m.numero}</td>
-                    <td><span className="badge badge-warning">{m.typeMaladie}</span></td>
+                    <td>
+                      <span className="badge badge-warning">{m.typeMaladie}</span>
+                    </td>
                     <td>{formatDate(m.dateDeclaration)}</td>
                     <td>{m.beneficiaire}</td>
                     <td>{statusBadge(m.statut)}</td>
                     <td className="actions-cell">
-                      <button className="btn btn-icon btn-view"><FaIcon name="eye" /></button>
-                      {!isConsult && <button className="btn btn-icon btn-edit" onClick={()=>setModal({title:'Modifier dossier',content:form})}><FaIcon name="pen-to-square" /></button>}
+                      <button className="btn btn-icon btn-view" type="button">
+                        <FaIcon name="eye" />
+                      </button>
                     </td>
                   </tr>
                 ))}

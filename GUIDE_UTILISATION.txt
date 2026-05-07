@@ -1,0 +1,128 @@
+GUIDE D'UTILISATION - SRM-MS (Backend + Frontend)
+=================================================
+
+1) PRE-REQUIS
+-------------
+- Node.js installe (npm)
+- Java 17 installe
+- PostgreSQL demarre
+- PowerShell
+
+
+2) CONFIGURATION BACKEND
+------------------------
+Fichier:
+  d:\marieme\SRM-MS\srm-mutuelle-backend\.env
+
+Verifier au minimum:
+- DB_URL
+- DB_USERNAME
+- DB_PASSWORD
+- JWT_SECRET (au moins 32 caracteres)
+- CORS_ALLOWED_ORIGINS (ex: http://localhost:5173)
+
+
+3) LANCER LE BACKEND
+--------------------
+Ouvrir PowerShell:
+
+  cd "d:\marieme\SRM-MS\srm-mutuelle-backend"
+  .\mvnw.cmd spring-boot:run
+
+API disponible sur:
+  http://localhost:8080
+
+Test sante:
+  http://localhost:8080/api/health
+
+
+4) LANCER LE FRONTEND
+---------------------
+Ouvrir un 2eme terminal PowerShell:
+
+  cd "d:\marieme\SRM-MS\srm-mutuelle-web"
+  npm install
+  npm run dev
+
+Application web:
+  http://localhost:5173
+
+
+5) CONNEXION
+------------
+Depuis la page login, utiliser un compte existant (seed/dev).
+Si les comptes seed ne sont pas encore en base, verifier que le backend a bien initialise les donnees.
+
+
+6) PAGES IMPORTANTES
+--------------------
+- Tableau de bord
+- Beneficiaires
+- Devis (incluant devis dentaire complete)
+- Remboursements (champs legacy complets)
+- Ordonnances (vues Analyse / Ordonnance / Radio)
+- Notifications (inbox)
+- Centre de publication (brouillon -> publier)
+- Parametrage (types non hardcodes)
+- Profil (changement mot de passe)
+
+
+7) PARAMETRAGE (TYPES)
+----------------------
+Menu:
+  Administration -> Parametrage
+
+Tu peux ajouter/supprimer:
+- Types de devis
+- Types d'ordonnance
+- Types radio
+- Types de prise en charge
+- Types d'etablissement
+- Types d'entite
+- Types de maladie speciale
+
+Puis cliquer:
+  Enregistrer
+
+
+8) ALERTES SWEETALERT2
+----------------------
+Les confirmations critiques utilisent SweetAlert2 (popup moderne):
+- Suppression utilisateur
+- Publication d'annonce
+
+
+9) PROBLEMES FREQUENTS
+----------------------
+A) "API inaccessible"
+-> Verifier backend demarre sur port 8080
+
+B) "Erreur CORS"
+-> Verifier CORS_ALLOWED_ORIGINS dans .env backend
+
+C) "Erreur DB"
+-> Verifier PostgreSQL + credentials DB dans .env backend
+
+D) "Page blanche frontend"
+-> Relancer:
+   npm install
+   npm run dev
+
+
+10) COMMANDES UTILES
+--------------------
+Backend tests:
+  cd "d:\marieme\SRM-MS\srm-mutuelle-backend"
+  .\mvnw.cmd test
+
+Frontend build:
+  cd "d:\marieme\SRM-MS\srm-mutuelle-web"
+  npm run build
+
+
+11) NOTE IMPORTANTE
+-------------------
+Certaines colonnes "legacy" ajoutees pour correspondre aux anciens ecrans
+sont actuellement conservees cote front (localStorage) tant qu'elles ne sont
+pas encore migrees en base backend.
+
