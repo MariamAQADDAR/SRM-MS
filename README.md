@@ -237,10 +237,19 @@ L’APK **debug** se trouve sous :
 (idéal pour tests internes ; pour la diffusion large, préférer une build **release** signée ou EAS.)
 
 **B — Cloud Expo (EAS), sans SDK Android local**  
-1. Compte sur [expo.dev](https://expo.dev), puis : `npm install -g eas-cli` et `eas login`.  
-2. Depuis **`srm-mutuelle-mobile/`** : `eas build:configure` (une première fois), puis  
-   **`eas build --platform android --profile preview`**  
-   Le profil **`preview`** dans **`eas.json`** produit un **APK** téléchargeable depuis la page de build.
+1. Compte sur [expo.dev](https://expo.dev) et **`eas login`** (une fois). Le dépôt inclut **`eas-cli`** dans **`srm-mutuelle-mobile`** : après `npm install`, utilisez `npx eas …`.  
+2. Le projet est lié à EAS via **`app.json`** (`extra.eas.projectId`). Tableau de bord : selon le compte Expo utilisé lors du `eas init` (ex. [expo.dev](https://expo.dev) → *Projects* → *srm-mutuelle-mobile*).  
+3. **Première build Android** : lancer la commande dans un terminal **interactif** (PowerShell ou Invite de commandes, pas un environnement sans invites) :
+
+```bash
+cd srm-mutuelle-mobile
+npm install
+npm run eas:apk
+# équivalent : npx eas build --platform android --profile preview
+```
+
+À la question **« Generate a new Android Keystore? »**, répondre **Yes** (EAS conserve ensuite le keystore pour les builds suivantes).  
+4. À la fin, Expo affiche un lien : **télécharger l’APK** depuis la page du build sur expo.dev. Les builds suivantes peuvent utiliser la même commande (souvent sans nouvelle question sur le keystore).
 
 **Important** : avant de distribuer l’APK, mettre dans **`config.js`** une **`API_BASE_URL`** joignable depuis le téléphone (même Wi‑Fi que le PC, ou URL HTTPS d’un serveur). Les comptes de démo sont les mêmes que dans le tableau « Comptes de démonstration » ci‑dessus.
 

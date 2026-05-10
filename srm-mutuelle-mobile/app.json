@@ -27,6 +27,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "53e6b917-3363-4054-9e86-8dd1d669ead2"
+      }
+    },
+    "owner": "yassinenhili"
   }
 }
