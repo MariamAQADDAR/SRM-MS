@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import TablePageShell from '../components/TablePageShell';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { confirmAction } from '../utils/swal';
 
@@ -115,84 +116,78 @@ export default function BroadcastCenterPage({ setPageTitle, addToast }) {
           {modal.content}
         </Modal>
       )}
-      <div className="toolbar">
-        <div className="toolbar-right" style={{ marginLeft: 'auto' }}>
-          <button className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau brouillon', content: editor(null) })}>
-            <FaIcon name="plus" className="fa-inline-icon" /> Nouveau brouillon
-          </button>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: '16px' }}>
-        <div className="card-header">
-          <h3>Brouillons</h3>
-        </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Titre</th>
-                  <th>Audience</th>
-                  <th>Créé</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {drafts.map((b) => (
-                  <tr key={b.id}>
-                    <td style={{ fontWeight: '600' }}>{b.title}</td>
-                    <td>
-                      <span className="badge badge-info">{b.audience}</span>
-                    </td>
-                    <td style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{formatTs(b.createdAt)}</td>
-                    <td className="actions-cell">
-                      <button type="button" className="btn btn-outline btn-sm" onClick={() => setModal({ title: 'Modifier brouillon', content: editor(b) })}>
-                        Modifier
-                      </button>
-                      <button type="button" className="btn btn-primary btn-sm" onClick={() => publish(b.id)}>
-                        Publier
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <TablePageShell
+        title="Brouillons"
+        icon="file-pen"
+        toolbar={
+          <div className="table-page-toolbar-row">
+            <span style={{ color: 'var(--gray-600)', fontSize: '14px' }}>{drafts.length} brouillon{drafts.length !== 1 ? 's' : ''}</span>
+            <span className="toolbar-spacer" />
+            <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau brouillon', content: editor(null) })}>
+              <FaIcon name="plus" className="fa-inline-icon" /> Nouveau brouillon
+            </button>
           </div>
-          {drafts.length === 0 && <p style={{ padding: '16px', color: 'var(--gray-500)' }}>Aucun brouillon.</p>}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-header">
-          <h3>Historique (publiés)</h3>
-        </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Titre</th>
-                  <th>Audience</th>
-                  <th>Publié le</th>
+        }
+      >
+        <div className="data-table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Titre</th>
+                <th>Audience</th>
+                <th>Créé</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {drafts.map((b) => (
+                <tr key={b.id}>
+                  <td style={{ fontWeight: '600' }}>{b.title}</td>
+                  <td>
+                    <span className="badge badge-info">{b.audience}</span>
+                  </td>
+                  <td style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{formatTs(b.createdAt)}</td>
+                  <td className="actions-cell">
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => setModal({ title: 'Modifier brouillon', content: editor(b) })}>
+                      Modifier
+                    </button>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => publish(b.id)}>
+                      Publier
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {published.map((b) => (
-                  <tr key={b.id}>
-                    <td>{b.title}</td>
-                    <td>
-                      <span className="badge badge-success">{b.audience}</span>
-                    </td>
-                    <td style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{formatTs(b.publishedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {published.length === 0 && <p style={{ padding: '16px', color: 'var(--gray-500)' }}>Aucune publication.</p>}
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+        {drafts.length === 0 && <p style={{ padding: '16px 20px', color: 'var(--gray-500)' }}>Aucun brouillon.</p>}
+      </TablePageShell>
+
+      <TablePageShell title="Historique des publications" icon="bullhorn" toolbar={false}>
+        <div className="data-table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Titre</th>
+                <th>Audience</th>
+                <th>Publié le</th>
+              </tr>
+            </thead>
+            <tbody>
+              {published.map((b) => (
+                <tr key={b.id}>
+                  <td>{b.title}</td>
+                  <td>
+                    <span className="badge badge-success">{b.audience}</span>
+                  </td>
+                  <td style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{formatTs(b.publishedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {published.length === 0 && <p style={{ padding: '16px 20px', color: 'var(--gray-500)' }}>Aucune publication.</p>}
+      </TablePageShell>
     </>
   );
 }

@@ -1,95 +1,199 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import FaIcon from '../components/FaIcon';
-import { DEFAULT_TYPE_CONFIG, readTypeConfig, resetTypeConfig, writeTypeConfig } from '../config/typeConfig';
+import TablePageShell from '../components/TablePageShell';
+import { DEFAULT_TYPE_CONFIG, mergeWithDefaultsForState, prefetchTypeConfig, saveTypeConfigKey } from '../config/typeConfig';
+import { confirmDelete, promptText } from '../utils/swal';
 
 const LABELS = {
-  quoteTypes: 'Types de devis',
-  ordonnanceTypes: "Types d'ordonnance",
-  radioTypes: 'Types radio',
-  careTypes: 'Types de prise en charge',
-  facilityTypes: "Types d'établissement",
-  entityTypes: "Types d'entité organisationnelle",
-  maladieTypes: 'Types de maladie spéciale',
+  quoteTypes: 'Devis',
+  ordonnanceTypes: 'Ordonnances',
+  radioTypes: 'Radios',
+  careTypes: 'Prises en charge',
+  facilityTypes: 'Établissements',
+  entityTypes: 'Entités organisationnelles',
+  maladieTypes: 'Maladies spéciales',
 };
 
 export default function ParametragePage({ setPageTitle, addToast }) {
-  setPageTitle('Paramétrage', 'Configuration des types');
-  const [config, setConfig] = useState(readTypeConfig());
-  const [drafts, setDrafts] = useState({});
+  setPageTitle('Paramétrage', 'Administration');
+  const [config, setConfig] = useState(() => mergeWithDefaultsForState({}));
+  const [activeKey, setActiveKey] = useState(Object.keys(DEFAULT_TYPE_CONFIG)[0]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const addValue = (key) => {
-    const value = String(drafts[key] || '').trim();
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await prefetchTypeConfig();
+        if (!cancelled) setConfig({ ...data });
+      } catch (e) {
+        if (!cancelled) addToast('error', e.message || 'Chargement impossible');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [addToast]);
+
+  const addValue = async (key) => {
+    const value = await promptText({
+      title: 'Ajouter une valeur',
+      text: `Catégorie : ${LABELS[key]}`,
+      inputLabel: 'Libellé',
+      placeholder: 'Saisir le libellé…',
+      confirmButtonText: 'Ajouter',
+    });
     if (!value) return;
     if ((config[key] || []).includes(value)) {
-      addToast('warning', 'Valeur déjà existante');
+      addToast('warning', 'Cette valeur existe déjà dans la liste.');
       return;
     }
-    setConfig((prev) => ({ ...prev, [key]: [...(prev[key] || []), value] }));
-    setDrafts((prev) => ({ ...prev, [key]: '' }));
+    const next = [...(config[key] || []), value];
+    try {
+      const updated = await saveTypeConfigKey(key, next);
+      setConfig(mergeWithDefaultsForState(updated));
+      addToast('success', 'Valeur ajoutée et enregistrée.');
+    } catch (e) {
+      addToast('error', e.message || 'Enregistrement impossible');
+    }
   };
 
-  const removeValue = (key, value) => {
-    setConfig((prev) => ({ ...prev, [key]: (prev[key] || []).filter((x) => x !== value) }));
+  const editValue = async (key, oldValue) => {
+    const newValue = await promptText({
+      title: 'Modifier la valeur',
+      text: `Catégorie : ${LABELS[key]}`,
+      inputLabel: 'Nouveau libellé',
+      inputValue: oldValue,
+      confirmButtonText: 'Enregistrer',
+    });
+    if (!newValue || newValue === oldValue) return;
+    const list = config[key] || [];
+    if (list.includes(newValue)) {
+      addToast('warning', 'Cette valeur existe déjà dans la liste.');
+      return;
+    }
+    const next = list.map((x) => (x === oldValue ? newValue : x));
+    try {
+      const updated = await saveTypeConfigKey(key, next);
+      setConfig(mergeWithDefaultsForState(updated));
+      addToast('success', 'Valeur modifiée et enregistrée.');
+    } catch (e) {
+      addToast('error', e.message || 'Enregistrement impossible');
+    }
   };
 
-  const save = () => {
-    writeTypeConfig(config);
-    addToast('success', 'Paramétrage sauvegardé');
+  const removeValue = async (key, value) => {
+    const ok = await confirmDelete({
+      itemLabel: value,
+      text: `La valeur « ${value} » sera retirée de la liste « ${LABELS[key]} ». Vous pourrez la rajouter plus tard si besoin.`,
+    });
+    if (!ok) return;
+    const next = (config[key] || []).filter((x) => x !== value);
+    try {
+      const updated = await saveTypeConfigKey(key, next);
+      setConfig(mergeWithDefaultsForState(updated));
+      addToast('success', 'Valeur supprimée et liste enregistrée.');
+    } catch (e) {
+      addToast('error', e.message || 'Enregistrement impossible');
+    }
   };
 
-  const restore = () => {
-    setConfig(resetTypeConfig());
-    addToast('info', 'Valeurs par défaut restaurées');
-  };
+  const rows = (config[activeKey] || []).filter((v) => v.toLowerCase().includes(query.trim().toLowerCase()));
+
+  if (loading) {
+    return (
+      <div className="card param-card">
+        <div className="card-body">Chargement…</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="card">
-      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3>
-          <FaIcon name="sliders" className="fa-inline-icon" /> Paramètres des types
-        </h3>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="btn btn-outline btn-sm" onClick={restore}>
-            Restaurer défaut
-          </button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={save}>
-            Enregistrer
-          </button>
-        </div>
-      </div>
-
+    <div className="card param-card">
       <div className="card-body">
-        {Object.keys(DEFAULT_TYPE_CONFIG).map((key) => (
-          <div key={key} style={{ marginBottom: 20, borderBottom: '1px solid var(--gray-100)', paddingBottom: 16 }}>
-            <h4 style={{ marginBottom: 8 }}>{LABELS[key]}</h4>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-              {(config[key] || []).map((v) => (
-                <span key={v} className="badge badge-info" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {v}
-                  <button
-                    type="button"
-                    style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'inherit' }}
-                    onClick={() => removeValue(key, v)}
-                    title="Supprimer"
-                  >
-                    <FaIcon name="xmark" />
-                  </button>
-                </span>
-              ))}
+        <div className="tabs param-tabs">
+          {Object.keys(DEFAULT_TYPE_CONFIG).map((key) => (
+            <div
+              key={key}
+              className={`tab-item${activeKey === key ? ' active' : ''}`}
+              onClick={() => {
+                setActiveKey(key);
+                setQuery('');
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && setActiveKey(key)}
+              role="button"
+              tabIndex={0}
+            >
+              {LABELS[key]} <span className="param-tab-count">{(config[key] || []).length}</span>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                className="form-control"
-                placeholder="Nouvelle valeur"
-                value={drafts[key] || ''}
-                onChange={(e) => setDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
-              />
-              <button type="button" className="btn btn-outline" onClick={() => addValue(key)}>
-                Ajouter
+          ))}
+        </div>
+
+        <TablePageShell
+          title={LABELS[activeKey]}
+          icon="sliders"
+          toolbar={
+            <div className="table-page-toolbar-row" style={{ alignItems: 'stretch' }}>
+              <div className="table-search-wrap">
+                <span className="table-search-icon-btn" aria-hidden>
+                  <FaIcon name="magnifying-glass" />
+                </span>
+                <input
+                  type="search"
+                  className="form-control table-search-input"
+                  placeholder={`Rechercher ${LABELS[activeKey]}…`}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <button type="button" className="btn btn-primary" onClick={() => addValue(activeKey)}>
+                <FaIcon name="plus" className="fa-inline-icon" /> Ajouter
               </button>
             </div>
+          }
+        >
+          <div className="data-table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>NOM</th>
+                  <th style={{ textAlign: 'right' }}>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((v) => (
+                  <tr key={v}>
+                    <td>{v}</td>
+                    <td>
+                      <div className="actions-cell" style={{ justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          className="btn-icon btn-edit"
+                          title="Modifier"
+                          onClick={() => editValue(activeKey, v)}
+                        >
+                          <FaIcon name="pen-to-square" />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-icon btn-delete"
+                          title="Supprimer"
+                          onClick={() => removeValue(activeKey, v)}
+                        >
+                          <FaIcon name="trash" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
+        </TablePageShell>
       </div>
     </div>
   );

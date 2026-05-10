@@ -54,7 +54,7 @@ public class MedicalFacilityService {
 
 	@Transactional
 	public void delete(Long id, AppUser user) {
-		AccessRules.assertStaffWrite(user);
+		AccessRules.assertAdmin(user);
 		if (!medicalFacilityRepository.existsById(id)) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Établissement introuvable");
 		}

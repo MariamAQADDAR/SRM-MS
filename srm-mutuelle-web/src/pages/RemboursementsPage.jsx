@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { isConsultateurRole } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import TablePageShell from '../components/TablePageShell';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
 
@@ -302,57 +303,62 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
           </div>
         </div>
       </div>
-      <div className="toolbar">
-        <div className="toolbar-left">
-          <div className="filter-group" style={{ display: 'grid', gridTemplateColumns: 'repeat(8,minmax(120px,1fr))', gap: 8 }}>
-            <input
-              className="form-control"
-              placeholder="Matricule"
-              value={filterMatricule}
-              onChange={(e) => setFilterMatricule(e.target.value)}
-            />
-            <input
-              className="form-control"
-              placeholder="Nom agent"
-              value={filterNom}
-              onChange={(e) => setFilterNom(e.target.value)}
-            />
-            <input className="form-control" type="date" title="Date envoi" value={filterDateEnvoi} onChange={(e) => setFilterDateEnvoi(e.target.value)} />
-            <input
-              className="form-control"
-              type="date"
-              title="Date réception"
-              value={filterDateReception}
-              onChange={(e) => setFilterDateReception(e.target.value)}
-            />
-            <input className="form-control" type="date" title="Date début" value={filterDateDebut} onChange={(e) => setFilterDateDebut(e.target.value)} />
-            <input className="form-control" type="date" title="Date fin" value={filterDateFin} onChange={(e) => setFilterDateFin(e.target.value)} />
-            <select className="form-control" value={filterTypeSoin} onChange={(e) => setFilterTypeSoin(e.target.value)}>
-              <option value="">Type soin</option>
-              {careTypes.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-            <select value={filterStatut} onChange={(e) => setFilterStatut(e.target.value)}>
-              <option value="">Tous les statuts</option>
-              <option>Traité</option>
-              <option>En cours</option>
-              <option>En attente</option>
-              <option>Clôturé</option>
-            </select>
-          </div>
-        </div>
-        <div className="toolbar-right">
-          {!isConsult && (
-            <button className="btn btn-primary" onClick={() => setModal({ title: 'Nouvelle demande de remboursement', content: form })}>
-              <FaIcon name="plus" className="fa-inline-icon" /> Nouvelle demande
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper">
+      <TablePageShell
+        title="Liste des remboursements"
+        icon="receipt"
+        toolbar={
+          <>
+            <div className="table-page-toolbar-filters">
+              <div className="filter-group" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+                <input
+                  className="form-control"
+                  placeholder="Matricule"
+                  value={filterMatricule}
+                  onChange={(e) => setFilterMatricule(e.target.value)}
+                />
+                <input
+                  className="form-control"
+                  placeholder="Nom agent"
+                  value={filterNom}
+                  onChange={(e) => setFilterNom(e.target.value)}
+                />
+                <input className="form-control" type="date" title="Date envoi" value={filterDateEnvoi} onChange={(e) => setFilterDateEnvoi(e.target.value)} />
+                <input
+                  className="form-control"
+                  type="date"
+                  title="Date réception"
+                  value={filterDateReception}
+                  onChange={(e) => setFilterDateReception(e.target.value)}
+                />
+                <input className="form-control" type="date" title="Date début" value={filterDateDebut} onChange={(e) => setFilterDateDebut(e.target.value)} />
+                <input className="form-control" type="date" title="Date fin" value={filterDateFin} onChange={(e) => setFilterDateFin(e.target.value)} />
+                <select className="form-control" value={filterTypeSoin} onChange={(e) => setFilterTypeSoin(e.target.value)}>
+                  <option value="">Type soin</option>
+                  {careTypes.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+                <select className="form-control" value={filterStatut} onChange={(e) => setFilterStatut(e.target.value)}>
+                  <option value="">Tous les statuts</option>
+                  <option>Traité</option>
+                  <option>En cours</option>
+                  <option>En attente</option>
+                  <option>Clôturé</option>
+                </select>
+              </div>
+            </div>
+            <div className="table-page-toolbar-row">
+              <span className="toolbar-spacer" />
+              {!isConsult && (
+                <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouvelle demande de remboursement', content: form })}>
+                  <FaIcon name="plus" className="fa-inline-icon" /> Nouvelle demande
+                </button>
+              )}
+            </div>
+          </>
+        }
+      >
+        <div className="data-table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
@@ -415,9 +421,8 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
                 ))}
               </tbody>
             </table>
-          </div>
         </div>
-      </div>
+      </TablePageShell>
     </>
   );
 }

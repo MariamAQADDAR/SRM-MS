@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import FaIcon from '../components/FaIcon';
+import TablePageShell from '../components/TablePageShell';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { isAdherentRole } from '../authUtils';
 
@@ -184,41 +185,34 @@ export default function DashboardPage({ setPageTitle, addToast, user }) {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <h3>
-            <FaIcon name="clock-rotate-left" className="fa-inline-icon" /> Dernières activités
-          </h3>
-        </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>N°</th>
-                  <th>Type</th>
-                  <th>Bénéficiaire</th>
-                  <th>Montant</th>
-                  <th>Statut</th>
-                  <th>Date</th>
+      <TablePageShell title="Dernières activités" icon="clock-rotate-left" toolbar={false}>
+        <div className="data-table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>N°</th>
+                <th>Type</th>
+                <th>Bénéficiaire</th>
+                <th>Montant</th>
+                <th>Statut</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reimb.slice(0, 5).map((r) => (
+                <tr key={r.id}>
+                  <td>{r.numero}</td>
+                  <td>Remboursement</td>
+                  <td>{r.beneficiaire}</td>
+                  <td>{Number(r.montantDemande).toLocaleString('fr-FR')} DH</td>
+                  <td>{statusBadge(r.statut)}</td>
+                  <td>{formatDate(r.date)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {reimb.slice(0, 5).map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.numero}</td>
-                    <td>Remboursement</td>
-                    <td>{r.beneficiaire}</td>
-                    <td>{Number(r.montantDemande).toLocaleString('fr-FR')} DH</td>
-                    <td>{statusBadge(r.statut)}</td>
-                    <td>{formatDate(r.date)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </TablePageShell>
     </>
   );
 }

@@ -47,7 +47,7 @@ public class MedicineService {
 
 	@Transactional
 	public void delete(Long id, AppUser user) {
-		AccessRules.assertStaffWrite(user);
+		AccessRules.assertAdmin(user);
 		medicineRepository.deleteById(id);
 	}
 

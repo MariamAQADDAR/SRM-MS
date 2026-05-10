@@ -1,14 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { isAdherentRole, isConsultateurRole } from '../authUtils';
+import { isAdherentRole, isStaffWriterRole } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import TablePageShell from '../components/TablePageShell';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
 
 const META_KEY = 'mutuelle_quotes_meta_v1';
 
 function statusBadge(statut) {
-  const map = { Approuvé: 'badge-success', 'En attente': 'badge-warning', Rejeté: 'badge-danger' };
+  const map = {
+    Approuvé: 'badge-success',
+    'En attente': 'badge-warning',
+    Rejeté: 'badge-danger',
+    Soumis: 'badge-primary',
+    Brouillon: 'badge-neutral',
+  };
   return <span className={`badge ${map[statut] || 'badge-info'}`}>{statut}</span>;
 }
 
@@ -35,10 +42,9 @@ function writeMeta(meta) {
 
 export default function DevisPage({ setPageTitle, addToast, user }) {
   setPageTitle('Devis', 'Gestion des devis');
-  const isConsult = isConsultateurRole(user);
   const isAdherent = isAdherentRole(user);
-  const canMutate = !isConsult;
-  const canCreate = isAdherent || canMutate;
+  const canStaffActions = isStaffWriterRole(user);
+  const canCreate = isAdherent || canStaffActions;
 
   const [filterMatricule, setFilterMatricule] = useState('');
   const [filterNom, setFilterNom] = useState('');
@@ -111,7 +117,7 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
   if (filterEtat) data = data.filter((d) => d.etat === filterEtat);
   if (filterDentiste) data = data.filter((d) => d.dentiste === filterDentiste);
 
-  const submitQuote = async (e) => {
+  const handleCreateQuote = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const agentLabel = fd.get('beneficiaire');
@@ -158,7 +164,7 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
   };
 
   const form = (
-    <form onSubmit={submitQuote}>
+    <form onSubmit={handleCreateQuote}>
       <div className="form-grid">
         <div className="form-group">
           <label>Bénéficiaire</label>
@@ -252,43 +258,48 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
           {modal.content}
         </Modal>
       )}
-      <div className="toolbar">
-        <div className="toolbar-left" style={{ width: '100%' }}>
-          <div className="filter-group" style={{ display: 'grid', gridTemplateColumns: 'repeat(8,minmax(110px,1fr))', gap: 8 }}>
-            <input className="form-control" placeholder="Matricule" value={filterMatricule} onChange={(e) => setFilterMatricule(e.target.value)} />
-            <input className="form-control" placeholder="Nom Agent" value={filterNom} onChange={(e) => setFilterNom(e.target.value)} />
-            <select className="form-control" value={filterDateRef} onChange={(e) => setFilterDateRef(e.target.value)}>
-              <option value="dateDepot">Date dépôt</option>
-              <option value="dateDevis">Date devis</option>
-            </select>
-            <input className="form-control" type="date" value={filterDateRefValue} onChange={(e) => setFilterDateRefValue(e.target.value)} />
-            <input className="form-control" type="date" value={filterDateDebut} onChange={(e) => setFilterDateDebut(e.target.value)} />
-            <input className="form-control" type="date" value={filterDateFin} onChange={(e) => setFilterDateFin(e.target.value)} />
-            <select className="form-control" value={filterEtat} onChange={(e) => setFilterEtat(e.target.value)}>
-              <option value="">État réponse</option>
-              {etats.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-            <select className="form-control" value={filterDentiste} onChange={(e) => setFilterDentiste(e.target.value)}>
-              <option value="">Dentiste</option>
-              {dentistes.map((d) => (
-                <option key={d.id}>{d.fullName}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="toolbar-right">
-          {canCreate && (
-            <button className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau devis dentaire', content: form })}>
-              <FaIcon name="plus" className="fa-inline-icon" /> Créer
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper">
+      <TablePageShell
+        title="Liste des devis dentaires"
+        icon="file-lines"
+        toolbar={
+          <>
+            <div className="table-page-toolbar-filters">
+              <div className="filter-group" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+                <input className="form-control" placeholder="Matricule" value={filterMatricule} onChange={(e) => setFilterMatricule(e.target.value)} />
+                <input className="form-control" placeholder="Nom Agent" value={filterNom} onChange={(e) => setFilterNom(e.target.value)} />
+                <select className="form-control" value={filterDateRef} onChange={(e) => setFilterDateRef(e.target.value)}>
+                  <option value="dateDepot">Date dépôt</option>
+                  <option value="dateDevis">Date devis</option>
+                </select>
+                <input className="form-control" type="date" value={filterDateRefValue} onChange={(e) => setFilterDateRefValue(e.target.value)} />
+                <input className="form-control" type="date" value={filterDateDebut} onChange={(e) => setFilterDateDebut(e.target.value)} />
+                <input className="form-control" type="date" value={filterDateFin} onChange={(e) => setFilterDateFin(e.target.value)} />
+                <select className="form-control" value={filterEtat} onChange={(e) => setFilterEtat(e.target.value)}>
+                  <option value="">État réponse</option>
+                  {etats.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+                <select className="form-control" value={filterDentiste} onChange={(e) => setFilterDentiste(e.target.value)}>
+                  <option value="">Dentiste</option>
+                  {dentistes.map((d) => (
+                    <option key={d.id}>{d.fullName}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="table-page-toolbar-row">
+              <span className="toolbar-spacer" />
+              {canCreate && (
+                <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau devis dentaire', content: form })}>
+                  <FaIcon name="plus" className="fa-inline-icon" /> Créer
+                </button>
+              )}
+            </div>
+          </>
+        }
+      >
+        <div className="data-table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
@@ -330,7 +341,17 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
                       <button className="btn btn-icon btn-view" type="button">
                         <FaIcon name="eye" />
                       </button>
-                      {canMutate && (
+                      {(d.etat === 'En attente' || d.etat === 'Brouillon') && (isAdherent || canStaffActions) && (
+                        <button
+                          className="btn btn-icon btn-edit"
+                          type="button"
+                          title="Envoyer à la mutuelle"
+                          onClick={() => doAction(`/api/quotes/${d.id}/submit`, 'Devis envoyé à la mutuelle')}
+                        >
+                          <FaIcon name="paper-plane" />
+                        </button>
+                      )}
+                      {canStaffActions && (
                         <>
                           <button className="btn btn-icon btn-edit" type="button" title="Scanner" onClick={() => doAction(`/api/quotes/${d.id}/scan`, 'Devis scanné')}>
                             <FaIcon name="print" />
@@ -348,9 +369,8 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
                 ))}
               </tbody>
             </table>
-          </div>
         </div>
-      </div>
+      </TablePageShell>
     </>
   );
 }

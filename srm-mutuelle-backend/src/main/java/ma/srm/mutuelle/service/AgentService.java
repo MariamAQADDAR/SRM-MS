@@ -54,7 +54,7 @@ public class AgentService {
 
 	@Transactional
 	public void delete(Long id, AppUser user) {
-		AccessRules.assertStaffWrite(user);
+		AccessRules.assertAdmin(user);
 		if (!agentRepository.existsById(id)) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent introuvable");
 		}

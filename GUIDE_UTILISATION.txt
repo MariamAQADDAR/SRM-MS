@@ -30,10 +30,10 @@ Ouvrir PowerShell:
   .\mvnw.cmd spring-boot:run
 
 API disponible sur:
-  http://localhost:8080
+  http://localhost:8081
 
 Test sante:
-  http://localhost:8080/api/health
+  http://localhost:8081/api/health
 
 
 4) LANCER LE FRONTEND
@@ -95,7 +95,8 @@ Les confirmations critiques utilisent SweetAlert2 (popup moderne):
 9) PROBLEMES FREQUENTS
 ----------------------
 A) "API inaccessible"
--> Verifier backend demarre sur port 8080
+-> Verifier backend demarre (port dans backend/.env : SERVER_PORT, souvent 8081)
+-> Aligner srm-mutuelle-web/.env : VITE_API_BASE_URL=http://localhost:8081
 
 B) "Erreur CORS"
 -> Verifier CORS_ALLOWED_ORIGINS dans .env backend

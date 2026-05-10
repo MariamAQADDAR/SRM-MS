@@ -51,7 +51,7 @@ public class MedicineController {
 	}
 
 	@DeleteMapping("/{id}")
-	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		medicineService.delete(id, AuthPrincipal.requireUser(authentication));
 	}

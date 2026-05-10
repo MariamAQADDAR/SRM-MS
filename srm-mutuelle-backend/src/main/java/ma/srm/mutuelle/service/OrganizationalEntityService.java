@@ -57,7 +57,7 @@ public class OrganizationalEntityService {
 
 	@Transactional
 	public void delete(Long id, AppUser user) {
-		AccessRules.assertStaffWrite(user);
+		AccessRules.assertAdmin(user);
 		repository.deleteById(id);
 	}
 

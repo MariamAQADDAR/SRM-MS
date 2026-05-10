@@ -52,7 +52,7 @@ public class ReimbursementController {
 	}
 
 	@DeleteMapping("/{id}")
-	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		reimbursementService.delete(id, AuthPrincipal.requireUser(authentication));
 	}

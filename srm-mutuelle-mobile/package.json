@@ -4,11 +4,13 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
+    "start:clear": "expo start --clear",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.1.2",
     "@expo/vector-icons": "^15.1.1",
     "expo": "~54.0.33",
     "expo-status-bar": "~3.0.9",

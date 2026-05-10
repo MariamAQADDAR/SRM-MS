@@ -13,15 +13,15 @@ import {
 import { FontAwesome5 } from '@expo/vector-icons';
 
 const COLORS = {
-  primary: '#0d9488',
-  secondary: '#115e59',
-  background: '#f8fafc',
+  primary: '#0f6fb8',
+  secondary: '#0e5aa0',
+  background: '#f4f7fb',
   surface: '#ffffff',
   text: '#1e293b',
   textLight: '#64748b',
   border: '#e2e8f0',
-  botBubble: '#f0fdfa',
-  userBubble: '#0d9488',
+  botBubble: '#eef8ff',
+  userBubble: '#0f6fb8',
 };
 
 const QUICK_PROMPTS = [

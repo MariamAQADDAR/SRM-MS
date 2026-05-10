@@ -43,6 +43,12 @@ public class QuoteController {
 		return quoteService.create(body, AuthPrincipal.requireUser(authentication));
 	}
 
+	@PostMapping("/{id}/submit")
+	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','ADHERENT')")
+	public QuoteResponse submit(@PathVariable Long id, Authentication authentication) {
+		return quoteService.submit(id, AuthPrincipal.requireUser(authentication));
+	}
+
 	@PutMapping("/{id}")
 	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
 	public QuoteResponse update(
@@ -51,7 +57,7 @@ public class QuoteController {
 	}
 
 	@DeleteMapping("/{id}")
-	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		quoteService.delete(id, AuthPrincipal.requireUser(authentication));
 	}

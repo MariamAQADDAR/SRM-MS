@@ -1,14 +1,10 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import FaIcon from './FaIcon';
-import { isAdminRole, isAdherentRole, isStaffWriterRole } from '../authUtils';
+import { isAdherentRole, isStaffWriterRole } from '../authUtils';
 
 export default function Layout({ children, currentPage, onNavigate, user, navBadges }) {
-  const navigate = useNavigate();
-
   if (!user) return null;
 
-  const isAdmin = isAdminRole(user);
   const isAdherent = isAdherentRole(user);
   const staffWriter = isStaffWriterRole(user);
   const b = navBadges || {};
@@ -20,8 +16,6 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         section: 'Principal',
         items: [
           { id: 'dashboard', fa: 'chart-line', label: 'Tableau de bord' },
-          { id: 'notifications', fa: 'bell', label: 'Notifications' },
-          { id: 'profil', fa: 'id-card', label: 'Mon profil' },
         ],
       },
       {
@@ -39,8 +33,6 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         section: 'Principal',
         items: [
           { id: 'dashboard', fa: 'chart-line', label: 'Tableau de bord' },
-          { id: 'notifications', fa: 'bell', label: 'Notifications' },
-          { id: 'profil', fa: 'id-card', label: 'Mon profil' },
         ],
       },
       {
@@ -68,23 +60,34 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         items: [{ id: 'notif-broadcast', fa: 'bullhorn', label: 'Centre de publication' }],
       });
     }
-    if (isAdmin) {
+    const adminSectionItems = [];
+    if (staffWriter) {
+      adminSectionItems.push({ id: 'utilisateurs', fa: 'user-shield', label: 'Utilisateurs', badge: b.users });
+      adminSectionItems.push({ id: 'parametrage', fa: 'sliders', label: 'Paramétrage' });
+    }
+    if (adminSectionItems.length > 0) {
       navSections.push({
         section: 'Administration',
-        items: [
-          { id: 'utilisateurs', fa: 'user-shield', label: 'Utilisateurs', badge: b.users },
-          { id: 'parametrage', fa: 'sliders', label: 'Paramétrage' },
-        ],
+        items: adminSectionItems,
       });
     }
   }
 
-  const initials = (user.name || 'U')
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
+  const getSectionForPage = (pageId) =>
+    navSections.find((sec) => sec.items.some((item) => item.id === pageId))?.section || null;
+
+  const [openSection, setOpenSection] = useState(getSectionForPage(currentPage) || navSections[0]?.section || null);
+
+  useEffect(() => {
+    const activeSection = getSectionForPage(currentPage);
+    if (activeSection) {
+      setOpenSection(activeSection);
+    }
+  }, [currentPage]);
+
+  const toggleSection = (sectionName) => {
+    setOpenSection((prev) => (prev === sectionName ? null : sectionName));
+  };
 
   return (
     <div className="app-layout">
@@ -92,7 +95,7 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         <div className="sidebar-header">
           <div className="s-brand">
             <img
-              src="/srm-brand-logo.png"
+              src="/srm-company-logo.png"
               alt="SRM-MS — Société Régionale Multiservices Marrakech-Safi"
               className="s-brand-img"
             />
@@ -101,8 +104,17 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         <div className="sidebar-nav" id="sidebarNav">
           {navSections.map((sec) => (
             <div className="nav-section" key={sec.section}>
-              <div className="nav-section-title">{sec.section}</div>
-              {sec.items.map((item) => (
+              <div
+                className="nav-section-title nav-section-toggle"
+                onClick={() => toggleSection(sec.section)}
+                onKeyDown={(e) => e.key === 'Enter' && toggleSection(sec.section)}
+                role="button"
+                tabIndex={0}
+              >
+                <span>{sec.section}</span>
+                <FaIcon name={openSection === sec.section ? 'chevron-down' : 'chevron-right'} />
+              </div>
+              {openSection === sec.section && sec.items.map((item) => (
                 <div
                   key={item.id}
                   className={`nav-item${currentPage === item.id ? ' active' : ''}`}
@@ -120,26 +132,6 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
               ))}
             </div>
           ))}
-        </div>
-        <div className="sidebar-footer">
-          <div className="sidebar-user" id="sidebarUser">
-            <div className="user-avatar">{initials}</div>
-            <div className="user-info">
-              <div className="user-name">{user.name}</div>
-              <div className="user-role">{user.role}</div>
-            </div>
-            <span
-              className="logout-icon"
-              id="logoutBtn"
-              title="Déconnexion"
-              onClick={() => {
-                sessionStorage.removeItem('mutuelle_user');
-                navigate('/');
-              }}
-            >
-              <FaIcon name="right-from-bracket" title="Déconnexion" />
-            </span>
-          </div>
         </div>
       </div>
 

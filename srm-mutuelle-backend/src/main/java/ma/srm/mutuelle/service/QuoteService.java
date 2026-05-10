@@ -23,6 +23,7 @@ public class QuoteService {
 
 	private final QuoteRepository quoteRepository;
 	private final AgentRepository agentRepository;
+	private final AdherentNotifierService adherentNotifierService;
 
 	public List<QuoteResponse> list(AppUser user) {
 		if (user.getRole() == AppUserRole.ADHERENT) {
@@ -63,6 +64,22 @@ public class QuoteService {
 	}
 
 	@Transactional
+	public QuoteResponse submit(Long id, AppUser user) {
+		Quote q = quoteRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
+		if (user.getRole() == AppUserRole.ADHERENT) {
+			AccessRules.assertAgentScope(user, q.getAgent().getId());
+		} else {
+			AccessRules.assertStaffWrite(user);
+		}
+		String etat = q.getEtat();
+		if (!"En attente".equals(etat) && !"Brouillon".equals(etat)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "État incompatible avec l'envoi du devis");
+		}
+		q.setEtat("Soumis");
+		return toDto(quoteRepository.save(q));
+	}
+
+	@Transactional
 	public QuoteResponse update(Long id, QuoteWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		Quote q = quoteRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
@@ -84,7 +101,7 @@ public class QuoteService {
 
 	@Transactional
 	public void delete(Long id, AppUser user) {
-		AccessRules.assertStaffWrite(user);
+		AccessRules.assertAdmin(user);
 		quoteRepository.deleteById(id);
 	}
 
@@ -101,7 +118,12 @@ public class QuoteService {
 		AccessRules.assertStaffWrite(user);
 		Quote q = quoteRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
 		q.setEtat("Approuvé");
-		return toDto(quoteRepository.save(q));
+		q = quoteRepository.save(q);
+		adherentNotifierService.notifyAdherentsOfAgent(
+				q.getAgent().getId(),
+				"DEVIS",
+				"Votre devis n° " + q.getNumero() + " a été approuvé.");
+		return toDto(q);
 	}
 
 	@Transactional
@@ -109,7 +131,12 @@ public class QuoteService {
 		AccessRules.assertStaffWrite(user);
 		Quote q = quoteRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
 		q.setEtat("Rejeté");
-		return toDto(quoteRepository.save(q));
+		q = quoteRepository.save(q);
+		adherentNotifierService.notifyAdherentsOfAgent(
+				q.getAgent().getId(),
+				"DEVIS",
+				"Votre devis n° " + q.getNumero() + " a été refusé. Contactez la mutuelle pour plus d'informations.");
+		return toDto(q);
 	}
 
 	private QuoteResponse toDto(Quote q) {

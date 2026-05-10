@@ -77,7 +77,7 @@ public class CareEpisodeService {
 
 	@Transactional
 	public void delete(Long id, AppUser user) {
-		AccessRules.assertStaffWrite(user);
+		AccessRules.assertAdmin(user);
 		careEpisodeRepository.deleteById(id);
 	}
 

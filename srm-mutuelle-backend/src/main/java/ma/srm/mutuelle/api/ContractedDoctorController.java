@@ -52,7 +52,7 @@ public class ContractedDoctorController {
 	}
 
 	@DeleteMapping("/{id}")
-	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		contractedDoctorService.delete(id, AuthPrincipal.requireUser(authentication));
 	}

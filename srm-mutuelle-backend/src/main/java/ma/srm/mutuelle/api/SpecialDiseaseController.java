@@ -51,7 +51,7 @@ public class SpecialDiseaseController {
 	}
 
 	@DeleteMapping("/{id}")
-	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		specialDiseaseService.delete(id, AuthPrincipal.requireUser(authentication));
 	}

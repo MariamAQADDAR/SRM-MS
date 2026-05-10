@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { isAdherentRole, isConsultateurRole } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import TablePageShell from '../components/TablePageShell';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
 
@@ -126,21 +127,6 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
           {modal.content}
         </Modal>
       )}
-      <div className="toolbar">
-        <div className="toolbar-left">
-          <h4 style={{ color: 'var(--gray-700)' }}>
-            <FaIcon name="stethoscope" className="fa-inline-icon" /> {diseases.length} dossiers maladies spéciales
-          </h4>
-        </div>
-        <div className="toolbar-right">
-          {!isConsult && !adherent && (
-            <button className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau dossier maladie spéciale', content: form })}>
-              <FaIcon name="plus" className="fa-inline-icon" /> Nouveau dossier
-            </button>
-          )}
-        </div>
-      </div>
-
       {adherent && (
         <div className="card" style={{ marginBottom: '16px' }}>
           <div className="card-header">
@@ -161,9 +147,24 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
         </div>
       )}
 
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper">
+      <TablePageShell
+        title="Liste des maladies spéciales"
+        icon="stethoscope"
+        toolbar={
+          <div className="table-page-toolbar-row">
+            <span style={{ color: 'var(--gray-600)', fontSize: '14px' }}>
+              {diseases.length} dossier{diseases.length !== 1 ? 's' : ''}
+            </span>
+            <span className="toolbar-spacer" />
+            {!isConsult && !adherent && (
+              <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau dossier maladie spéciale', content: form })}>
+                <FaIcon name="plus" className="fa-inline-icon" /> Nouveau dossier
+              </button>
+            )}
+          </div>
+        }
+      >
+        <div className="data-table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
@@ -194,9 +195,8 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
                 ))}
               </tbody>
             </table>
-          </div>
         </div>
-      </div>
+      </TablePageShell>
     </>
   );
 }

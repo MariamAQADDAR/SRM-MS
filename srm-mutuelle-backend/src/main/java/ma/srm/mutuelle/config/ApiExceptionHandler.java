@@ -34,8 +34,17 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler(AccessDeniedException.class)
 	public ResponseEntity<Map<String, String>> accessDenied(AccessDeniedException ex) {
-		return ResponseEntity.status(HttpStatus.FORBIDDEN)
-				.body(Map.of("error", "FORBIDDEN", "message", ex.getMessage() != null ? ex.getMessage() : "Accès refusé"));
+		String msg = ex.getMessage();
+		if (msg == null || msg.isBlank() || "Access Denied".equalsIgnoreCase(msg.trim())) {
+			msg = "Accès refusé. Vérifiez votre rôle ou reconnectez-vous après redémarrage du serveur.";
+		}
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "FORBIDDEN", "message", msg));
+	}
+
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<Map<String, String>> badArgument(IllegalArgumentException ex) {
+		return ResponseEntity.badRequest()
+				.body(Map.of("error", "BAD_REQUEST", "message", ex.getMessage() != null ? ex.getMessage() : "Requête invalide"));
 	}
 
 	@ExceptionHandler(ResponseStatusException.class)

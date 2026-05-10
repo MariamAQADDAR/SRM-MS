@@ -34,11 +34,15 @@ public class UserAdminService {
 	}
 
 	@Transactional
-	public AppUserResponse create(CreateAppUserRequest req) {
+	public AppUserResponse create(CreateAppUserRequest req, AppUser actor) {
 		if (appUserRepository.existsByEmailIgnoreCase(req.email())) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Email déjà utilisé");
 		}
 		AppUserRole role = parseRole(req.role());
+		if (actor.getRole() == AppUserRole.OPERATEUR && role == AppUserRole.ADMINISTRATEUR) {
+			throw new ResponseStatusException(
+					HttpStatus.FORBIDDEN, "Accès refusé : seul un administrateur peut créer un compte administrateur.");
+		}
 		AppUser u = new AppUser();
 		u.setEmail(req.email().trim().toLowerCase());
 		u.setPasswordHash(passwordEncoder.encode(req.password()));
@@ -60,6 +64,10 @@ public class UserAdminService {
 	@Transactional
 	public AppUserResponse update(Long id, UpdateAppUserRequest req, AppUser actor) {
 		AppUser u = appUserRepository.findById(id).orElseThrow(() -> notFound(id));
+		if (actor.getRole() == AppUserRole.OPERATEUR && u.getRole() == AppUserRole.ADMINISTRATEUR) {
+			throw new ResponseStatusException(
+					HttpStatus.FORBIDDEN, "Accès refusé : vous ne pouvez pas modifier un compte administrateur.");
+		}
 		if (actor.getId().equals(id) && Boolean.FALSE.equals(req.active())) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Impossible de se désactiver soi-même");
 		}
@@ -67,7 +75,12 @@ public class UserAdminService {
 			u.setFullName(req.fullName());
 		}
 		if (req.role() != null) {
-			u.setRole(parseRole(req.role()));
+			AppUserRole newRole = parseRole(req.role());
+			if (actor.getRole() == AppUserRole.OPERATEUR && newRole == AppUserRole.ADMINISTRATEUR) {
+				throw new ResponseStatusException(
+						HttpStatus.FORBIDDEN, "Accès refusé : vous ne pouvez pas attribuer le rôle administrateur.");
+			}
+			u.setRole(newRole);
 			if (u.getRole() != AppUserRole.ADHERENT) {
 				u.setAgent(null);
 			}
@@ -89,6 +102,11 @@ public class UserAdminService {
 	@Transactional
 	public AppUserResponse patchActive(Long id, PatchActiveRequest req, AppUser actor) {
 		AppUser u = appUserRepository.findById(id).orElseThrow(() -> notFound(id));
+		if (actor.getRole() == AppUserRole.OPERATEUR && u.getRole() == AppUserRole.ADMINISTRATEUR) {
+			throw new ResponseStatusException(
+					HttpStatus.FORBIDDEN,
+					"Accès refusé : seul un administrateur peut activer ou désactiver un compte administrateur.");
+		}
 		if (actor.getId().equals(id) && Boolean.FALSE.equals(req.active())) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Impossible de se désactiver soi-même");
 		}
@@ -98,6 +116,9 @@ public class UserAdminService {
 
 	@Transactional
 	public void delete(Long id, AppUser actor) {
+		if (actor.getRole() == AppUserRole.OPERATEUR) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès refusé : les opérateurs ne peuvent pas supprimer un utilisateur.");
+		}
 		if (actor.getId().equals(id)) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Suppression de soi-même interdite");
 		}

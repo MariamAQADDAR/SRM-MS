@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { isConsultateurRole } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import TablePageShell from '../components/TablePageShell';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
 
@@ -101,61 +102,68 @@ export default function EtablissementsPage({ setPageTitle, addToast, user }) {
           {modal.content}
         </Modal>
       )}
-      <div className="toolbar">
-        <div className="toolbar-left">
-          <div className="filter-group">
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-              <option value="">Tous les types</option>
-              {facilityTypes.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="toolbar-right">
-          {!isConsult && (
-            <button className="btn btn-primary" onClick={() => setModal({ title: 'Nouvel établissement', content: form })}>
-              <FaIcon name="plus" className="fa-inline-icon" /> Nouvel établissement
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="detail-grid">
-        {data.map((e) => (
-          <div className="card" key={e.id} style={{ overflow: 'hidden' }}>
-            <div className="card-header" style={{ background: 'linear-gradient(135deg, var(--primary-50), var(--gray-50))' }}>
-              <h3 style={{ fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FaIcon name={typeFa[e.type] || 'building'} /> {e.nom}
-              </h3>
-              <span className={`badge ${typeBadgeClass[e.type] || 'badge-info'}`}>{e.type}</span>
+      <TablePageShell
+        title="Liste des établissements médicaux"
+        icon="building"
+        toolbar={
+          <div className="table-page-toolbar-row">
+            <div className="filter-group">
+              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="form-control" aria-label="Filtrer par type">
+                <option value="">Tous les types</option>
+                {facilityTypes.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>
             </div>
-            <div className="card-body">
-              <p style={{ fontSize: '13px', color: 'var(--gray-600)', marginBottom: '8px' }}>
-                <FaIcon name="location-dot" className="fa-inline-icon" />
-                {e.adresse || '—'}
-              </p>
-              <p style={{ fontSize: '13px', color: 'var(--gray-600)', marginBottom: '12px' }}>
-                <FaIcon name="phone" className="fa-inline-icon" />
-                {e.telephone || '—'}
-              </p>
-              {e.medecins && e.medecins.length > 0 && (
-                <div>
-                  <p style={{ fontSize: '12px', fontWeight: '600', color: 'var(--gray-500)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Médecins
-                  </p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {e.medecins.map((m, i) => (
-                      <span key={i} className="badge badge-primary" style={{ fontSize: '11px' }}>
-                        {m}
-                      </span>
-                    ))}
+            <span style={{ color: 'var(--gray-600)', fontSize: '14px' }}>
+              {data.length} établissement{data.length !== 1 ? 's' : ''}
+            </span>
+            <span className="toolbar-spacer" />
+            {!isConsult && (
+              <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouvel établissement', content: form })}>
+                <FaIcon name="plus" className="fa-inline-icon" /> Nouvel établissement
+              </button>
+            )}
+          </div>
+        }
+      >
+        <div className="detail-grid">
+          {data.map((e) => (
+            <div className="card" key={e.id} style={{ overflow: 'hidden' }}>
+              <div className="card-header" style={{ background: 'linear-gradient(135deg, var(--primary-50), var(--gray-50))' }}>
+                <h3 style={{ fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FaIcon name={typeFa[e.type] || 'building'} /> {e.nom}
+                </h3>
+                <span className={`badge ${typeBadgeClass[e.type] || 'badge-info'}`}>{e.type}</span>
+              </div>
+              <div className="card-body">
+                <p style={{ fontSize: '13px', color: 'var(--gray-600)', marginBottom: '8px' }}>
+                  <FaIcon name="location-dot" className="fa-inline-icon" />
+                  {e.adresse || '—'}
+                </p>
+                <p style={{ fontSize: '13px', color: 'var(--gray-600)', marginBottom: '12px' }}>
+                  <FaIcon name="phone" className="fa-inline-icon" />
+                  {e.telephone || '—'}
+                </p>
+                {e.medecins && e.medecins.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: '12px', fontWeight: '600', color: 'var(--gray-500)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Médecins
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {e.medecins.map((m, i) => (
+                        <span key={i} className="badge badge-primary" style={{ fontSize: '11px' }}>
+                          {m}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </TablePageShell>
     </>
   );
 }

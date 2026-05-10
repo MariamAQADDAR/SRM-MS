@@ -73,7 +73,7 @@ public class BeneficiaryService {
 
 	@Transactional
 	public void delete(Long id, AppUser user) {
-		AccessRules.assertStaffWrite(user);
+		AccessRules.assertAdmin(user);
 		if (!beneficiaryRepository.existsById(id)) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Bénéficiaire introuvable");
 		}

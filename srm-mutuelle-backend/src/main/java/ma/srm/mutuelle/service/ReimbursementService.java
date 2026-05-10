@@ -24,6 +24,7 @@ public class ReimbursementService {
 
 	private final ReimbursementRepository reimbursementRepository;
 	private final AgentRepository agentRepository;
+	private final AdherentNotifierService adherentNotifierService;
 
 	public List<ReimbursementResponse> list(AppUser user) {
 		if (user.getRole() == AppUserRole.ADHERENT) {
@@ -82,7 +83,7 @@ public class ReimbursementService {
 
 	@Transactional
 	public void delete(Long id, AppUser user) {
-		AccessRules.assertStaffWrite(user);
+		AccessRules.assertAdmin(user);
 		reimbursementRepository.deleteById(id);
 	}
 
@@ -92,11 +93,20 @@ public class ReimbursementService {
 		Reimbursement r = reimbursementRepository
 				.findById(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
+		String previousStatus = r.getStatus();
 		r.setMontantValide(req.montantValide());
 		if ("En attente".equals(r.getStatus()) || "En cours".equals(r.getStatus())) {
 			r.setStatus("Traité");
 		}
-		return toDto(reimbursementRepository.save(r));
+		r = reimbursementRepository.save(r);
+		if (!"Traité".equals(previousStatus) && "Traité".equals(r.getStatus())) {
+			String montant = r.getMontantValide() != null ? r.getMontantValide().toPlainString() : "-";
+			adherentNotifierService.notifyAdherentsOfAgent(
+					r.getAgent().getId(),
+					"REMBOURSEMENT",
+					"Votre remboursement n° " + r.getNumero() + " a été validé. Montant accordé : " + montant + " DH.");
+		}
+		return toDto(r);
 	}
 
 	@Transactional
@@ -105,8 +115,14 @@ public class ReimbursementService {
 		Reimbursement r = reimbursementRepository
 				.findById(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
+		String previousStatus = r.getStatus();
 		r.setStatus("Clôturé");
-		return toDto(reimbursementRepository.save(r));
+		r = reimbursementRepository.save(r);
+		adherentNotifierService.notifyAdherentsOfAgent(
+				r.getAgent().getId(),
+				"REMBOURSEMENT",
+				"Votre remboursement n° " + r.getNumero() + " est clôturé (statut précédent : " + previousStatus + ").");
+		return toDto(r);
 	}
 
 	private ReimbursementResponse toDto(Reimbursement r) {

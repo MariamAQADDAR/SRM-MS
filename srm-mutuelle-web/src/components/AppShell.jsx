@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import Toast from './Toast';
@@ -19,9 +19,10 @@ import ParametragePage from '../pages/ParametragePage';
 import ChatbotWidget from './ChatbotWidget';
 import FaIcon from './FaIcon';
 import { apiFetch, apiMe, parseJsonOrThrow } from '../api/client';
-import { isAdminRole, isAdherentRole, isStaffWriterRole } from '../authUtils';
+import { prefetchTypeConfig } from '../config/typeConfig';
+import { isAdherentRole, isStaffWriterRole } from '../authUtils';
 
-const ADHERENT_PAGES = new Set(['dashboard', 'devis', 'remboursements', 'maladies', 'notifications', 'profil']);
+const ADHERENT_PAGES = new Set(['dashboard', 'devis', 'remboursements', 'maladies']);
 
 export default function AppShell() {
   const navigate = useNavigate();
@@ -49,7 +50,12 @@ export default function AppShell() {
   const pageTitle = pageTitles[currentPage] || { title: 'Page en construction', breadcrumb: 'Inconnu' };
 
   const [toasts, setToasts] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [notifPopupOpen, setNotifPopupOpen] = useState(false);
+  const [profilePopupOpen, setProfilePopupOpen] = useState(false);
+  const [notifRows, setNotifRows] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const notifDropdownRef = useRef(null);
+  const userDropdownRef = useRef(null);
 
   const loadUnread = useCallback(async () => {
     try {
@@ -89,7 +95,7 @@ export default function AppShell() {
           apiFetch('/api/medical-facilities'),
           apiFetch('/api/organizational-entities'),
         ];
-        if (isAdminRole(u)) {
+        if (isStaffWriterRole(u)) {
           reqs.push(apiFetch('/api/admin/users'));
         }
         const out = await Promise.all(reqs.map((p) => p.then((r) => parseJsonOrThrow(r))));
@@ -102,7 +108,7 @@ export default function AppShell() {
         const mal = out[i++];
         const fac = out[i++];
         const ent = out[i++];
-        const users = isAdminRole(u) ? out[i++] : [];
+        const users = isStaffWriterRole(u) ? out[i++] : [];
         setNavBadges({
           agents: agents.length,
           ordonnances: ordonnances.length,
@@ -154,6 +160,11 @@ export default function AppShell() {
         }
       }
       if (!cancelled) {
+        try {
+          await prefetchTypeConfig();
+        } catch {
+          /* listes types : fallback défauts / cache local */
+        }
         setUser(u);
         loadNavBadges(u);
         loadUnread();
@@ -170,6 +181,19 @@ export default function AppShell() {
   }, [loadUnread]);
 
   useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setNotifPopupOpen(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
+        setProfilePopupOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
     if (isAdherentRole(user) && !ADHERENT_PAGES.has(currentPage)) {
       setCurrentPage('dashboard');
@@ -178,17 +202,72 @@ export default function AppShell() {
 
   const setPageTitle = () => {};
 
-  const addToast = (type, message) => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, type, message }]);
+  const lastErrorToastRef = useRef({ key: '', at: 0 });
+  const addToast = useCallback((type, message) => {
+    const text = String(message ?? '').trim() || (type === 'error' ? 'Une erreur est survenue' : '');
+    if (type === 'error' && text) {
+      const now = Date.now();
+      if (lastErrorToastRef.current.key === text && now - lastErrorToastRef.current.at < 2000) {
+        return;
+      }
+      lastErrorToastRef.current = { key: text, at: now };
+    }
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    setToasts((prev) => [...prev, { id, type, message: text }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
-  };
+  }, []);
 
   const removeToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
+  const loadNotificationsPopup = async () => {
+    setNotifLoading(true);
+    try {
+      const res = await apiFetch('/api/notifications');
+      const rows = await parseJsonOrThrow(res);
+      setNotifRows(Array.isArray(rows) ? rows : []);
+    } catch (e) {
+      addToast('error', e.message || 'Notifications indisponibles');
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const formatNotifTs = (iso) => {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleString('fr-FR');
+    } catch {
+      return '—';
+    }
+  };
+
+  const openNotifPopup = async () => {
+    setProfilePopupOpen(false);
+    const nextOpen = !notifPopupOpen;
+    setNotifPopupOpen(nextOpen);
+    if (nextOpen) {
+      await loadNotificationsPopup();
+    }
+  };
+
+  const markNotifRead = async (id) => {
+    try {
+      await parseJsonOrThrow(await apiFetch(`/api/notifications/${id}/read`, { method: 'PATCH' }));
+      await Promise.all([loadNotificationsPopup(), loadUnread()]);
+    } catch (e) {
+      addToast('error', e.message || 'Impossible de marquer la notification');
+    }
+  };
+
   if (!user) return null;
 
-  const isAdmin = isAdminRole(user);
+  const initials = (user.name || 'U')
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+
   const isAdherent = isAdherentRole(user);
   const staffWriter = isStaffWriterRole(user);
 
@@ -241,7 +320,7 @@ export default function AppShell() {
       case 'entites':
         return isAdherent ? forbiddenForAdherent() : <EntitesPage {...pageProps} />;
       case 'utilisateurs':
-        return isAdmin ? <UtilisateursPage {...pageProps} /> : forbiddenForAdherent();
+        return staffWriter ? <UtilisateursPage {...pageProps} /> : forbiddenForAdherent();
       case 'notifications':
         return <NotificationsPage {...pageProps} onUnreadChanged={setUnreadCount} />;
       case 'notif-broadcast':
@@ -277,37 +356,115 @@ export default function AppShell() {
             </div>
           </div>
           <div className="topbar-right">
-            <div className="topbar-search">
-              <span className="search-icon">
-                <FaIcon name="magnifying-glass" />
-              </span>
-              <input
-                type="text"
-                placeholder="Rechercher..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            <div className="topbar-dropdown-wrap" ref={notifDropdownRef}>
+              <div
+                className={`topbar-btn${notifPopupOpen ? ' active' : ''}`}
+                title="Notifications"
+                onClick={openNotifPopup}
+                onKeyDown={(e) => e.key === 'Enter' && openNotifPopup()}
+                role="button"
+                tabIndex={0}
+              >
+                <FaIcon name="bell" />
+                {unreadCount > 0 ? <span className="notif-dot" /> : null}
+              </div>
+              {notifPopupOpen && (
+                <div className="topbar-dropdown-panel notif-dropdown-panel">
+                  <div className="notif-panel-header">
+                    <h4>CENTRE DE NOTIFICATIONS</h4>
+                    <span className="badge badge-primary">{unreadCount} nouvelles</span>
+                  </div>
+                  <div className="notif-panel-body">
+                    {notifLoading ? (
+                      <div className="notif-loading">Chargement...</div>
+                    ) : notifRows.length === 0 ? (
+                      <div className="notif-empty">Aucune notification.</div>
+                    ) : (
+                      notifRows.map((n) => (
+                        <div key={n.id} className={`notif-item${n.read ? '' : ' unread'}`}>
+                          <div className="notif-item-title">{n.notifType || 'Notification'}</div>
+                          <div className="notif-item-body">{n.body}</div>
+                          <div className="notif-item-footer">
+                            <span>{formatNotifTs(n.createdAt)}</span>
+                            {!n.read ? (
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                onClick={() => markNotifRead(n.id)}
+                              >
+                                Marquer lu
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            <div
-              className="topbar-btn"
-              title="Notifications"
-              onClick={() => setCurrentPage('notifications')}
-              onKeyDown={(e) => e.key === 'Enter' && setCurrentPage('notifications')}
-              role="button"
-              tabIndex={0}
-            >
-              <FaIcon name="bell" />
-              {unreadCount > 0 ? <span className="notif-dot" /> : null}
-            </div>
-            <div
-              className="topbar-btn"
-              title={`Profil — ${user.role}`}
-              onClick={() => setCurrentPage('profil')}
-              onKeyDown={(e) => e.key === 'Enter' && setCurrentPage('profil')}
-              role="button"
-              tabIndex={0}
-            >
-              <FaIcon name="user" />
+            <div className="topbar-dropdown-wrap" ref={userDropdownRef}>
+              <div
+                className={`topbar-user-chip${profilePopupOpen ? ' active' : ''}`}
+                title={`${user.name} — ${user.role}`}
+                onClick={() => {
+                  setNotifPopupOpen(false);
+                  setProfilePopupOpen((prev) => !prev);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setNotifPopupOpen(false);
+                    setProfilePopupOpen((prev) => !prev);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="topbar-user-avatar">{initials}</div>
+                <div className="topbar-user-meta">
+                  <div className="topbar-user-name">{user.name}</div>
+                  <div className="topbar-user-role">{user.role}</div>
+                </div>
+              </div>
+              {profilePopupOpen && (
+                <div className="topbar-dropdown-panel user-dropdown-panel">
+                  <div className="user-dropdown-head">
+                    <div className="user-dropdown-name">{user.name || 'Utilisateur'}</div>
+                    <div className="user-dropdown-role">{user.role || '—'}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="user-dropdown-action"
+                    onClick={() => {
+                      setProfilePopupOpen(false);
+                      setCurrentPage('profil');
+                    }}
+                  >
+                    <FaIcon name="id-card" /> Mon profil
+                  </button>
+                  <button
+                    type="button"
+                    className="user-dropdown-action"
+                    onClick={() => {
+                      setProfilePopupOpen(false);
+                      if (staffWriter) setCurrentPage('utilisateurs');
+                    }}
+                    disabled={!staffWriter}
+                  >
+                    <FaIcon name="user-shield" /> Utilisateurs
+                  </button>
+                  <button
+                    type="button"
+                    className="user-dropdown-action danger"
+                    onClick={() => {
+                      sessionStorage.removeItem('mutuelle_user');
+                      navigate('/');
+                    }}
+                  >
+                    <FaIcon name="right-from-bracket" /> Déconnexion
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

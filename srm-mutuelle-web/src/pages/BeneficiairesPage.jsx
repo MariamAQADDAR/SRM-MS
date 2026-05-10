@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import TablePageShell from '../components/TablePageShell';
 import { isConsultateurRole } from '../authUtils';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 
@@ -239,35 +240,6 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
           {modal.content}
         </Modal>
       )}
-      <div className="toolbar">
-        <div className="toolbar-left">
-          <div className="filter-group">
-            <select value={filterEntite} onChange={(e) => setFilterEntite(e.target.value)}>
-              <option value="">Toutes les entités</option>
-              {entites.map((e) => (
-                <option key={e} value={e}>
-                  {e}
-                </option>
-              ))}
-            </select>
-            <select value={filterSituation} onChange={(e) => setFilterSituation(e.target.value)}>
-              <option value="">Toute situation</option>
-              <option value="Marié">Marié(e)</option>
-              <option value="Célibataire">Célibataire</option>
-            </select>
-          </div>
-        </div>
-        <div className="toolbar-right">
-          {!isConsult && (
-            <button
-              className="btn btn-primary"
-              onClick={() => setModal({ title: 'Ajouter un agent', content: agentForm })}
-            >
-              <FaIcon name="plus" className="fa-inline-icon" /> Nouvel agent
-            </button>
-          )}
-        </div>
-      </div>
       <div className="tabs">
         <div className={`tab-item${tab === 'agents' ? ' active' : ''}`} onClick={() => setTab('agents')}>
           <FaIcon name="user" className="fa-inline-icon" /> Agents
@@ -276,9 +248,43 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
           <FaIcon name="user-group" className="fa-inline-icon" /> Proches
         </div>
       </div>
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper">
+      <TablePageShell
+        title={tab === 'agents' ? 'Liste des agents' : 'Liste des proches'}
+        icon={tab === 'agents' ? 'user' : 'user-group'}
+        toolbar={
+          <div className="table-page-toolbar-row">
+            {tab === 'agents' && (
+              <div className="filter-group" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <select className="form-control" value={filterEntite} onChange={(e) => setFilterEntite(e.target.value)}>
+                  <option value="">Toutes les entités</option>
+                  {entites.map((e) => (
+                    <option key={e} value={e}>
+                      {e}
+                    </option>
+                  ))}
+                </select>
+                <select className="form-control" value={filterSituation} onChange={(e) => setFilterSituation(e.target.value)}>
+                  <option value="">Toute situation</option>
+                  <option value="Marié">Marié(e)</option>
+                  <option value="Célibataire">Célibataire</option>
+                </select>
+              </div>
+            )}
+            {tab === 'proches' && <span style={{ color: 'var(--gray-600)', fontSize: '14px' }}>{beneficiaries.length} proche(s)</span>}
+            <span className="toolbar-spacer" />
+            {!isConsult && tab === 'agents' && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setModal({ title: 'Ajouter un agent', content: agentForm })}
+              >
+                <FaIcon name="plus" className="fa-inline-icon" /> Nouvel agent
+              </button>
+            )}
+          </div>
+        }
+      >
+        <div className="data-table-wrapper">
             {tab === 'agents' ? (
               <table className="data-table">
                 <thead>
@@ -364,9 +370,8 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
                 </tbody>
               </table>
             )}
-          </div>
         </div>
-      </div>
+      </TablePageShell>
     </>
   );
 }

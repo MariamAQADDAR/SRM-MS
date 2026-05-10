@@ -2,12 +2,16 @@ package ma.srm.mutuelle.api;
 
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import ma.srm.mutuelle.api.dto.MutualCardDtos.MutualCardCreateRequest;
 import ma.srm.mutuelle.api.dto.MutualCardDtos.MutualCardResponse;
 import ma.srm.mutuelle.api.support.AuthPrincipal;
 import ma.srm.mutuelle.service.MutualCardService;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,9 +46,15 @@ public class MutualCardController {
 		return mutualCardService.createOrEnsure(body, AuthPrincipal.requireUser(authentication));
 	}
 
-	@GetMapping("/by-agent/{agentId}/download")
+	@GetMapping(value = "/by-agent/{agentId}/download", produces = MediaType.APPLICATION_PDF_VALUE)
 	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','CONSULTATEUR','ADHERENT')")
-	public Map<String, String> download(@PathVariable Long agentId, Authentication authentication) {
-		return mutualCardService.downloadPlaceholder(agentId, AuthPrincipal.requireUser(authentication));
+	public ResponseEntity<Resource> download(@PathVariable Long agentId, Authentication authentication) {
+		byte[] bytes = mutualCardService.readPdfBytes(agentId, AuthPrincipal.requireUser(authentication));
+		ByteArrayResource resource = new ByteArrayResource(bytes);
+		return ResponseEntity.ok()
+				.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"carte-mutuelle-srm-ms.pdf\"")
+				.contentType(MediaType.APPLICATION_PDF)
+				.contentLength(bytes.length)
+				.body(resource);
 	}
 }

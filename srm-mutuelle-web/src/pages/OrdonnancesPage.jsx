@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { isConsultateurRole } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import TablePageShell from '../components/TablePageShell';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
 
@@ -353,49 +354,57 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
         </div>
       </div>
 
-      <div className="toolbar">
-        <div className="toolbar-left" style={{ width: '100%' }}>
-          <div className="filter-group" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(120px,1fr))', gap: 8 }}>
-            <input className="form-control" placeholder="Matricule" value={filterMatricule} onChange={(e) => setFilterMatricule(e.target.value)} />
-            <input className="form-control" placeholder="Nom Agent" value={filterNom} onChange={(e) => setFilterNom(e.target.value)} />
-            <input className="form-control" type="date" value={filterDateDebut} onChange={(e) => setFilterDateDebut(e.target.value)} />
-            <input className="form-control" type="date" value={filterDateFin} onChange={(e) => setFilterDateFin(e.target.value)} />
-            <select className="form-control" value={filterMedecin} onChange={(e) => setFilterMedecin(e.target.value)}>
-              <option value="">Médecin</option>
-              {doctors.map((d) => (
-                <option key={d.id}>{d.fullName}</option>
-              ))}
-            </select>
-            <select className="form-control" value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)}>
-              <option value="">{viewType === 'ordonnance' ? 'Pharmacie' : viewType === 'radio' ? 'Centre radiologie' : 'Laboratoire'}</option>
-              {facilityFilterOptions.map((n) => (
-                <option key={n}>{n}</option>
-              ))}
-            </select>
-            {viewType === 'radio' ? (
-              <select className="form-control" value={filterRadioType} onChange={(e) => setFilterRadioType(e.target.value)}>
-                <option value="">Type_radio</option>
-                {radioTypes.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-            ) : (
-              <div />
-            )}
-          </div>
-        </div>
-        <div className="toolbar-right">
-          {!isConsult && (
-            <button className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau', content: form })}>
-              <FaIcon name="plus" className="fa-inline-icon" /> Créer
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper">
+      <TablePageShell
+        title={
+          viewType === 'analyse'
+            ? 'Liste des analyses biologiques'
+            : viewType === 'ordonnance'
+              ? 'Liste des ordonnances'
+              : 'Liste des examens radiologiques'
+        }
+        icon="file-prescription"
+        toolbar={
+          <>
+            <div className="table-page-toolbar-filters">
+              <div className="filter-group" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+                <input className="form-control" placeholder="Matricule" value={filterMatricule} onChange={(e) => setFilterMatricule(e.target.value)} />
+                <input className="form-control" placeholder="Nom Agent" value={filterNom} onChange={(e) => setFilterNom(e.target.value)} />
+                <input className="form-control" type="date" value={filterDateDebut} onChange={(e) => setFilterDateDebut(e.target.value)} />
+                <input className="form-control" type="date" value={filterDateFin} onChange={(e) => setFilterDateFin(e.target.value)} />
+                <select className="form-control" value={filterMedecin} onChange={(e) => setFilterMedecin(e.target.value)}>
+                  <option value="">Médecin</option>
+                  {doctors.map((d) => (
+                    <option key={d.id}>{d.fullName}</option>
+                  ))}
+                </select>
+                <select className="form-control" value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)}>
+                  <option value="">{viewType === 'ordonnance' ? 'Pharmacie' : viewType === 'radio' ? 'Centre radiologie' : 'Laboratoire'}</option>
+                  {facilityFilterOptions.map((n) => (
+                    <option key={n}>{n}</option>
+                  ))}
+                </select>
+                {viewType === 'radio' ? (
+                  <select className="form-control" value={filterRadioType} onChange={(e) => setFilterRadioType(e.target.value)}>
+                    <option value="">Type_radio</option>
+                    {radioTypes.map((t) => (
+                      <option key={t}>{t}</option>
+                    ))}
+                  </select>
+                ) : null}
+              </div>
+            </div>
+            <div className="table-page-toolbar-row">
+              <span className="toolbar-spacer" />
+              {!isConsult && (
+                <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau', content: form })}>
+                  <FaIcon name="plus" className="fa-inline-icon" /> Créer
+                </button>
+              )}
+            </div>
+          </>
+        }
+      >
+        <div className="data-table-wrapper">
             <table className="data-table">
               <thead>
                 {viewType === 'analyse' && (
@@ -488,9 +497,8 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
                 ))}
               </tbody>
             </table>
-          </div>
         </div>
-      </div>
+      </TablePageShell>
     </>
   );
 }

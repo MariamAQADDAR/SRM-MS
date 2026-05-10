@@ -124,9 +124,9 @@ chmod +x mvnw
 ./mvnw spring-boot:run
 ```
 
-**Vérification** : [http://localhost:8080/api/health](http://localhost:8080/api/health)
+**Vérification** : [http://localhost:8081/api/health](http://localhost:8081/api/health)
 
-**Autre port** : dans `.env`, `SERVER_PORT=8081` (par exemple), puis aligner `VITE_API_BASE_URL` côté frontend.
+**Autre port** : dans `srm-mutuelle-backend/.env`, `SERVER_PORT=…`, puis la même valeur dans `srm-mutuelle-web/.env` (`VITE_API_BASE_URL=http://localhost:…`). En dev, vous pouvez aussi laisser `VITE_API_BASE_URL` vide : le proxy Vite (`vite.config.js`) envoie `/api` vers `http://localhost:8081` par défaut.
 
 **Tests** :
 
@@ -144,7 +144,7 @@ Répertoire : **`srm-mutuelle-web/`**
 Créer **`srm-mutuelle-web/.env`** à partir de **`srm-mutuelle-web/.env.example`** :
 
 ```env
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=http://localhost:8081
 ```
 
 Puis :
@@ -204,7 +204,7 @@ npx expo start --lan
 
 | Service | URL |
 |---------|-----|
-| API health | http://localhost:8080/api/health |
+| API health | http://localhost:8081/api/health |
 | Web (dev) | http://localhost:5173 |
 
 ---
@@ -229,7 +229,7 @@ SRM-MS/
 | Authentification PostgreSQL | Vérifier `.env` : URL, utilisateur, mot de passe |
 | Flyway / PG 16 | Dépendance `flyway-database-postgresql` déjà dans le projet |
 | CORS | `CORS_ALLOWED_ORIGINS` doit inclure l’origine du front (ex. `http://localhost:5173`) |
-| Port 8080 occupé | Changer `SERVER_PORT` dans `.env` et `VITE_API_BASE_URL` |
+| Port déjà utilisé | Changer `SERVER_PORT` dans le `.env` du backend et `VITE_API_BASE_URL` (ou `VITE_DEV_PROXY_TARGET`) côté web |
 | Variables non prises en compte | Vérifier que `.env` est bien à la racine de `srm-mutuelle-backend` et que `spring.config.import` est actif |
 
 ---

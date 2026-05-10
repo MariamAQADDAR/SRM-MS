@@ -74,6 +74,16 @@ public class SecurityConfig {
 						.permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/health")
 						.permitAll()
+						// Paramétrage types : évite 403 @PreAuthorize + JWT (rôles gérés ici de façon explicite)
+						.requestMatchers(HttpMethod.GET, "/api/settings/type-config")
+						.authenticated()
+						.requestMatchers(HttpMethod.PUT, "/api/settings/type-config/**")
+						.hasAnyRole("ADMINISTRATEUR", "OPERATEUR")
+						// Gestion utilisateurs : autorisation HTTP (fiable avec Spring Boot 4 ; @PreAuthorize seul peut renvoyer 403 à tort).
+						.requestMatchers(HttpMethod.DELETE, "/api/admin/users/**")
+						.hasRole("ADMINISTRATEUR")
+						.requestMatchers("/api/admin/users", "/api/admin/users/**")
+						.hasAnyRole("ADMINISTRATEUR", "OPERATEUR")
 						.anyRequest()
 						.authenticated())
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

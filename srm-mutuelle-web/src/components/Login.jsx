@@ -1,7 +1,36 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FaIcon from './FaIcon';
 import { apiLogin } from '../api/client';
+
+const COPY = {
+  fr: {
+    title: 'Se connecter',
+    subtitle: 'Accédez à votre compte pour continuer la gestion de la mutuelle.',
+    email: 'Adresse email',
+    password: 'Mot de passe',
+    emailPh: 'vous@exemple.com',
+    passwordPh: 'Votre mot de passe',
+    submit: 'Se connecter',
+    tagline: 'Chaque dossier compte, chaque bénéficiaire a son importance.',
+    brandSub: 'Marrakech-Safi',
+    brandLine: 'Gestion de la mutuelle — espace professionnel',
+    copyright: 'SRM-MS — Direction SI & Transformation Digitale',
+  },
+  ar: {
+    title: 'تسجيل الدخول',
+    subtitle: 'سجّل الدخول إلى حسابك لمتابعة إدارة التأمين الصحي.',
+    email: 'البريد الإلكتروني',
+    password: 'كلمة المرور',
+    emailPh: 'you@example.com',
+    passwordPh: 'كلمة المرور',
+    submit: 'دخول',
+    tagline: 'كل ملف مهم، وكل مستفيد له أهميته.',
+    brandSub: 'مراكش آسفي',
+    brandLine: 'إدارة التأمين — فضاء مهني',
+    copyright: 'SRM-MS — قسم الأنظمة المعلوماتية',
+  },
+};
 
 function sessionUserFromLoginResponse(data) {
   const u = data.user || {};
@@ -21,7 +50,16 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [dark, setDark] = useState(false);
+  const [lang, setLang] = useState('fr');
   const navigate = useNavigate();
+  const t = COPY[lang] || COPY.fr;
+
+  useEffect(() => {
+    document.body.classList.add('login-route-active');
+    return () => document.body.classList.remove('login-route-active');
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,77 +81,122 @@ export default function Login() {
   };
 
   return (
-    <div className="login-wrapper">
-      <div className="login-card">
-        <div className="login-logo">
-          <img
-            src="/srm-brand-logo.png"
-            alt="SRM-MS — Société Régionale Multiservices Marrakech-Safi"
-            className="login-brand-img"
-          />
-          <p className="login-tagline">Espace professionnel</p>
+    <div className={`login-split ${dark ? 'login-split--dark' : ''}`} dir="ltr">
+      <aside className="login-split-brand" aria-label="SRM-MS">
+        <div className="login-split-brand-inner">
+          <div className="login-split-logo-ring">
+            <img
+              src="/srm-company-logo.png"
+              alt=""
+              className="login-split-brand-img"
+            />
+          </div>
+          <h1 className="login-split-brand-title">SRM-MS</h1>
+          <p className="login-split-brand-kicker">Mutuelle</p>
+          <p className="login-split-brand-sub">{t.brandSub}</p>
+          <p className="login-split-brand-line">{t.brandLine}</p>
         </div>
+        <p className="login-split-brand-slogan">{t.tagline}</p>
+      </aside>
 
-        {error ? (
-          <div className="form-group" style={{ color: '#c0392b', fontSize: '0.9rem' }}>
-            {error}
-          </div>
-        ) : null}
-
-        <form className="login-form" onSubmit={handleSubmit} autoComplete="off">
-          <div className="form-group">
-            <label htmlFor="loginEmail">Adresse email</label>
-            <div className="input-wrapper">
-              <input
-                type="email"
-                id="loginEmail"
-                placeholder="votre.email@srm-ms.ma"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <span className="input-icon"><FaIcon name="envelope" /></span>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="loginPassword">Mot de passe</label>
-            <div className="input-wrapper">
-              <input
-                type="password"
-                id="loginPassword"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <span className="input-icon"><FaIcon name="lock" /></span>
-            </div>
-          </div>
-
-          <div className="login-remember">
-            <label>
-              <input type="checkbox" id="rememberMe" /> Se souvenir de moi
+      <main className="login-split-main" dir={lang === 'ar' ? 'rtl' : 'ltr'} lang={lang}>
+        <header className="login-split-topbar">
+          <div className="login-split-topbar-spacer" />
+          <div className="login-split-topbar-actions">
+            <button
+              type="button"
+              className="login-split-icon-btn"
+              onClick={() => setDark((d) => !d)}
+              aria-pressed={dark}
+              title={dark ? 'Mode clair' : 'Mode sombre'}
+            >
+              <FaIcon name={dark ? 'sun' : 'moon'} />
+            </button>
+            <label className="login-split-lang">
+              <span className="sr-only">Langue</span>
+              <span className="login-split-lang-flag" aria-hidden>
+                {lang === 'fr' ? '🇫🇷' : '🇲🇦'}
+              </span>
+              <select
+                value={lang}
+                onChange={(e) => setLang(e.target.value)}
+                className="login-split-lang-select"
+              >
+                <option value="fr">FR</option>
+                <option value="ar">AR</option>
+              </select>
             </label>
-            <a href="#">Mot de passe oublié?</a>
+          </div>
+        </header>
+
+        <div className="login-split-content">
+          <h2 className="login-split-heading">{t.title}</h2>
+          <p className="login-split-lead">{t.subtitle}</p>
+
+          <div className="login-split-card">
+            {error ? (
+              <div className="login-split-alert" role="alert">
+                {error}
+              </div>
+            ) : null}
+
+            <form className="login-split-form" onSubmit={handleSubmit} autoComplete="off">
+              <div className="login-split-field">
+                <label htmlFor="loginEmail">
+                  {t.email} <span className="login-split-required">*</span>
+                </label>
+                <input
+                  type="email"
+                  id="loginEmail"
+                  className="login-split-input"
+                  placeholder={t.emailPh}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="login-split-field">
+                <label htmlFor="loginPassword">
+                  {t.password} <span className="login-split-required">*</span>
+                </label>
+                <div className="login-split-password-wrap">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="loginPassword"
+                    className="login-split-input login-split-input--password"
+                    placeholder={t.passwordPh}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="login-split-password-toggle"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  >
+                    <FaIcon name={showPassword ? 'eye-slash' : 'eye'} />
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" className="login-split-submit" disabled={!!loading}>
+                {loading ? (
+                  <span
+                    className="spinner"
+                    style={{ width: '20px', height: '20px', borderWidth: '2px', margin: '0 auto' }}
+                  />
+                ) : (
+                  t.submit
+                )}
+              </button>
+            </form>
           </div>
 
-          <button type="submit" className="btn-login" disabled={!!loading}>
-            {loading ? (
-              <span
-                className="spinner"
-                style={{ width: '20px', height: '20px', borderWidth: '2px', margin: '0 auto' }}
-              ></span>
-            ) : (
-              'Se connecter'
-            )}
-          </button>
-        </form>
-
-        <div className="login-footer">
-          <p>© 2025 SRM-MS — Direction SI & Transformation Digitale</p>
+          <p className="login-split-copy">© {new Date().getFullYear()} {t.copyright}</p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

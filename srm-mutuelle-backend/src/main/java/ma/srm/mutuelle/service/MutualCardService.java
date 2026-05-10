@@ -1,8 +1,7 @@
 package ma.srm.mutuelle.service;
 
-import java.time.Instant;
+import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import ma.srm.mutuelle.api.dto.MutualCardDtos.MutualCardCreateRequest;
 import ma.srm.mutuelle.api.dto.MutualCardDtos.MutualCardResponse;
@@ -24,6 +23,7 @@ public class MutualCardService {
 
 	private final MutualCardRepository mutualCardRepository;
 	private final AgentRepository agentRepository;
+	private final MutualCardPdfService mutualCardPdfService;
 
 	public List<MutualCardResponse> list(AppUser user) {
 		if (user.getRole() == AppUserRole.ADHERENT) {
@@ -54,20 +54,35 @@ public class MutualCardService {
 		Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 		MutualCard card = mutualCardRepository.findByAgent_Id(req.agentId()).orElseGet(MutualCard::new);
 		card.setAgent(agent);
-		card.setIssuedAt(Instant.now());
-		card.setPdfStorageKey(null);
-		return toDto(mutualCardRepository.save(card));
+		card.setIssuedAt(java.time.Instant.now());
+		MutualCard saved = mutualCardRepository.save(card);
+		try {
+			String key = mutualCardPdfService.generateAndStore(saved, agent);
+			saved.setPdfStorageKey(key);
+			saved = mutualCardRepository.save(saved);
+		} catch (IOException e) {
+			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Génération PDF carte : " + e.getMessage());
+		}
+		return toDto(saved);
 	}
 
-	public Map<String, String> downloadPlaceholder(Long agentId, AppUser user) {
+	public byte[] readPdfBytes(Long agentId, AppUser user) {
 		AccessRules.assertAgentScope(user, agentId);
-		if (!mutualCardRepository.findByAgent_Id(agentId).isPresent()) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Carte introuvable");
+		MutualCard c = mutualCardRepository
+				.findByAgent_Id(agentId)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Carte introuvable"));
+		String key = c.getPdfStorageKey();
+		if (key == null || key.isBlank()) {
+			try {
+				Agent agent = c.getAgent();
+				key = mutualCardPdfService.generateAndStore(c, agent);
+				c.setPdfStorageKey(key);
+				mutualCardRepository.save(c);
+			} catch (IOException e) {
+				throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Génération PDF : " + e.getMessage());
+			}
 		}
-		return Map.of(
-				"message", "PDF généré côté serveur à brancher (OpenPDF / stockage fichier)",
-				"downloadUrl",
-				"/api/mutual-cards/by-agent/" + agentId + "/download");
+		return mutualCardPdfService.readPdfBytes(key);
 	}
 
 	private MutualCardResponse toDto(MutualCard c) {

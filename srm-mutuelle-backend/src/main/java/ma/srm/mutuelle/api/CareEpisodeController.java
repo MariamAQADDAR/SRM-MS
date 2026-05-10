@@ -51,7 +51,7 @@ public class CareEpisodeController {
 	}
 
 	@DeleteMapping("/{id}")
-	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		careEpisodeService.delete(id, AuthPrincipal.requireUser(authentication));
 	}

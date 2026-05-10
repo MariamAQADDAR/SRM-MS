@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { isConsultateurRole } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import TablePageShell from '../components/TablePageShell';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
 
@@ -142,23 +143,22 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user }) {
           {modal.content}
         </Modal>
       )}
-      <div className="toolbar">
-        <div className="toolbar-left">
-          <h4 style={{ color: 'var(--gray-700)' }}>
-            <FaIcon name="clipboard-list" className="fa-inline-icon" /> {rows.length} prises en charge enregistrées
-          </h4>
-        </div>
-        <div className="toolbar-right">
-          {!isConsult && (
-            <button className="btn btn-primary" onClick={() => setModal({ title: 'Nouvelle prise en charge', content: form })}>
-              <FaIcon name="plus" className="fa-inline-icon" /> Nouvelle PEC
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper">
+      <TablePageShell
+        title="Liste des prises en charge"
+        icon="clipboard-list"
+        toolbar={
+          <div className="table-page-toolbar-row">
+            <span style={{ color: 'var(--gray-600)', fontSize: '14px' }}>{rows.length} enregistrement{rows.length !== 1 ? 's' : ''}</span>
+            <span className="toolbar-spacer" />
+            {!isConsult && (
+              <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouvelle prise en charge', content: form })}>
+                <FaIcon name="plus" className="fa-inline-icon" /> Nouvelle PEC
+              </button>
+            )}
+          </div>
+        }
+      >
+        <div className="data-table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
@@ -193,9 +193,8 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user }) {
                 ))}
               </tbody>
             </table>
-          </div>
         </div>
-      </div>
+      </TablePageShell>
     </>
   );
 }

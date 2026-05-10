@@ -1,9 +1,19 @@
-const defaultBase = 'http://localhost:8080';
+/** Doit rester aligné avec SERVER_PORT du backend (.env : souvent 8082 si 8081 est pris par Expo/Metro). */
+const defaultBase = 'http://localhost:8082';
 
+/**
+ * URL du backend Spring.
+ * - Si `VITE_API_BASE_URL` est défini dans `.env`, il est utilisé.
+ * - En dev Vite sans variable : chaîne vide → mêmes origine que le front, proxy `/api` (voir vite.config.js).
+ * - Build prod sans variable : `defaultBase`.
+ */
 export function getApiBaseUrl() {
   const v = import.meta.env.VITE_API_BASE_URL;
   if (v != null && String(v).trim() !== '') {
     return String(v).replace(/\/$/, '');
+  }
+  if (import.meta.env.DEV) {
+    return '';
   }
   return defaultBase;
 }
@@ -34,7 +44,17 @@ export async function apiFetch(path, options = {}) {
   } else {
     options = { ...options, headers };
   }
-  const res = await fetch(`${getApiBaseUrl()}${path}`, options);
+  const url = `${getApiBaseUrl()}${path}`;
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch (e) {
+    const hint =
+      e?.name === 'TypeError' && String(e?.message || '').toLowerCase().includes('fetch')
+        ? `Impossible de joindre l’API (${url || path}). Vérifiez que le backend est démarré et que le port dans srm-mutuelle-web/.env (VITE_API_BASE_URL) correspond à SERVER_PORT du backend (ex. http://localhost:8081).`
+        : e?.message || 'Erreur réseau';
+    throw new Error(hint);
+  }
   if (res.status === 401) {
     const hadSession = !!auth?.token;
     const isLoginPost = path === '/api/auth/login' && (options.method || 'GET').toUpperCase() === 'POST';
@@ -52,16 +72,50 @@ export async function apiFetch(path, options = {}) {
   return res;
 }
 
+/** Texte API trop vague (ex. seul mot « message » / « error »). */
+function isUninformativeErrorText(s) {
+  if (s == null || typeof s !== 'string') return true;
+  const t = s.trim().toLowerCase();
+  if (!t) return true;
+  return t === 'message' || t === 'messages' || t === 'error' || t === 'erreur' || t === 'status';
+}
+
+function errorMessageFromBody(data, res, rawText) {
+  const parts = [];
+  if (data && typeof data === 'object' && !data._unparsed) {
+    for (const k of ['detail', 'message', 'title', 'error']) {
+      const v = data[k];
+      if (typeof v === 'string' && v.trim()) parts.push(v.trim());
+    }
+    if (Array.isArray(data.errors)) {
+      for (const x of data.errors) {
+        const s = typeof x === 'string' ? x : x?.defaultMessage || x?.message;
+        if (s) parts.push(String(s).trim());
+      }
+    }
+  }
+  if (rawText && typeof rawText === 'string') {
+    const trimmed = rawText.trim();
+    if (trimmed && trimmed.length < 400 && !trimmed.startsWith('<')) parts.push(trimmed);
+  }
+  const st = (res.statusText && String(res.statusText).trim()) || '';
+  if (st) parts.push(st);
+  for (const p of parts) {
+    if (!isUninformativeErrorText(p)) return p;
+  }
+  return `Erreur HTTP ${res.status}. Réessayez ou contactez l’administrateur.`;
+}
+
 export async function parseJsonOrThrow(res) {
   const text = await res.text();
   let data;
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    data = {};
+    data = { _unparsed: true };
   }
   if (!res.ok) {
-    const msg = data.message || data.error || res.statusText || 'Erreur';
+    const msg = errorMessageFromBody(data, res, data._unparsed ? text : '');
     const e = new Error(msg);
     e.status = res.status;
     throw e;
