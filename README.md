@@ -200,13 +200,49 @@ La page de connexion utilise uniquement **email + mot de passe** (pas de sélect
 
 Répertoire : **`srm-mutuelle-mobile/`**
 
-Dans `config.js`, utiliser **l’IP locale du PC** (pas `localhost`) et le port du backend.
+Dans `config.js`, utiliser **l’IP locale du PC** (pas `localhost`) et le port du backend (aligné avec `SERVER_PORT` du backend, souvent **8082**).
 
 ```bash
 cd srm-mutuelle-mobile
 npm install
 npx expo start --lan
 ```
+
+### Générer un fichier **APK** (installation directe sur Android)
+
+Deux approches possibles.
+
+**A — Sur votre PC (Android SDK requis)**  
+1. Installer [Android Studio](https://developer.android.com/studio), ouvrir le SDK Manager et installer un **Android SDK** (API 36 ou celle indiquée par le projet).  
+2. Définir la variable d’environnement **`ANDROID_HOME`** (ou **`ANDROID_SDK_ROOT`**) vers le dossier SDK, typiquement sous Windows :  
+   `%LOCALAPPDATA%\Android\Sdk`  
+3. Dans le dossier **`srm-mutuelle-mobile/android/`**, créer **`local.properties`** si besoin :  
+   `sdk.dir=C\:\\Users\\VOTRE_USER\\AppData\\Local\\Android\\Sdk`  
+   (échapper les antislashs comme ci-dessus pour Gradle).  
+4. Commandes :
+
+```bash
+cd srm-mutuelle-mobile
+npm install
+npm run prebuild:android
+cd android
+# Windows :
+.\gradlew.bat assembleDebug
+# macOS / Linux :
+# ./gradlew assembleDebug
+```
+
+L’APK **debug** se trouve sous :  
+**`srm-mutuelle-mobile/android/app/build/outputs/apk/debug/app-debug.apk`**  
+(idéal pour tests internes ; pour la diffusion large, préférer une build **release** signée ou EAS.)
+
+**B — Cloud Expo (EAS), sans SDK Android local**  
+1. Compte sur [expo.dev](https://expo.dev), puis : `npm install -g eas-cli` et `eas login`.  
+2. Depuis **`srm-mutuelle-mobile/`** : `eas build:configure` (une première fois), puis  
+   **`eas build --platform android --profile preview`**  
+   Le profil **`preview`** dans **`eas.json`** produit un **APK** téléchargeable depuis la page de build.
+
+**Important** : avant de distribuer l’APK, mettre dans **`config.js`** une **`API_BASE_URL`** joignable depuis le téléphone (même Wi‑Fi que le PC, ou URL HTTPS d’un serveur). Les comptes de démo sont les mêmes que dans le tableau « Comptes de démonstration » ci‑dessus.
 
 ---
 
