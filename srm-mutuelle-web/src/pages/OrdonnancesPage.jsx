@@ -1,10 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { isConsultateurRole } from '../authUtils';
+import { isConsultateurRole, canAdminDelete, canStaffMutate } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
 import TablePageShell from '../components/TablePageShell';
+import ListPageToolbar from '../components/ListPageToolbar';
+import TablePagination from '../components/TablePagination';
+import { usePagination } from '../hooks/usePagination';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
+import { matchesSearch } from '../utils/filterSearch';
+import AdminDeleteButton from '../components/AdminDeleteButton';
+import DetailModalFooter from '../components/DetailModalFooter';
+import DetailItem from '../components/DetailItem';
+import { adminDeleteRecord } from '../utils/adminDelete';
 
 const META_KEY = 'mutuelle_ordonnances_meta_v2';
 
@@ -29,6 +37,12 @@ function writeMeta(meta) {
   localStorage.setItem(META_KEY, JSON.stringify(meta || {}));
 }
 
+function kindFromPrestation(typePrestation) {
+  if (/analyse/i.test(String(typePrestation || ''))) return 'analyse';
+  if (/radio/i.test(String(typePrestation || ''))) return 'radio';
+  return 'ordonnance';
+}
+
 function typeForView(view, ordonnanceTypes) {
   if (view === 'analyse') return ordonnanceTypes.find((t) => /analyse/i.test(t)) || 'Analyse';
   if (view === 'radio') return ordonnanceTypes.find((t) => /radio/i.test(t)) || 'Radiologie';
@@ -38,14 +52,10 @@ function typeForView(view, ordonnanceTypes) {
 export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
   setPageTitle('Ordonnances', 'Gestion des ordonnances');
   const isConsult = isConsultateurRole(user);
+  const canMutate = canStaffMutate(user);
+  const canDelete = canAdminDelete(user);
   const [viewType, setViewType] = useState('analyse'); // analyse | ordonnance | radio
-  const [filterMatricule, setFilterMatricule] = useState('');
-  const [filterNom, setFilterNom] = useState('');
-  const [filterDateDebut, setFilterDateDebut] = useState('');
-  const [filterDateFin, setFilterDateFin] = useState('');
-  const [filterMedecin, setFilterMedecin] = useState('');
-  const [filterFacility, setFilterFacility] = useState('');
-  const [filterRadioType, setFilterRadioType] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState(null);
   const [rows, setRows] = useState([]);
   const [agents, setAgents] = useState([]);
@@ -116,218 +126,390 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
   });
 
   const wantedType = typeForView(viewType, ordonnanceTypes);
-  let data = rowsView.filter((x) => x.typePrestation === wantedType);
-  if (filterMatricule) data = data.filter((o) => o.matricule.toLowerCase().includes(filterMatricule.toLowerCase()));
-  if (filterNom) data = data.filter((o) => o.nomPrenomAgent.toLowerCase().includes(filterNom.toLowerCase()));
-  if (filterMedecin) data = data.filter((o) => o.medecin === filterMedecin);
-  if (filterDateDebut) {
-    data = data.filter((o) => {
-      const v = viewType === 'analyse' ? o.dateAnalyse : viewType === 'ordonnance' ? o.dateOrdonnance : o.dateRadio;
-      return String(v || '') >= filterDateDebut;
-    });
-  }
-  if (filterDateFin) {
-    data = data.filter((o) => {
-      const v = viewType === 'analyse' ? o.dateAnalyse : viewType === 'ordonnance' ? o.dateOrdonnance : o.dateRadio;
-      return String(v || '') <= filterDateFin;
-    });
-  }
-  if (viewType === 'analyse' && filterFacility) data = data.filter((o) => o.laboratoire === filterFacility);
-  if (viewType === 'ordonnance' && filterFacility) data = data.filter((o) => o.pharmacie === filterFacility);
-  if (viewType === 'radio' && filterFacility) data = data.filter((o) => o.centreRadiologie === filterFacility);
-  if (viewType === 'radio' && filterRadioType) data = data.filter((o) => o.typeRadio === filterRadioType);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const agentLabel = fd.get('beneficiaire');
-    const agent = agents.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
-    if (!agent) {
-      addToast('error', 'Agent invalide');
-      return;
+  const data = useMemo(() => {
+    let list = rowsView.filter((x) => x.typePrestation === wantedType);
+    if (searchQuery.trim()) {
+      list = list.filter((o) => {
+        const rawDate =
+          viewType === 'analyse' ? o.dateAnalyse : viewType === 'ordonnance' ? o.dateOrdonnance : o.dateRadio;
+        return matchesSearch(
+          searchQuery,
+          o.matricule,
+          o.nomPrenomAgent,
+          o.beneficiaire,
+          o.medecin,
+          o.laboratoire,
+          o.pharmacie,
+          o.centreRadiologie,
+          o.typeRadio,
+          o.numero,
+          o.numInstance,
+          o.statut,
+          o.montant,
+          o.observation,
+          o.scanAnalyse,
+          o.scanOrdonnance,
+          o.scanRadio,
+          rawDate,
+          formatDate(rawDate),
+        );
+      });
     }
-    const montant = Number(fd.get('montant'));
-    const taux = Number(fd.get('taux') || 80);
-    const body = {
-      date: fd.get('date') || new Date().toISOString().split('T')[0],
-      agentId: agent.id,
-      beneficiaire: agentLabel,
-      typePrestation: wantedType,
-      montant,
-      montantRemboursable: (montant * taux) / 100,
-      taux,
-      statut: 'En attente',
-    };
-    const meta = {
-      doctorId: String(fd.get('doctorId') || '').trim(),
-      laboratoireId: String(fd.get('laboratoireId') || '').trim(),
-      pharmacieId: String(fd.get('pharmacieId') || '').trim(),
-      centreRadiologieId: String(fd.get('centreRadiologieId') || '').trim(),
-      dateAnalyse: String(fd.get('dateAnalyse') || '').trim(),
-      dateOrdonnance: String(fd.get('dateOrdonnance') || '').trim(),
-      dateRadio: String(fd.get('dateRadio') || '').trim(),
-      numInstance: String(fd.get('numInstance') || '').trim(),
-      typeRadio: String(fd.get('typeRadio') || '').trim(),
-      scanAnalyse: String(fd.get('scanAnalyse') || '').trim(),
-      scanOrdonnance: String(fd.get('scanOrdonnance') || '').trim(),
-      scanRadio: String(fd.get('scanRadio') || '').trim(),
-      observation: String(fd.get('observation') || '').trim(),
-    };
-    try {
-      const created = await parseJsonOrThrow(await apiFetch('/api/ordonnances', { method: 'POST', body }));
-      if (created?.id != null) {
-        const next = { ...metaById, [created.id]: meta };
-        setMetaById(next);
-        writeMeta(next);
-      }
-      setModal(null);
-      addToast('success', 'Enregistrement effectué');
-      reload();
-    } catch (err) {
-      addToast('error', err.message || 'Erreur');
-    }
-  };
+    return list;
+  }, [rowsView, wantedType, viewType, searchQuery]);
 
-  const form = (
-    <form onSubmit={submit}>
-      <div className="form-grid">
-        <div className="form-group">
-          <label>Bénéficiaire</label>
-          <select name="beneficiaire" className="form-control" required>
-            {agents.map((a) => (
-              <option key={a.id} value={`${a.prenom} ${a.nom}`}>
-                {a.prenom} {a.nom}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Médecin</label>
-          <select name="doctorId" className="form-control">
-            <option value="">Select One</option>
-            {doctors.map((d) => (
-              <option key={d.id} value={String(d.id)}>
-                {d.fullName}
-              </option>
-            ))}
-          </select>
-        </div>
-        {viewType === 'analyse' && (
-          <>
-            <div className="form-group">
-              <label>Laboratoire</label>
-              <select name="laboratoireId" className="form-control">
-                <option value="">Select One</option>
-                {labOptions.map((f) => (
-                  <option key={f.id} value={String(f.id)}>
-                    {f.nom}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Date analyse</label>
-              <input name="dateAnalyse" type="date" className="form-control" />
-            </div>
-            <div className="form-group">
-              <label>Scan analyse</label>
-              <input name="scanAnalyse" className="form-control" />
-            </div>
-          </>
-        )}
-        {viewType === 'ordonnance' && (
-          <>
-            <div className="form-group">
-              <label>Pharmacie</label>
-              <select name="pharmacieId" className="form-control">
-                <option value="">Select One</option>
-                {pharmacieOptions.map((f) => (
-                  <option key={f.id} value={String(f.id)}>
-                    {f.nom}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Date ordonnance</label>
-              <input name="dateOrdonnance" type="date" className="form-control" />
-            </div>
-            <div className="form-group">
-              <label>Num instance</label>
-              <input name="numInstance" className="form-control" />
-            </div>
-            <div className="form-group">
-              <label>Scan ordonnance</label>
-              <input name="scanOrdonnance" className="form-control" />
-            </div>
-          </>
-        )}
-        {viewType === 'radio' && (
-          <>
-            <div className="form-group">
-              <label>Centre radiologie</label>
-              <select name="centreRadiologieId" className="form-control">
-                <option value="">Select One</option>
-                {centreRadioOptions.map((f) => (
-                  <option key={f.id} value={String(f.id)}>
-                    {f.nom}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Date radio</label>
-              <input name="dateRadio" type="date" className="form-control" />
-            </div>
-            <div className="form-group">
-              <label>Type_radio</label>
-              <select name="typeRadio" className="form-control">
-                <option value="">Select One</option>
-                {radioTypes.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Scan Radio</label>
-              <input name="scanRadio" className="form-control" />
-            </div>
-          </>
-        )}
-        <div className="form-group">
-          <label>Date (API)</label>
-          <input name="date" type="date" className="form-control" defaultValue={new Date().toISOString().split('T')[0]} />
-        </div>
-        <div className="form-group">
-          <label>Montant total (DH)</label>
-          <input name="montant" type="number" step="0.01" className="form-control" required />
-        </div>
-        <div className="form-group">
-          <label>Taux (%)</label>
-          <input name="taux" type="number" className="form-control" defaultValue="80" />
-        </div>
-        <div className="form-group" style={{ gridColumn: '1/-1' }}>
-          <label>Observation</label>
-          <textarea name="observation" className="form-control" rows={2} />
-        </div>
+  useEffect(() => {
+    setSearchQuery('');
+  }, [viewType]);
+
+  const { pageData, page, setPage, totalPages } = usePagination(data, `${viewType}|${searchQuery}`);
+
+  const exportColumns =
+    viewType === 'analyse'
+      ? [
+          { key: 'matricule', label: 'Matricule' },
+          { key: 'nomPrenomAgent', label: 'Agent' },
+          { key: 'beneficiaire', label: 'Bénéficiaire' },
+          { key: 'medecin', label: 'Médecin' },
+          { key: 'laboratoire', label: 'Laboratoire' },
+          { key: 'dateAnalyse', label: 'Date analyse' },
+          { key: 'montant', label: 'Montant' },
+          { key: 'statut', label: 'Statut' },
+        ]
+      : viewType === 'radio'
+        ? [
+            { key: 'matricule', label: 'Matricule' },
+            { key: 'nomPrenomAgent', label: 'Agent' },
+            { key: 'beneficiaire', label: 'Bénéficiaire' },
+            { key: 'medecin', label: 'Médecin' },
+            { key: 'centreRadiologie', label: 'Centre' },
+            { key: 'dateRadio', label: 'Date' },
+            { key: 'montant', label: 'Montant' },
+            { key: 'typeRadio', label: 'Type radio' },
+            { key: 'statut', label: 'Statut' },
+          ]
+        : [
+            { key: 'matricule', label: 'Matricule' },
+            { key: 'nomPrenomAgent', label: 'Agent' },
+            { key: 'beneficiaire', label: 'Bénéficiaire' },
+            { key: 'medecin', label: 'Médecin' },
+            { key: 'pharmacie', label: 'Pharmacie' },
+            { key: 'dateOrdonnance', label: 'Date' },
+            { key: 'montant', label: 'Montant' },
+            { key: 'statut', label: 'Statut' },
+          ];
+
+  const closeModal = () => setModal(null);
+
+  const metaFromForm = (fd) => ({
+    doctorId: String(fd.get('doctorId') || '').trim(),
+    laboratoireId: String(fd.get('laboratoireId') || '').trim(),
+    pharmacieId: String(fd.get('pharmacieId') || '').trim(),
+    centreRadiologieId: String(fd.get('centreRadiologieId') || '').trim(),
+    dateAnalyse: String(fd.get('dateAnalyse') || '').trim(),
+    dateOrdonnance: String(fd.get('dateOrdonnance') || '').trim(),
+    dateRadio: String(fd.get('dateRadio') || '').trim(),
+    numInstance: String(fd.get('numInstance') || '').trim(),
+    typeRadio: String(fd.get('typeRadio') || '').trim(),
+    scanAnalyse: String(fd.get('scanAnalyse') || '').trim(),
+    scanOrdonnance: String(fd.get('scanOrdonnance') || '').trim(),
+    scanRadio: String(fd.get('scanRadio') || '').trim(),
+    observation: String(fd.get('observation') || '').trim(),
+  });
+
+  const renderOrdonnanceFields = (kind, meta = {}) => (
+    <>
+      <div className="form-group">
+        <label>Bénéficiaire</label>
+        <select name="beneficiaire" className="form-control" defaultValue={meta._beneficiaire ?? ''} required>
+          {agents.map((a) => (
+            <option key={a.id} value={`${a.prenom} ${a.nom}`}>
+              {a.prenom} {a.nom}
+            </option>
+          ))}
+        </select>
       </div>
-      <div className="modal-footer" style={{ padding: '16px 0 0' }}>
-        <button type="button" className="btn btn-outline" onClick={() => setModal(null)}>
-          Annuler
-        </button>
-        <button type="submit" className="btn btn-primary">
-          <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer
-        </button>
+      <div className="form-group">
+        <label>Médecin</label>
+        <select name="doctorId" className="form-control" defaultValue={meta.doctorId || ''}>
+          <option value="">Select One</option>
+          {doctors.map((d) => (
+            <option key={d.id} value={String(d.id)}>
+              {d.fullName}
+            </option>
+          ))}
+        </select>
       </div>
-    </form>
+      {kind === 'analyse' && (
+        <>
+          <div className="form-group">
+            <label>Laboratoire</label>
+            <select name="laboratoireId" className="form-control" defaultValue={meta.laboratoireId || ''}>
+              <option value="">Select One</option>
+              {labOptions.map((f) => (
+                <option key={f.id} value={String(f.id)}>
+                  {f.nom}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Date analyse</label>
+            <input name="dateAnalyse" type="date" className="form-control" defaultValue={meta.dateAnalyse || ''} />
+          </div>
+          <div className="form-group">
+            <label>Scan analyse</label>
+            <input name="scanAnalyse" className="form-control" defaultValue={meta.scanAnalyse || ''} />
+          </div>
+        </>
+      )}
+      {kind === 'ordonnance' && (
+        <>
+          <div className="form-group">
+            <label>Pharmacie</label>
+            <select name="pharmacieId" className="form-control" defaultValue={meta.pharmacieId || ''}>
+              <option value="">Select One</option>
+              {pharmacieOptions.map((f) => (
+                <option key={f.id} value={String(f.id)}>
+                  {f.nom}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Date ordonnance</label>
+            <input name="dateOrdonnance" type="date" className="form-control" defaultValue={meta.dateOrdonnance || ''} />
+          </div>
+          <div className="form-group">
+            <label>Num instance</label>
+            <input name="numInstance" className="form-control" defaultValue={meta.numInstance || ''} />
+          </div>
+          <div className="form-group">
+            <label>Scan ordonnance</label>
+            <input name="scanOrdonnance" className="form-control" defaultValue={meta.scanOrdonnance || ''} />
+          </div>
+        </>
+      )}
+      {kind === 'radio' && (
+        <>
+          <div className="form-group">
+            <label>Centre radiologie</label>
+            <select name="centreRadiologieId" className="form-control" defaultValue={meta.centreRadiologieId || ''}>
+              <option value="">Select One</option>
+              {centreRadioOptions.map((f) => (
+                <option key={f.id} value={String(f.id)}>
+                  {f.nom}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Date radio</label>
+            <input name="dateRadio" type="date" className="form-control" defaultValue={meta.dateRadio || ''} />
+          </div>
+          <div className="form-group">
+            <label>Type_radio</label>
+            <select name="typeRadio" className="form-control" defaultValue={meta.typeRadio || ''}>
+              <option value="">Select One</option>
+              {radioTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Scan Radio</label>
+            <input name="scanRadio" className="form-control" defaultValue={meta.scanRadio || ''} />
+          </div>
+        </>
+      )}
+      <div className="form-group">
+        <label>Date (API)</label>
+        <input name="date" type="date" className="form-control" defaultValue={meta._date || new Date().toISOString().split('T')[0]} />
+      </div>
+      <div className="form-group">
+        <label>Montant total (DH)</label>
+        <input name="montant" type="number" step="0.01" className="form-control" defaultValue={meta._montant ?? ''} required />
+      </div>
+      <div className="form-group">
+        <label>Taux (%)</label>
+        <input name="taux" type="number" className="form-control" defaultValue={meta._taux ?? 80} />
+      </div>
+      <div className="form-group" style={{ gridColumn: '1/-1' }}>
+        <label>Observation</label>
+        <textarea name="observation" className="form-control" rows={2} defaultValue={meta.observation || ''} />
+      </div>
+    </>
   );
 
-  const facilityFilterOptions = useMemo(() => {
-    if (viewType === 'analyse') return labOptions.map((x) => x.nom);
-    if (viewType === 'ordonnance') return pharmacieOptions.map((x) => x.nom);
-    return centreRadioOptions.map((x) => x.nom);
-  }, [viewType, labOptions, pharmacieOptions, centreRadioOptions]);
+  const buildForm = () => {
+    const kind = viewType;
+    const submit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const agentLabel = fd.get('beneficiaire');
+      const agent = agents.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
+      if (!agent) {
+        addToast('error', 'Agent invalide');
+        return;
+      }
+      const montant = Number(fd.get('montant'));
+      const taux = Number(fd.get('taux') || 80);
+      const body = {
+        date: fd.get('date') || new Date().toISOString().split('T')[0],
+        agentId: agent.id,
+        beneficiaire: agentLabel,
+        typePrestation: wantedType,
+        montant,
+        montantRemboursable: (montant * taux) / 100,
+        taux,
+        statut: 'En attente',
+      };
+      const meta = metaFromForm(fd);
+      try {
+        const created = await parseJsonOrThrow(await apiFetch('/api/ordonnances', { method: 'POST', body }));
+        if (created?.id != null) {
+          const next = { ...metaById, [created.id]: meta };
+          setMetaById(next);
+          writeMeta(next);
+        }
+        closeModal();
+        addToast('success', 'Enregistrement effectué');
+        reload();
+      } catch (err) {
+        addToast('error', err.message || 'Erreur');
+      }
+    };
+    return (
+      <form onSubmit={submit}>
+        <div className="form-grid">{renderOrdonnanceFields(kind, {})}</div>
+        <div className="modal-footer" style={{ padding: '16px 0 0' }}>
+          <button type="button" className="btn btn-outline" onClick={closeModal}>
+            Annuler
+          </button>
+          <button type="submit" className="btn btn-primary">
+            <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer
+          </button>
+        </div>
+      </form>
+    );
+  };
 
+  const buildEditForm = (o) => {
+    const kind = kindFromPrestation(o.typePrestation);
+    const meta = metaById[o.id] || {};
+    const submit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const agentLabel = fd.get('beneficiaire');
+      const agent = agents.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
+      if (!agent) {
+        addToast('error', 'Agent invalide');
+        return;
+      }
+      const montant = Number(fd.get('montant'));
+      const taux = Number(fd.get('taux') || 80);
+      const body = {
+        date: fd.get('date') || o.date,
+        agentId: agent.id,
+        beneficiaire: agentLabel,
+        typePrestation: o.typePrestation,
+        montant,
+        montantRemboursable: (montant * taux) / 100,
+        taux,
+        statut: fd.get('statut') || o.statut,
+      };
+      const nextMeta = metaFromForm(fd);
+      try {
+        await parseJsonOrThrow(await apiFetch(`/api/ordonnances/${o.id}`, { method: 'PUT', body }));
+        const next = { ...metaById, [o.id]: nextMeta };
+        setMetaById(next);
+        writeMeta(next);
+        closeModal();
+        addToast('success', 'Dossier mis à jour');
+        reload();
+      } catch (err) {
+        addToast('error', err.message || 'Erreur');
+      }
+    };
+    const fieldMeta = {
+      ...meta,
+      _beneficiaire: o.beneficiaire,
+      _date: o.date,
+      _montant: o.montant,
+      _taux: o.taux,
+    };
+    return (
+      <form onSubmit={submit}>
+        <div className="form-grid">
+          {renderOrdonnanceFields(kind, fieldMeta)}
+          <div className="form-group">
+            <label>Statut</label>
+            <select name="statut" className="form-control" defaultValue={o.statut}>
+              <option>En attente</option>
+              <option>Validé</option>
+              <option>Rejeté</option>
+            </select>
+          </div>
+        </div>
+        <div className="modal-footer" style={{ padding: '16px 0 0' }}>
+          <button type="button" className="btn btn-outline" onClick={closeModal}>
+            Annuler
+          </button>
+          <button type="submit" className="btn btn-primary">
+            <FaIcon name="floppy-disk" className="fa-inline-icon" /> Mettre à jour
+          </button>
+        </div>
+      </form>
+    );
+  };
+
+  const viewOrdonnance = (o) => {
+    const kind = kindFromPrestation(o.typePrestation);
+    setModal({
+      title: `Dossier ${o.numero || o.beneficiaire}`,
+      content: (
+        <div className="detail-grid">
+          <DetailItem label="Matricule">{o.matricule}</DetailItem>
+          <DetailItem label="Agent">{o.nomPrenomAgent}</DetailItem>
+          <DetailItem label="Bénéficiaire">{o.beneficiaire}</DetailItem>
+          <DetailItem label="Médecin">{o.medecin}</DetailItem>
+          {kind === 'analyse' && (
+            <>
+              <DetailItem label="Laboratoire">{o.laboratoire}</DetailItem>
+              <DetailItem label="Date analyse">{formatDate(o.dateAnalyse)}</DetailItem>
+              <DetailItem label="Scan analyse">{o.scanAnalyse}</DetailItem>
+            </>
+          )}
+          {kind === 'ordonnance' && (
+            <>
+              <DetailItem label="Pharmacie">{o.pharmacie}</DetailItem>
+              <DetailItem label="Date ordonnance">{formatDate(o.dateOrdonnance)}</DetailItem>
+              <DetailItem label="N° instance">{o.numInstance}</DetailItem>
+              <DetailItem label="Scan ordonnance">{o.scanOrdonnance}</DetailItem>
+            </>
+          )}
+          {kind === 'radio' && (
+            <>
+              <DetailItem label="Centre radiologie">{o.centreRadiologie}</DetailItem>
+              <DetailItem label="Date radio">{formatDate(o.dateRadio)}</DetailItem>
+              <DetailItem label="Type radio">{o.typeRadio}</DetailItem>
+              <DetailItem label="Scan radio">{o.scanRadio}</DetailItem>
+            </>
+          )}
+          <DetailItem label="Montant">{Number(o.montant).toLocaleString('fr-FR')} DH</DetailItem>
+          <DetailItem label="Statut">{o.statut}</DetailItem>
+          <DetailItem label="Observation">{o.observation}</DetailItem>
+          <DetailModalFooter
+            onClose={closeModal}
+            canEdit={canMutate}
+            onEdit={() => setModal({ title: `Modifier — ${o.numero || o.beneficiaire}`, content: buildEditForm(o) })}
+          />
+        </div>
+      ),
+    });
+  };
   if (loading) {
     return <div className="card"><div className="card-body">Chargement…</div></div>;
   }
@@ -335,7 +517,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
   return (
     <>
       {modal && (
-        <Modal title={`Nouveau dossier ${viewType}`} onClose={() => setModal(null)}>
+        <Modal title={modal.title} onClose={closeModal}>
           {modal.content}
         </Modal>
       )}
@@ -364,44 +546,23 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
         }
         icon="file-prescription"
         toolbar={
-          <>
-            <div className="table-page-toolbar-filters">
-              <div className="filter-group" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
-                <input className="form-control" placeholder="Matricule" value={filterMatricule} onChange={(e) => setFilterMatricule(e.target.value)} />
-                <input className="form-control" placeholder="Nom Agent" value={filterNom} onChange={(e) => setFilterNom(e.target.value)} />
-                <input className="form-control" type="date" value={filterDateDebut} onChange={(e) => setFilterDateDebut(e.target.value)} />
-                <input className="form-control" type="date" value={filterDateFin} onChange={(e) => setFilterDateFin(e.target.value)} />
-                <select className="form-control" value={filterMedecin} onChange={(e) => setFilterMedecin(e.target.value)}>
-                  <option value="">Médecin</option>
-                  {doctors.map((d) => (
-                    <option key={d.id}>{d.fullName}</option>
-                  ))}
-                </select>
-                <select className="form-control" value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)}>
-                  <option value="">{viewType === 'ordonnance' ? 'Pharmacie' : viewType === 'radio' ? 'Centre radiologie' : 'Laboratoire'}</option>
-                  {facilityFilterOptions.map((n) => (
-                    <option key={n}>{n}</option>
-                  ))}
-                </select>
-                {viewType === 'radio' ? (
-                  <select className="form-control" value={filterRadioType} onChange={(e) => setFilterRadioType(e.target.value)}>
-                    <option value="">Type_radio</option>
-                    {radioTypes.map((t) => (
-                      <option key={t}>{t}</option>
-                    ))}
-                  </select>
-                ) : null}
-              </div>
-            </div>
-            <div className="table-page-toolbar-row">
-              <span className="toolbar-spacer" />
-              {!isConsult && (
-                <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau', content: form })}>
-                  <FaIcon name="plus" className="fa-inline-icon" /> Créer
-                </button>
-              )}
-            </div>
-          </>
+          <ListPageToolbar
+            searchValue={searchQuery}
+            onSearchChange={(e) => setSearchQuery(e.target.value)}
+            searchPlaceholder={
+              viewType === 'analyse'
+                ? 'Rechercher (matricule, agent, médecin, labo, date…)'
+                : viewType === 'ordonnance'
+                  ? 'Rechercher (matricule, agent, pharmacie, date…)'
+                  : 'Rechercher (matricule, agent, centre radio, type…)'
+            }
+            exportColumns={exportColumns}
+            exportRows={data}
+            exportFilename={`ordonnances-${viewType}`}
+            showNew={canMutate}
+            newLabel="Créer"
+            onNew={() => setModal({ title: 'Nouveau', content: buildForm() })}
+          />
         }
       >
         <div className="data-table-wrapper">
@@ -453,7 +614,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
                 )}
               </thead>
               <tbody>
-                {data.map((o) => (
+                {pageData.map((o) => (
                   <tr key={o.id}>
                     <td>{o.matricule}</td>
                     <td>{o.nomPrenomAgent}</td>
@@ -489,15 +650,38 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
                       </>
                     )}
                     <td className="actions-cell">
-                      <button className="btn btn-icon btn-view" title="Voir" type="button">
+                      <button className="btn btn-icon btn-view" title="Voir" type="button" onClick={() => viewOrdonnance(o)}>
                         <FaIcon name="eye" />
                       </button>
+                      {canMutate && (
+                        <button
+                          className="btn btn-icon btn-edit"
+                          type="button"
+                          title="Modifier"
+                          onClick={() => setModal({ title: `Modifier — ${o.numero || o.beneficiaire}`, content: buildEditForm(o) })}
+                        >
+                          <FaIcon name="pen-to-square" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <AdminDeleteButton
+                          onClick={() =>
+                            adminDeleteRecord({
+                              url: `/api/ordonnances/${o.id}`,
+                              label: o.numero || o.beneficiaire,
+                              addToast,
+                              onSuccess: reload,
+                            })
+                          }
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
         </div>
+        <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </TablePageShell>
     </>
   );

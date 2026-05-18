@@ -15,7 +15,17 @@ public class ReimbursementDtos {
 			String beneficiaire,
 			BigDecimal montantDemande,
 			BigDecimal montantValide,
-			String statut) {}
+			String statut,
+			Integer taux,
+			boolean hasPdf,
+			String pdfOriginalName,
+			String establishmentName,
+			String careType,
+			String medicineName,
+			LocalDate depositDate,
+			LocalDate sentDate,
+			LocalDate responseDate,
+			String observation) {}
 
 	public record ReimbursementWriteRequest(
 			String numero,
@@ -26,5 +36,8 @@ public class ReimbursementDtos {
 			@NotNull BigDecimal montantValide,
 			@NotBlank String statut) {}
 
-	public record ValidateReimbursementRequest(@NotNull BigDecimal montantValide) {}
+	public record ValidateReimbursementRequest(
+			@NotNull BigDecimal montantValide, Integer taux, String observation) {}
+
+	public record RejectReimbursementRequest(String observation) {}
 }

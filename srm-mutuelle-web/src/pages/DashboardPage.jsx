@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import FaIcon from '../components/FaIcon';
 import TablePageShell from '../components/TablePageShell';
+import ListPageToolbar from '../components/ListPageToolbar';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { isAdherentRole } from '../authUtils';
+import { matchesSearch } from '../utils/filterSearch';
 
 function statusBadge(statut) {
   const map = {
@@ -38,6 +40,7 @@ export default function DashboardPage({ setPageTitle, addToast, user }) {
   const [summary, setSummary] = useState(null);
   const [reimb, setReimb] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +97,18 @@ export default function DashboardPage({ setPageTitle, addToast, user }) {
 
   const totalAgents = summary ? summary.agentsCount : '—';
   const totalOrdonnances = summary ? summary.ordonnancesCount : '—';
+
+  const activityRows = useMemo(() => {
+    const base = reimb.map((r) => ({
+      ...r,
+      type: 'Remboursement',
+      montant: `${Number(r.montantDemande).toLocaleString('fr-FR')} DH`,
+    }));
+    if (!searchQuery.trim()) return base;
+    return base.filter((r) =>
+      matchesSearch(searchQuery, r.numero, r.beneficiaire, r.statut, formatDate(r.date), r.montant),
+    );
+  }, [reimb, searchQuery]);
 
   if (loading) {
     return <div className="card"><div className="card-body">Chargement…</div></div>;
@@ -185,7 +200,27 @@ export default function DashboardPage({ setPageTitle, addToast, user }) {
         </div>
       </div>
 
-      <TablePageShell title="Dernières activités" icon="clock-rotate-left" toolbar={false}>
+      <TablePageShell
+        title="Dernières activités"
+        icon="clock-rotate-left"
+        toolbar={
+          <ListPageToolbar
+            searchValue={searchQuery}
+            onSearchChange={(e) => setSearchQuery(e.target.value)}
+            searchPlaceholder="Rechercher (n°, bénéficiaire, statut, date…)"
+            exportColumns={[
+              { key: 'numero', label: 'N°' },
+              { key: 'type', label: 'Type' },
+              { key: 'beneficiaire', label: 'Bénéficiaire' },
+              { key: 'montant', label: 'Montant' },
+              { key: 'statut', label: 'Statut' },
+              { key: 'date', label: 'Date', value: (r) => formatDate(r.date) },
+            ]}
+            exportRows={activityRows}
+            exportFilename="activites"
+          />
+        }
+      >
         <div className="data-table-wrapper">
           <table className="data-table">
             <thead>
@@ -199,12 +234,12 @@ export default function DashboardPage({ setPageTitle, addToast, user }) {
               </tr>
             </thead>
             <tbody>
-              {reimb.slice(0, 5).map((r) => (
+              {activityRows.slice(0, searchQuery.trim() ? 20 : 5).map((r) => (
                 <tr key={r.id}>
                   <td>{r.numero}</td>
-                  <td>Remboursement</td>
+                  <td>{r.type}</td>
                   <td>{r.beneficiaire}</td>
-                  <td>{Number(r.montantDemande).toLocaleString('fr-FR')} DH</td>
+                  <td>{r.montant}</td>
                   <td>{statusBadge(r.statut)}</td>
                   <td>{formatDate(r.date)}</td>
                 </tr>

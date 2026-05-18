@@ -53,4 +53,28 @@ public class Quote {
 
 	@Column(nullable = false)
 	private boolean scanned = false;
+
+	@Column(name = "pdf_storage_key", length = 512)
+	private String pdfStorageKey;
+
+	@Column(name = "pdf_original_name", length = 255)
+	private String pdfOriginalName;
+
+	@Column(name = "dentist_name", length = 255)
+	private String dentistName;
+
+	@Column(name = "deposit_date")
+	private LocalDate depositDate;
+
+	@Column(name = "sent_date")
+	private LocalDate sentDate;
+
+	@Column(name = "response_date")
+	private LocalDate responseDate;
+
+	@Column(name = "montant_pris_en_charge", precision = 14, scale = 2)
+	private BigDecimal montantPrisEnCharge;
+
+	@Column(columnDefinition = "TEXT")
+	private String observation;
 }

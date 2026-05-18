@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import ma.srm.mutuelle.api.dto.MutualCardDtos.MutualCardCreateRequest;
+import ma.srm.mutuelle.api.dto.MutualCardDtos.MutualCardFamilyMember;
 import ma.srm.mutuelle.api.dto.MutualCardDtos.MutualCardResponse;
 import ma.srm.mutuelle.api.support.AuthPrincipal;
 import ma.srm.mutuelle.service.MutualCardService;
@@ -34,6 +35,12 @@ public class MutualCardController {
 		return mutualCardService.list(AuthPrincipal.requireUser(authentication));
 	}
 
+	@GetMapping("/family/{agentId}")
+	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','CONSULTATEUR','ADHERENT')")
+	public List<MutualCardFamilyMember> family(@PathVariable Long agentId, Authentication authentication) {
+		return mutualCardService.familyOverview(agentId, AuthPrincipal.requireUser(authentication));
+	}
+
 	@GetMapping("/by-agent/{agentId}")
 	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','CONSULTATEUR','ADHERENT')")
 	public MutualCardResponse byAgent(@PathVariable Long agentId, Authentication authentication) {
@@ -46,13 +53,24 @@ public class MutualCardController {
 		return mutualCardService.createOrEnsure(body, AuthPrincipal.requireUser(authentication));
 	}
 
+	@GetMapping(value = "/{cardId}/download", produces = MediaType.APPLICATION_PDF_VALUE)
+	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','CONSULTATEUR','ADHERENT')")
+	public ResponseEntity<Resource> downloadByCard(@PathVariable Long cardId, Authentication authentication) {
+		byte[] bytes = mutualCardService.readPdfBytes(cardId, AuthPrincipal.requireUser(authentication));
+		return pdfResponse(bytes, "carte-mutuelle-srm-ms.pdf");
+	}
+
 	@GetMapping(value = "/by-agent/{agentId}/download", produces = MediaType.APPLICATION_PDF_VALUE)
 	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','CONSULTATEUR','ADHERENT')")
-	public ResponseEntity<Resource> download(@PathVariable Long agentId, Authentication authentication) {
-		byte[] bytes = mutualCardService.readPdfBytes(agentId, AuthPrincipal.requireUser(authentication));
+	public ResponseEntity<Resource> downloadTitulaire(@PathVariable Long agentId, Authentication authentication) {
+		byte[] bytes = mutualCardService.readPdfBytesForAgent(agentId, AuthPrincipal.requireUser(authentication));
+		return pdfResponse(bytes, "carte-mutuelle-titulaire.pdf");
+	}
+
+	private ResponseEntity<Resource> pdfResponse(byte[] bytes, String filename) {
 		ByteArrayResource resource = new ByteArrayResource(bytes);
 		return ResponseEntity.ok()
-				.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"carte-mutuelle-srm-ms.pdf\"")
+				.header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
 				.contentType(MediaType.APPLICATION_PDF)
 				.contentLength(bytes.length)
 				.body(resource);

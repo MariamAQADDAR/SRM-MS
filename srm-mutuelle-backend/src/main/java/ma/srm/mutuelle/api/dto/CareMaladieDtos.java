@@ -2,6 +2,7 @@ package ma.srm.mutuelle.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class CareMaladieDtos {
@@ -15,7 +16,21 @@ public class CareMaladieDtos {
 			Long agentId,
 			String beneficiaire,
 			String etablissement,
-			String statut) {}
+			String statut,
+			BigDecimal montantDemande,
+			BigDecimal montantPrisEnCharge,
+			Integer taux,
+			boolean hasPdf,
+			String pdfOriginalName,
+			LocalDate depositDate,
+			LocalDate sentDate,
+			LocalDate responseDate,
+			String observation) {}
+
+	public record ValidateCareEpisodeRequest(
+			@NotNull BigDecimal montantPrisEnCharge, Integer taux, String observation, LocalDate dateFin) {}
+
+	public record RejectCareEpisodeRequest(String observation) {}
 
 	public record CareEpisodeWriteRequest(
 			String numero,

@@ -1,13 +1,45 @@
-import React, { useEffect, useState } from 'react';
-import { isConsultateurRole } from '../authUtils';
+import React, { useEffect, useMemo, useState } from 'react';
+import { usePagination } from '../hooks/usePagination';
+import TablePagination from '../components/TablePagination';
+import { canAdminDelete, isAdherentRole, isStaffWriterRole } from '../authUtils';
+import WorkflowSteps from '../components/WorkflowSteps';
+import { PEC_WORKFLOW_STEPS, resolvePecWorkflow } from '../utils/workflowSteps';
+import DetailView from '../components/DetailView';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
 import TablePageShell from '../components/TablePageShell';
-import { apiFetch, parseJsonOrThrow } from '../api/client';
+import ListPageToolbar from '../components/ListPageToolbar';
+import { matchesSearch } from '../utils/filterSearch';
+import AdminDeleteButton from '../components/AdminDeleteButton';
+import DetailModalFooter from '../components/DetailModalFooter';
+import DetailItem from '../components/DetailItem';
+import { apiFetch, apiFetchBlob, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
+import { adminDeleteRecord } from '../utils/adminDelete';
+
+const EXPORT_COLS = [
+  { key: 'numero', label: 'N°' },
+  { key: 'matricule', label: 'Matricule' },
+  { key: 'nomPrenomAgent', label: 'Agent' },
+  { key: 'typePrestation', label: 'Type' },
+  { key: 'beneficiaire', label: 'Bénéficiaire' },
+  { key: 'etablissement', label: 'Établissement' },
+  { key: 'dateDebut', label: 'Début' },
+  { key: 'dateFin', label: 'Fin' },
+  { key: 'statut', label: 'Statut' },
+  { key: 'montantDemande', label: 'Montant demandé' },
+  { key: 'montantPec', label: 'Montant PEC' },
+  { key: 'tauxDisplay', label: 'Taux %' },
+];
 
 function statusBadge(statut) {
-  const map = { Clôturé: 'badge-success', 'En cours': 'badge-primary', 'En attente': 'badge-warning' };
+  const map = {
+    Approuvé: 'badge-success',
+    'En cours': 'badge-primary',
+    'En attente': 'badge-warning',
+    Clôturé: 'badge-info',
+    Rejeté: 'badge-danger',
+  };
   return <span className={`badge ${map[statut] || 'badge-info'}`}>{statut}</span>;
 }
 
@@ -19,27 +51,73 @@ function formatDate(d) {
   return `${day}/${m}/${y}`;
 }
 
+function mapRow(r, agentById) {
+  const agent = agentById[r.agentId];
+  return {
+    ...r,
+    matricule: agent?.matricule || '—',
+    nomPrenomAgent: agent ? `${agent.nom} ${agent.prenom}` : r.beneficiaire,
+    montantPec: r.montantPrisEnCharge,
+    tauxDisplay: r.taux != null ? `${r.taux} %` : '—',
+    dateDepot: r.depositDate || r.dateDebut,
+    dateEnvoi: r.sentDate || null,
+    dateReponse: r.responseDate || null,
+    observation: r.observation || '—',
+  };
+}
+
+function WizardSteps({ step }) {
+  const labels = ['1. Informations', '2. Montant & justificatif', '3. Confirmation'];
+  return (
+    <div className="reimb-wizard-steps">
+      {labels.map((label, i) => {
+        const n = i + 1;
+        let cls = 'reimb-wizard-step';
+        if (n === step) cls += ' reimb-wizard-step--active';
+        else if (n < step) cls += ' reimb-wizard-step--done';
+        return (
+          <div key={label} className={cls}>
+            {label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function PrisesEnChargePage({ setPageTitle, addToast, user }) {
-  setPageTitle('Prises en charge', 'Gestion des prises en charge');
-  const isConsult = isConsultateurRole(user);
+  setPageTitle('Prises en charge', 'Demandes de prise en charge');
+  const canMutate = isStaffWriterRole(user);
+  const canDelete = canAdminDelete(user);
+  const isAdherent = isAdherentRole(user);
+  const canCreate = isAdherent || canMutate;
+  const careTypes = getTypeOptions('careTypes');
+
+  const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState(null);
   const [rows, setRows] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [beneficiaries, setBeneficiaries] = useState([]);
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const careTypes = getTypeOptions('careTypes');
+  const [pdfFile, setPdfFile] = useState(null);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [reviewMontant, setReviewMontant] = useState('');
+  const [reviewTaux, setReviewTaux] = useState('');
+  const [reviewObs, setReviewObs] = useState('');
+
+  const myAgent = isAdherent && user?.agentId != null ? Number(user.agentId) : null;
 
   const reload = async () => {
     setLoading(true);
     try {
-      const [cRes, aRes, fRes] = await Promise.all([
-        apiFetch('/api/care-episodes'),
-        apiFetch('/api/agents'),
-        apiFetch('/api/medical-facilities'),
-      ]);
-      setRows(await parseJsonOrThrow(cRes));
-      setAgents(await parseJsonOrThrow(aRes));
-      setFacilities(await parseJsonOrThrow(fRes));
+      const reqs = [apiFetch('/api/care-episodes'), apiFetch('/api/agents'), apiFetch('/api/medical-facilities')];
+      if (myAgent) reqs.push(apiFetch(`/api/beneficiaries?agentId=${myAgent}`));
+      const out = await Promise.all(reqs.map((p) => p.then((r) => parseJsonOrThrow(r))));
+      setRows(out[0]);
+      setAgents(out[1]);
+      setFacilities(out[2]);
+      if (myAgent && out[3]) setBeneficiaries(out[3]);
     } catch (e) {
       addToast('error', e.message || 'Chargement impossible');
     } finally {
@@ -51,149 +129,552 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user }) {
     reload();
   }, []);
 
-  const submit = async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const agentLabel = fd.get('beneficiaire');
-    const agent = agents.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
-    const etab = fd.get('etablissement');
-    if (!agent) {
-      addToast('error', 'Agent invalide');
-      return;
+  const agentById = Object.fromEntries((agents || []).map((a) => [a.id, a]));
+  const rowsView = rows.map((r) => mapRow(r, agentById));
+
+  const beneficiaryOptions = useMemo(() => {
+    const opts = [];
+    if (isAdherent) {
+      const agent = myAgent ? agents.find((a) => a.id === myAgent) : null;
+      if (agent) {
+        opts.push({ label: `${agent.prenom} ${agent.nom} (Titulaire)`, value: `${agent.prenom} ${agent.nom}` });
+      }
+      beneficiaries.forEach((b) => {
+        opts.push({ label: `${b.prenom} ${b.nom} (${b.linkType || b.type})`, value: `${b.prenom} ${b.nom}` });
+      });
+    } else {
+      agents.forEach((a) => {
+        opts.push({ label: `${a.prenom} ${a.nom} (porteur)`, value: `${a.prenom} ${a.nom}` });
+      });
     }
-    const dateFinVal = fd.get('dateFin');
-    const body = {
-      typePrestation: fd.get('typePrestation'),
-      dateDebut: fd.get('dateDebut'),
-      dateFin: dateFinVal && String(dateFinVal).trim() !== '' ? dateFinVal : null,
-      agentId: agent.id,
-      beneficiaire: agentLabel,
-      etablissement: etab,
-      statut: 'En attente',
-    };
+    return opts;
+  }, [agents, beneficiaries, myAgent, isAdherent]);
+
+  const data = useMemo(() => {
+    let list = [...rowsView];
+    if (searchQuery.trim()) {
+      list = list.filter((r) =>
+        matchesSearch(
+          searchQuery,
+          r.numero,
+          r.matricule,
+          r.nomPrenomAgent,
+          r.typePrestation,
+          r.beneficiaire,
+          r.etablissement,
+          r.statut,
+          r.tauxDisplay,
+          r.montantDemande,
+          r.montantPec,
+          r.observation,
+        ),
+      );
+    }
+    return list;
+  }, [rowsView, searchQuery]);
+
+  const { pageData, page, setPage, totalPages } = usePagination(data, searchQuery);
+
+  const closeModal = () => {
+    setModal(null);
+    setWizardStep(1);
+    setPdfFile(null);
+  };
+
+  const openPdf = async (id) => {
     try {
-      await parseJsonOrThrow(await apiFetch('/api/care-episodes', { method: 'POST', body }));
-      setModal(null);
-      addToast('success', 'PEC enregistrée !');
-      reload();
-    } catch (err) {
-      addToast('error', err.message || 'Erreur');
+      const blob = await apiFetchBlob(`/api/care-episodes/${id}/document`);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      addToast('error', e.message || 'PDF introuvable');
     }
   };
 
-  const form = (
-    <form onSubmit={submit}>
-      <div className="form-grid">
-        <div className="form-group">
-          <label>Type de prestation</label>
-          <select name="typePrestation" className="form-control" required>
-            {careTypes.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
+  const doAction = async (path, label, body) => {
+    try {
+      await parseJsonOrThrow(await apiFetch(path, { method: 'POST', body: body || undefined }));
+      addToast('success', label);
+      closeModal();
+      reload();
+    } catch (e) {
+      addToast('error', e.message || 'Erreur');
+    }
+  };
+
+  const buildWizardForm = () => {
+    const submitWizard = async (e) => {
+      e.preventDefault();
+      if (!pdfFile) {
+        addToast('error', 'Le justificatif PDF est obligatoire');
+        return;
+      }
+      const fd = new FormData(e.target);
+      const body = new FormData();
+      body.append('file', pdfFile);
+      body.append('beneficiaire', fd.get('beneficiaire'));
+      body.append('typePrestation', fd.get('typePrestation'));
+      body.append('etablissement', fd.get('etablissement'));
+      body.append('montantDemande', fd.get('montantDemande'));
+      body.append('taux', fd.get('taux') || '0');
+      if (fd.get('dateDebut')) body.append('dateDebut', fd.get('dateDebut'));
+      if (fd.get('dateFin')) body.append('dateFin', fd.get('dateFin'));
+      if (fd.get('observation')) body.append('observation', fd.get('observation'));
+      if (!isAdherent && fd.get('agentId')) body.append('agentId', fd.get('agentId'));
+
+      try {
+        await parseJsonOrThrow(await apiFetch('/api/care-episodes/request', { method: 'POST', body }));
+        addToast('success', 'Demande PEC enregistrée — envoyez-la à la mutuelle (étape 2)');
+        closeModal();
+        reload();
+      } catch (err) {
+        addToast('error', err.message || 'Erreur');
+      }
+    };
+
+    return (
+      <form onSubmit={submitWizard}>
+        <WizardSteps step={wizardStep} />
+        <WorkflowSteps steps={PEC_WORKFLOW_STEPS} activeStep={1} terminal={false} />
+
+        {wizardStep === 1 && (
+          <div className="form-grid">
+            {!isAdherent && (
+              <div className="form-group">
+                <label>Porteur</label>
+                <select name="agentId" className="form-control" required>
+                  {agents.map((a) => (
+                    <option key={a.id} value={String(a.id)}>
+                      {a.matricule} — {a.prenom} {a.nom}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="form-group">
+              <label>Bénéficiaire</label>
+              <select name="beneficiaire" className="form-control" required defaultValue={beneficiaryOptions[0]?.value}>
+                {beneficiaryOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Type de prestation</label>
+              <select name="typePrestation" className="form-control" required>
+                <option value="">— Choisir —</option>
+                {careTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Établissement</label>
+              <select name="etablissement" className="form-control" required>
+                <option value="">— Choisir —</option>
+                {facilities.map((f) => (
+                  <option key={f.id} value={f.nom}>
+                    {f.nom}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Date début soins</label>
+              <input
+                name="dateDebut"
+                type="date"
+                className="form-control"
+                defaultValue={new Date().toISOString().split('T')[0]}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Date fin (optionnel)</label>
+              <input name="dateFin" type="date" className="form-control" />
+            </div>
+          </div>
+        )}
+
+        {wizardStep === 2 && (
+          <div className="form-grid">
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Montant demandé (DH)</label>
+              <input name="montantDemande" type="number" step="0.01" min="0" className="form-control" required />
+            </div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Taux souhaité (%)</label>
+              <input name="taux" type="number" min="0" max="100" className="form-control" defaultValue="70" />
+            </div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Justificatif PDF (devis, accord préalable…)</label>
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="form-control"
+                onChange={(ev) => setPdfFile(ev.target.files?.[0] || null)}
+                required
+              />
+              {pdfFile && <p className="pdf-upload-hint">{pdfFile.name}</p>}
+            </div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Observation</label>
+              <textarea name="observation" className="form-control" rows={2} />
+            </div>
+          </div>
+        )}
+
+        {wizardStep === 3 && (
+          <div className="card" style={{ padding: 16, marginBottom: 12 }}>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--gray-700)' }}>
+              Après enregistrement, votre demande sera à l&apos;<strong>étape 1 — Dépôt</strong>. Utilisez{' '}
+              <strong>Envoyer à la mutuelle</strong> pour passer à l&apos;<strong>étape 2 — Instruction</strong>. La
+              mutuelle fixera le <strong>montant de prise en charge</strong> et le <strong>taux</strong> à l&apos;étape 3.
+            </p>
+          </div>
+        )}
+
+        <div className="modal-footer" style={{ padding: '16px 0 0' }}>
+          <button type="button" className="btn btn-outline" onClick={closeModal}>
+            Annuler
+          </button>
+          {wizardStep > 1 && (
+            <button type="button" className="btn btn-outline" onClick={() => setWizardStep((s) => s - 1)}>
+              Précédent
+            </button>
+          )}
+          {wizardStep < 3 ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                if (wizardStep === 2 && !pdfFile) {
+                  addToast('error', 'PDF obligatoire');
+                  return;
+                }
+                setWizardStep((s) => s + 1);
+              }}
+            >
+              Suivant
+            </button>
+          ) : (
+            <button type="submit" className="btn btn-primary">
+              <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer la demande
+            </button>
+          )}
         </div>
-        <div className="form-group">
-          <label>Bénéficiaire</label>
-          <select name="beneficiaire" className="form-control" required>
-            {agents.map((a) => (
-              <option key={a.id} value={`${a.prenom} ${a.nom}`}>
-                {a.prenom} {a.nom}
-              </option>
-            ))}
-          </select>
+      </form>
+    );
+  };
+
+  const staffReviewPanel = (p) => {
+    const canValidate = p.statut === 'En cours' || p.statut === 'En attente';
+    return (
+      <div className="staff-review-panel">
+        <h4 className="staff-review-title">Validation prise en charge</h4>
+        <div className="form-grid">
+          <div className="form-group">
+            <label>Montant PEC (DH)</label>
+            <input
+              type="number"
+              step="0.01"
+              className="form-control"
+              value={reviewMontant}
+              onChange={(e) => setReviewMontant(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label>Taux (%)</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              className="form-control"
+              value={reviewTaux}
+              onChange={(e) => setReviewTaux(e.target.value)}
+            />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>Observation</label>
+            <textarea className="form-control" rows={2} value={reviewObs} onChange={(e) => setReviewObs(e.target.value)} />
+          </div>
         </div>
-        <div className="form-group">
-          <label>Date début</label>
-          <input name="dateDebut" type="date" className="form-control" required />
-        </div>
-        <div className="form-group">
-          <label>Date fin</label>
-          <input name="dateFin" type="date" className="form-control" />
-        </div>
-        <div className="form-group" style={{ gridColumn: '1/-1' }}>
-          <label>Établissement</label>
-          <select name="etablissement" className="form-control" required>
-            {facilities.map((e) => (
-              <option key={e.id} value={e.nom}>
-                {e.nom}
-              </option>
-            ))}
-          </select>
+        <div className="workflow-actions-bar">
+          {canValidate && (
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() =>
+                  doAction(`/api/care-episodes/${p.id}/validate`, 'PEC approuvée', {
+                    montantPrisEnCharge: Number(reviewMontant),
+                    taux: reviewTaux ? Number(reviewTaux) : null,
+                    observation: reviewObs || null,
+                  })
+                }
+              >
+                <FaIcon name="check" className="fa-inline-icon" /> Approuver (étape 3)
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                onClick={() =>
+                  doAction(`/api/care-episodes/${p.id}/reject`, 'PEC refusée', { observation: reviewObs || null })
+                }
+              >
+                <FaIcon name="xmark" className="fa-inline-icon" /> Refuser
+              </button>
+            </>
+          )}
         </div>
       </div>
-      <div className="modal-footer" style={{ padding: '16px 0 0' }}>
-        <button type="button" className="btn btn-outline" onClick={() => setModal(null)}>
-          Annuler
-        </button>
-        <button type="submit" className="btn btn-primary">
-          <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer
-        </button>
-      </div>
-    </form>
-  );
+    );
+  };
+
+  const viewRecord = (p) => {
+    const wf = resolvePecWorkflow(p.statut);
+    const defaultMontant =
+      p.montantPec != null && Number(p.montantPec) > 0 ? p.montantPec : p.montantDemande;
+    setReviewMontant(String(defaultMontant ?? ''));
+    setReviewTaux(p.taux != null ? String(p.taux) : '70');
+    setReviewObs(p.observation !== '—' ? p.observation : '');
+    setModal({
+      title: `PEC ${p.numero}`,
+      variant: 'detail',
+      content: (
+        <>
+          <WorkflowSteps {...wf} />
+          {p.hasPdf && (
+            <div className="workflow-actions-bar" style={{ marginBottom: 12 }}>
+              <button type="button" className="btn btn-outline" onClick={() => openPdf(p.id)}>
+                <FaIcon name="file-pdf" className="fa-inline-icon" /> Voir le justificatif PDF
+              </button>
+            </div>
+          )}
+          <DetailView footer={<DetailModalFooter onClose={closeModal} canEdit={false} />}>
+            <DetailItem label="N° demande">{p.numero}</DetailItem>
+            <DetailItem label="Bénéficiaire">{p.beneficiaire}</DetailItem>
+            <DetailItem label="Type prestation">
+              <span className="badge badge-primary">{p.typePrestation}</span>
+            </DetailItem>
+            <DetailItem label="Établissement">{p.etablissement}</DetailItem>
+            <DetailItem label="Date début">{formatDate(p.dateDebut)}</DetailItem>
+            <DetailItem label="Date fin">{formatDate(p.dateFin)}</DetailItem>
+            <DetailItem label="Date dépôt">{formatDate(p.dateDepot)}</DetailItem>
+            <DetailItem label="Date envoi">{formatDate(p.dateEnvoi)}</DetailItem>
+            <DetailItem label="Date réponse">{formatDate(p.dateReponse)}</DetailItem>
+            <DetailItem label="Statut">{statusBadge(p.statut)}</DetailItem>
+            <DetailItem label="Montant demandé">
+              {p.montantDemande != null ? `${Number(p.montantDemande).toLocaleString('fr-FR')} DH` : '—'}
+            </DetailItem>
+            <DetailItem label="Montant PEC">
+              {p.montantPec != null && Number(p.montantPec) > 0
+                ? `${Number(p.montantPec).toLocaleString('fr-FR')} DH`
+                : '—'}
+            </DetailItem>
+            <DetailItem label="Taux">{p.tauxDisplay}</DetailItem>
+            <DetailItem label="Observation">{p.observation}</DetailItem>
+          </DetailView>
+          {canMutate && staffReviewPanel(p)}
+          {isAdherent && p.statut === 'En attente' && (
+            <div className="workflow-actions-bar">
+              <p className="workflow-actions-hint">Étape 1/3 — Envoyez votre dossier pour lancer l&apos;instruction.</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!p.hasPdf}
+                onClick={() => doAction(`/api/care-episodes/${p.id}/submit`, 'Demande transmise à la mutuelle')}
+              >
+                <FaIcon name="paper-plane" className="fa-inline-icon" /> Envoyer à la mutuelle
+              </button>
+            </div>
+          )}
+        </>
+      ),
+    });
+  };
+
+  const workflowSummary = (p) => {
+    const wf = resolvePecWorkflow(p.statut);
+    if (wf.terminal) {
+      const extra =
+        p.statut === 'Approuvé' && p.montantPec != null && Number(p.montantPec) > 0
+          ? ` — ${Number(p.montantPec).toLocaleString('fr-FR')} DH`
+          : '';
+      return `${wf.terminalLabel}${extra}`;
+    }
+    return `Étape ${wf.activeStep}/3 — ${wf.steps[wf.activeStep - 1].label}`;
+  };
 
   if (loading) {
-    return <div className="card"><div className="card-body">Chargement…</div></div>;
+    return (
+      <div className="card">
+        <div className="card-body">Chargement…</div>
+      </div>
+    );
   }
 
   return (
     <>
       {modal && (
-        <Modal title={modal.title} onClose={() => setModal(null)}>
+        <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
           {modal.content}
         </Modal>
       )}
-      <TablePageShell
-        title="Liste des prises en charge"
-        icon="clipboard-list"
-        toolbar={
-          <div className="table-page-toolbar-row">
-            <span style={{ color: 'var(--gray-600)', fontSize: '14px' }}>{rows.length} enregistrement{rows.length !== 1 ? 's' : ''}</span>
-            <span className="toolbar-spacer" />
-            {!isConsult && (
-              <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouvelle prise en charge', content: form })}>
-                <FaIcon name="plus" className="fa-inline-icon" /> Nouvelle PEC
-              </button>
-            )}
+      {!isAdherent && (
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 16 }}>
+          <div className="stat-card">
+            <div className="stat-info">
+              <h4>En attente</h4>
+              <div className="stat-value">{rows.filter((r) => r.statut === 'En attente').length}</div>
+            </div>
           </div>
+          <div className="stat-card">
+            <div className="stat-info">
+              <h4>En cours</h4>
+              <div className="stat-value">{rows.filter((r) => r.statut === 'En cours').length}</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-info">
+              <h4>Approuvées</h4>
+              <div className="stat-value">{rows.filter((r) => r.statut === 'Approuvé').length}</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-info">
+              <h4>Refusées</h4>
+              <div className="stat-value">{rows.filter((r) => r.statut === 'Rejeté').length}</div>
+            </div>
+          </div>
+        </div>
+      )}
+      <TablePageShell
+        title={isAdherent ? 'Mes demandes de prise en charge' : 'Liste des prises en charge'}
+        icon="hospital"
+        toolbar={
+          <ListPageToolbar
+            searchValue={searchQuery}
+            onSearchChange={(e) => setSearchQuery(e.target.value)}
+            searchPlaceholder="Rechercher (n°, type, bénéficiaire, établissement, statut…)"
+            exportColumns={EXPORT_COLS}
+            exportRows={data.map((r) => ({
+              ...r,
+              dateDebut: formatDate(r.dateDebut),
+              dateFin: formatDate(r.dateFin),
+            }))}
+            exportFilename="prises-en-charge"
+            showNew={canCreate}
+            newLabel={isAdherent ? 'Nouvelle demande PEC (3 étapes)' : 'Nouvelle demande PEC'}
+            onNew={() => {
+              setWizardStep(1);
+              setPdfFile(null);
+              setModal({ title: 'Demande de prise en charge — 3 étapes', content: buildWizardForm() });
+            }}
+          />
         }
       >
         <div className="data-table-wrapper">
-            <table className="data-table">
-              <thead>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>N°</th>
+                {!isAdherent && <th>Mat.</th>}
+                <th>Type</th>
+                <th>Bénéficiaire</th>
+                <th>Établissement</th>
+                <th>Début</th>
+                <th>Montant demandé</th>
+                <th>Montant PEC</th>
+                <th>Taux</th>
+                <th>Statut</th>
+                {isAdherent ? <th>Suivi</th> : null}
+                <th>PDF</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageData.length === 0 && (
                 <tr>
-                  <th>N°</th>
-                  <th>Type</th>
-                  <th>Début</th>
-                  <th>Fin</th>
-                  <th>Bénéficiaire</th>
-                  <th>Établissement</th>
-                  <th>Statut</th>
-                  <th>Actions</th>
+                  <td colSpan={isAdherent ? 12 : 13} style={{ textAlign: 'center', padding: 24 }}>
+                    {isAdherent
+                      ? 'Aucune demande. Créez une demande PEC en 3 étapes avec justificatif PDF.'
+                      : 'Aucune prise en charge.'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {rows.map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.numero}</td>
-                    <td>
-                      <span className="badge badge-primary">{p.typePrestation}</span>
-                    </td>
-                    <td>{formatDate(p.dateDebut)}</td>
-                    <td>{p.dateFin ? formatDate(p.dateFin) : '—'}</td>
-                    <td>{p.beneficiaire}</td>
-                    <td>{p.etablissement}</td>
-                    <td>{statusBadge(p.statut)}</td>
-                    <td className="actions-cell">
-                      <button className="btn btn-icon btn-view" type="button">
-                        <FaIcon name="eye" />
+              )}
+              {pageData.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.numero}</td>
+                  {!isAdherent && <td>{p.matricule}</td>}
+                  <td>
+                    <span className="badge badge-primary">{p.typePrestation}</span>
+                  </td>
+                  <td>{p.beneficiaire}</td>
+                  <td>{p.etablissement}</td>
+                  <td>{formatDate(p.dateDebut)}</td>
+                  <td>
+                    {p.montantDemande != null ? `${Number(p.montantDemande).toLocaleString('fr-FR')} DH` : '—'}
+                  </td>
+                  <td>
+                    {p.montantPec != null && Number(p.montantPec) > 0
+                      ? `${Number(p.montantPec).toLocaleString('fr-FR')} DH`
+                      : '—'}
+                  </td>
+                  <td>{p.tauxDisplay}</td>
+                  <td>{statusBadge(p.statut)}</td>
+                  {isAdherent ? (
+                    <td style={{ fontSize: 12, fontWeight: 600 }}>{workflowSummary(p)}</td>
+                  ) : null}
+                  <td>
+                    {p.hasPdf ? (
+                      <button type="button" className="btn btn-sm btn-outline" onClick={() => openPdf(p.id)}>
+                        PDF
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="actions-cell">
+                    <button className="btn btn-icon btn-view" type="button" onClick={() => viewRecord(p)}>
+                      <FaIcon name="eye" />
+                    </button>
+                    {p.statut === 'En attente' && (isAdherent || canMutate) && (
+                      <button
+                        className="btn btn-icon btn-edit"
+                        type="button"
+                        title="Envoyer"
+                        disabled={!p.hasPdf}
+                        onClick={() => doAction(`/api/care-episodes/${p.id}/submit`, 'Demande envoyée')}
+                      >
+                        <FaIcon name="paper-plane" />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <AdminDeleteButton
+                        onClick={() =>
+                          adminDeleteRecord({
+                            url: `/api/care-episodes/${p.id}`,
+                            label: p.numero,
+                            addToast,
+                            onSuccess: reload,
+                          })
+                        }
+                      />
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+        <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </TablePageShell>
     </>
   );

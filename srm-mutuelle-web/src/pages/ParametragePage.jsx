@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { usePagination } from '../hooks/usePagination';
+import TablePagination from '../components/TablePagination';
 import FaIcon from '../components/FaIcon';
 import TablePageShell from '../components/TablePageShell';
+import ListPageToolbar from '../components/ListPageToolbar';
 import { DEFAULT_TYPE_CONFIG, mergeWithDefaultsForState, prefetchTypeConfig, saveTypeConfigKey } from '../config/typeConfig';
 import { confirmDelete, promptText } from '../utils/swal';
 
@@ -101,7 +104,11 @@ export default function ParametragePage({ setPageTitle, addToast }) {
     }
   };
 
-  const rows = (config[activeKey] || []).filter((v) => v.toLowerCase().includes(query.trim().toLowerCase()));
+  const rows = useMemo(
+    () => (config[activeKey] || []).filter((v) => v.toLowerCase().includes(query.trim().toLowerCase())),
+    [config, activeKey, query]
+  );
+  const { pageData, page, setPage, totalPages } = usePagination(rows, `${activeKey}|${query}`);
 
   if (loading) {
     return (
@@ -127,7 +134,7 @@ export default function ParametragePage({ setPageTitle, addToast }) {
               role="button"
               tabIndex={0}
             >
-              {LABELS[key]} <span className="param-tab-count">{(config[key] || []).length}</span>
+              {LABELS[key]}
             </div>
           ))}
         </div>
@@ -136,24 +143,17 @@ export default function ParametragePage({ setPageTitle, addToast }) {
           title={LABELS[activeKey]}
           icon="sliders"
           toolbar={
-            <div className="table-page-toolbar-row" style={{ alignItems: 'stretch' }}>
-              <div className="table-search-wrap">
-                <span className="table-search-icon-btn" aria-hidden>
-                  <FaIcon name="magnifying-glass" />
-                </span>
-                <input
-                  type="search"
-                  className="form-control table-search-input"
-                  placeholder={`Rechercher ${LABELS[activeKey]}…`}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  autoComplete="off"
-                />
-              </div>
-              <button type="button" className="btn btn-primary" onClick={() => addValue(activeKey)}>
-                <FaIcon name="plus" className="fa-inline-icon" /> Ajouter
-              </button>
-            </div>
+            <ListPageToolbar
+              searchValue={query}
+              onSearchChange={(e) => setQuery(e.target.value)}
+              searchPlaceholder={`Rechercher ${LABELS[activeKey]}…`}
+              exportColumns={[{ key: 'nom', label: 'Libellé' }]}
+              exportRows={rows.map((v) => ({ nom: v }))}
+              exportFilename={`parametrage-${activeKey}`}
+              showNew
+              newLabel="Ajouter"
+              onNew={() => addValue(activeKey)}
+            />
           }
         >
           <div className="data-table-wrapper">
@@ -165,7 +165,7 @@ export default function ParametragePage({ setPageTitle, addToast }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((v) => (
+                {pageData.map((v) => (
                   <tr key={v}>
                     <td>{v}</td>
                     <td>
@@ -193,6 +193,7 @@ export default function ParametragePage({ setPageTitle, addToast }) {
               </tbody>
             </table>
           </div>
+          <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </TablePageShell>
       </div>
     </div>

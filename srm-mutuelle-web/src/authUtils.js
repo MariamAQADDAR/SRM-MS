@@ -28,3 +28,18 @@ export function isStaffWriterRole(user) {
   const c = roleCode(user);
   return c === 'ADMINISTRATEUR' || c === 'OPERATEUR';
 }
+
+/** Lecture seule (consultateur). */
+export function isStaffReadOnly(user) {
+  return isConsultateurRole(user);
+}
+
+/** Création / modification métier (admin + opérateur). */
+export function canStaffMutate(user) {
+  return !isAdherentRole(user) && !isConsultateurRole(user);
+}
+
+/** Suppression définitive (réservée administrateur, alignée API DELETE). */
+export function canAdminDelete(user) {
+  return isAdminRole(user);
+}

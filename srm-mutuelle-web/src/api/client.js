@@ -106,6 +106,15 @@ function errorMessageFromBody(data, res, rawText) {
   return `Erreur HTTP ${res.status}. Réessayez ou contactez l’administrateur.`;
 }
 
+/** Télécharge un fichier binaire authentifié (ex. PDF devis). */
+export async function apiFetchBlob(path) {
+  const res = await apiFetch(path);
+  if (!res.ok) {
+    await parseJsonOrThrow(res);
+  }
+  return res.blob();
+}
+
 export async function parseJsonOrThrow(res) {
   const text = await res.text();
   let data;

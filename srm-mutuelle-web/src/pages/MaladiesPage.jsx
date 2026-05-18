@@ -1,10 +1,26 @@
-import React, { useEffect, useState } from 'react';
-import { isAdherentRole, isConsultateurRole } from '../authUtils';
+import React, { useEffect, useMemo, useState } from 'react';
+import { usePagination } from '../hooks/usePagination';
+import TablePagination from '../components/TablePagination';
+import { isAdherentRole, canAdminDelete, canStaffMutate } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
 import TablePageShell from '../components/TablePageShell';
+import ListPageToolbar from '../components/ListPageToolbar';
+import { matchesSearch } from '../utils/filterSearch';
+import AdminDeleteButton from '../components/AdminDeleteButton';
+import DetailModalFooter from '../components/DetailModalFooter';
+import DetailItem from '../components/DetailItem';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
+import { adminDeleteRecord } from '../utils/adminDelete';
+
+const EXPORT_COLS = [
+  { key: 'numero', label: 'N°' },
+  { key: 'typeMaladie', label: 'Type maladie' },
+  { key: 'dateDeclaration', label: 'Date déclaration' },
+  { key: 'beneficiaire', label: 'Bénéficiaire' },
+  { key: 'statut', label: 'Statut' },
+];
 
 function statusBadge(statut) {
   const map = { Validé: 'badge-success', 'En cours': 'badge-primary', 'En attente': 'badge-warning' };
@@ -21,14 +37,24 @@ function formatDate(d) {
 
 export default function MaladiesPage({ setPageTitle, addToast, user }) {
   setPageTitle('Maladies spéciales', 'Gestion des maladies spéciales');
-  const isConsult = isConsultateurRole(user);
+  const canMutate = canStaffMutate(user);
+  const canDelete = canAdminDelete(user);
   const adherent = isAdherentRole(user);
   const [modal, setModal] = useState(null);
   const [diseases, setDiseases] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [medicines, setMedicines] = useState([]);
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const maladieTypes = getTypeOptions('maladieTypes');
+  const filteredDiseases = useMemo(() => {
+    if (!searchQuery.trim()) return diseases;
+    return diseases.filter((d) =>
+      matchesSearch(searchQuery, d.numero, d.typeMaladie, d.beneficiaire, d.statut),
+    );
+  }, [diseases, searchQuery]);
+
+  const { pageData, page, setPage, totalPages } = usePagination(filteredDiseases);
 
   const reload = async () => {
     setLoading(true);
@@ -38,7 +64,7 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
       if (adherent) {
         const mRes = await apiFetch('/api/medicines');
         setMedicines(await parseJsonOrThrow(mRes));
-      } else if (!isConsult) {
+      } else if (canMutate) {
         const aRes = await apiFetch('/api/agents');
         setAgents(await parseJsonOrThrow(aRes));
       }
@@ -51,9 +77,13 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
 
   useEffect(() => {
     reload();
-  }, [adherent, isConsult]);
+  }, [adherent, canMutate]);
 
-  const submit = async (e) => {
+  const closeModal = () => setModal(null);
+
+  const buildForm = (record = null) => {
+    const isEdit = !!record;
+    const submit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const agentLabel = fd.get('beneficiaire');
@@ -63,28 +93,30 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
       return;
     }
     const body = {
+      numero: record?.numero,
       typeMaladie: fd.get('typeMaladie'),
       dateDeclaration: fd.get('dateDeclaration'),
       agentId: agent.id,
       beneficiaire: agentLabel,
-      statut: 'En attente',
+      statut: fd.get('statut') || record?.statut || 'En attente',
     };
     try {
-      await parseJsonOrThrow(await apiFetch('/api/special-diseases', { method: 'POST', body }));
-      setModal(null);
-      addToast('success', 'Dossier créé !');
+      const url = isEdit ? `/api/special-diseases/${record.id}` : '/api/special-diseases';
+      await parseJsonOrThrow(await apiFetch(url, { method: isEdit ? 'PUT' : 'POST', body }));
+      closeModal();
+      addToast('success', isEdit ? 'Dossier mis à jour' : 'Dossier créé !');
       reload();
     } catch (err) {
       addToast('error', err.message || 'Erreur');
     }
-  };
+    };
 
-  const form = (
+    return (
     <form onSubmit={submit}>
       <div className="form-grid">
         <div className="form-group">
           <label>Bénéficiaire</label>
-          <select name="beneficiaire" className="form-control" required>
+          <select name="beneficiaire" className="form-control" defaultValue={record?.beneficiaire ?? ''} required>
             {agents.map((a) => (
               <option key={a.id} value={`${a.prenom} ${a.nom}`}>
                 {a.prenom} {a.nom}
@@ -94,27 +126,68 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
         </div>
         <div className="form-group">
           <label>Type de maladie</label>
-          <select name="typeMaladie" className="form-control" required>
+          <select name="typeMaladie" className="form-control" defaultValue={record?.typeMaladie ?? maladieTypes[0]} required>
             {maladieTypes.map((t) => (
-              <option key={t}>{t}</option>
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
         </div>
+        {isEdit && (
+          <div className="form-group">
+            <label>Statut</label>
+            <select name="statut" className="form-control" defaultValue={record.statut}>
+              <option>En attente</option>
+              <option>En cours</option>
+              <option>Validé</option>
+            </select>
+          </div>
+        )}
         <div className="form-group" style={{ gridColumn: '1/-1' }}>
           <label>Date de déclaration</label>
-          <input name="dateDeclaration" type="date" className="form-control" defaultValue={new Date().toISOString().split('T')[0]} required />
+          <input
+            name="dateDeclaration"
+            type="date"
+            className="form-control"
+            defaultValue={record?.dateDeclaration ?? new Date().toISOString().split('T')[0]}
+            required
+          />
         </div>
       </div>
       <div className="modal-footer" style={{ padding: '16px 0 0' }}>
-        <button type="button" className="btn btn-outline" onClick={() => setModal(null)}>
+        <button type="button" className="btn btn-outline" onClick={closeModal}>
           Annuler
         </button>
         <button type="submit" className="btn btn-primary">
-          <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer
+          <FaIcon name="floppy-disk" className="fa-inline-icon" /> {isEdit ? 'Mettre à jour' : 'Enregistrer'}
         </button>
       </div>
     </form>
-  );
+    );
+  };
+
+  const viewRecord = (m) => {
+    setModal({
+      title: `Dossier ${m.numero}`,
+      content: (
+        <div className="detail-grid">
+          <DetailItem label="N°">{m.numero}</DetailItem>
+          <DetailItem label="Type">
+            <span className="badge badge-warning">{m.typeMaladie}</span>
+          </DetailItem>
+          <DetailItem label="Date déclaration">{formatDate(m.dateDeclaration)}</DetailItem>
+          <DetailItem label="Bénéficiaire">{m.beneficiaire}</DetailItem>
+          <DetailItem label="Statut">{statusBadge(m.statut)}</DetailItem>
+          <DetailModalFooter
+            onClose={closeModal}
+            canEdit={canMutate}
+            onEdit={() => setModal({ title: `Modifier — ${m.numero}`, content: buildForm(m) })}
+          />
+        </div>
+      ),
+    });
+  };
 
   if (loading) {
     return <div className="card"><div className="card-body">Chargement…</div></div>;
@@ -151,17 +224,17 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
         title="Liste des maladies spéciales"
         icon="stethoscope"
         toolbar={
-          <div className="table-page-toolbar-row">
-            <span style={{ color: 'var(--gray-600)', fontSize: '14px' }}>
-              {diseases.length} dossier{diseases.length !== 1 ? 's' : ''}
-            </span>
-            <span className="toolbar-spacer" />
-            {!isConsult && !adherent && (
-              <button type="button" className="btn btn-primary" onClick={() => setModal({ title: 'Nouveau dossier maladie spéciale', content: form })}>
-                <FaIcon name="plus" className="fa-inline-icon" /> Nouveau dossier
-              </button>
-            )}
-          </div>
+          <ListPageToolbar
+            searchValue={searchQuery}
+            onSearchChange={(e) => setSearchQuery(e.target.value)}
+            searchPlaceholder="Rechercher (n°, type, bénéficiaire…)"
+            exportColumns={EXPORT_COLS}
+            exportRows={filteredDiseases}
+            exportFilename="maladies-speciales"
+            showNew={canMutate && !adherent}
+            newLabel="Nouveau dossier"
+            onNew={() => setModal({ title: 'Nouveau dossier maladie spéciale', content: buildForm() })}
+          />
         }
       >
         <div className="data-table-wrapper">
@@ -177,7 +250,7 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
                 </tr>
               </thead>
               <tbody>
-                {diseases.map((m) => (
+                {pageData.map((m) => (
                   <tr key={m.id}>
                     <td>{m.numero}</td>
                     <td>
@@ -187,15 +260,38 @@ export default function MaladiesPage({ setPageTitle, addToast, user }) {
                     <td>{m.beneficiaire}</td>
                     <td>{statusBadge(m.statut)}</td>
                     <td className="actions-cell">
-                      <button className="btn btn-icon btn-view" type="button">
+                      <button className="btn btn-icon btn-view" type="button" title="Voir" onClick={() => viewRecord(m)}>
                         <FaIcon name="eye" />
                       </button>
+                      {canMutate && (
+                        <button
+                          className="btn btn-icon btn-edit"
+                          type="button"
+                          title="Modifier"
+                          onClick={() => setModal({ title: `Modifier — ${m.numero}`, content: buildForm(m) })}
+                        >
+                          <FaIcon name="pen-to-square" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <AdminDeleteButton
+                          onClick={() =>
+                            adminDeleteRecord({
+                              url: `/api/special-diseases/${m.id}`,
+                              label: m.numero,
+                              addToast,
+                              onSuccess: reload,
+                            })
+                          }
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
         </div>
+        <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </TablePageShell>
     </>
   );

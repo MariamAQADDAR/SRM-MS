@@ -1,6 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { usePagination } from '../hooks/usePagination';
+import TablePagination from '../components/TablePagination';
 import FaIcon from '../components/FaIcon';
 import TablePageShell from '../components/TablePageShell';
+import ListPageToolbar from '../components/ListPageToolbar';
+import { matchesSearch } from '../utils/filterSearch';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 
 function formatTs(iso) {
@@ -15,6 +19,7 @@ function formatTs(iso) {
 export default function NotificationsPage({ setPageTitle, addToast, onUnreadChanged }) {
   setPageTitle('Notifications', 'Boîte de réception');
   const [rows, setRows] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   const reload = async () => {
@@ -36,6 +41,13 @@ export default function NotificationsPage({ setPageTitle, addToast, onUnreadChan
     reload();
   }, []);
 
+  const filteredRows = useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+    return rows.filter((n) => matchesSearch(searchQuery, n.notifType, n.body));
+  }, [rows, searchQuery]);
+
+  const { pageData, page, setPage, totalPages } = usePagination(filteredRows);
+
   const markRead = async (id) => {
     try {
       await parseJsonOrThrow(await apiFetch(`/api/notifications/${id}/read`, { method: 'PATCH' }));
@@ -54,15 +66,24 @@ export default function NotificationsPage({ setPageTitle, addToast, onUnreadChan
       title="Notifications"
       icon="bell"
       toolbar={
-        <div className="table-page-toolbar-row">
-          <span style={{ color: 'var(--gray-600)', fontSize: '14px' }}>
-            {rows.length} notification{rows.length !== 1 ? 's' : ''}
-          </span>
-          <span className="toolbar-spacer" />
-          <button type="button" className="btn btn-outline btn-sm" onClick={reload}>
-            Actualiser
-          </button>
-        </div>
+        <ListPageToolbar
+          searchValue={searchQuery}
+          onSearchChange={(e) => setSearchQuery(e.target.value)}
+          searchPlaceholder="Rechercher (type, contenu…)"
+          exportColumns={[
+            { key: 'notifType', label: 'Type' },
+            { key: 'body', label: 'Contenu' },
+            { key: 'createdAt', label: 'Date', value: (n) => formatTs(n.createdAt) },
+            { key: 'read', label: 'Lu', value: (n) => (n.read ? 'Oui' : 'Non') },
+          ]}
+          exportRows={filteredRows}
+          exportFilename="notifications"
+          trailing={
+            <button type="button" className="btn btn-outline" onClick={reload}>
+              <FaIcon name="rotate-right" className="fa-inline-icon" /> Actualiser
+            </button>
+          }
+        />
       }
     >
       <div className="data-table-wrapper">
@@ -77,7 +98,7 @@ export default function NotificationsPage({ setPageTitle, addToast, onUnreadChan
             </tr>
           </thead>
           <tbody>
-            {rows.map((n) => (
+            {pageData.map((n) => (
               <tr key={n.id}>
                 <td>
                   <span className="badge badge-info">{n.notifType || 'INFO'}</span>
@@ -98,6 +119,7 @@ export default function NotificationsPage({ setPageTitle, addToast, onUnreadChan
         </table>
       </div>
       {rows.length === 0 && <p style={{ padding: '16px 20px', color: 'var(--gray-500)' }}>Aucune notification.</p>}
+      <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </TablePageShell>
   );
 }

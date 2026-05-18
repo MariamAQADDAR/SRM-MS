@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { usePagination } from '../hooks/usePagination';
+import TablePagination from '../components/TablePagination';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
 import TablePageShell from '../components/TablePageShell';
+import ListPageToolbar from '../components/ListPageToolbar';
+import { matchesSearch } from '../utils/filterSearch';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { isAdminRole } from '../authUtils';
 import { confirmDelete } from '../utils/swal';
@@ -15,13 +19,76 @@ const ROLE_LABEL = {
 
 function formatAgentOption(a) {
   const m = a.matricule || '—';
-  const n = `${a.prenom || ''} ${a.nom || ''}`.trim();
+  const n = agentFullName(a);
   return n ? `${m} — ${n}` : m;
 }
 
+function agentFullName(agent) {
+  if (!agent) return '';
+  return `${agent.prenom || ''} ${agent.nom || ''}`.trim();
+}
+
+function findAgentById(agents, agentId) {
+  if (agentId == null || agentId === '') return null;
+  const id = Number(agentId);
+  return agents.find((a) => a.id === id) ?? null;
+}
+
+function PasswordField({ name = 'password', required = false, label, hint, autoComplete = 'new-password' }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="form-group">
+      <label>
+        {label}
+        {required ? <span className="required"> *</span> : null}
+      </label>
+      <div className="password-field-wrap">
+        <input
+          name={name}
+          type={show ? 'text' : 'password'}
+          className="form-control password-field-input"
+          required={required}
+          autoComplete={autoComplete}
+        />
+        <button
+          type="button"
+          className="password-field-toggle"
+          onClick={() => setShow((v) => !v)}
+          aria-label={show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+        >
+          <FaIcon name={show ? 'eye-slash' : 'eye'} />
+        </button>
+      </div>
+      {hint ? (
+        <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 8, marginBottom: 0, lineHeight: 1.45 }}>
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /** Formulaire création : porteur en liste déroulante si rôle = Adhérent (plus de saisie « Agent ID »). */
-function UserCreateForm({ agents, onClose, reload, addToast, allowAdminRole }) {
+function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addToast, allowAdminRole }) {
   const [role, setRole] = useState('OPERATEUR');
+  const [fullName, setFullName] = useState('');
+  const [agentId, setAgentId] = useState('');
+  const hasFreeAgentForAdherent = agents.some((a) => !agentAdherentByAgentId?.has(a.id));
+
+  const applyAgentFullName = (nextAgentId) => {
+    const name = agentFullName(findAgentById(agents, nextAgentId));
+    if (name) setFullName(name);
+  };
+
+  const handleRoleChange = (nextRole) => {
+    setRole(nextRole);
+    if (nextRole === 'ADHERENT' && agentId) applyAgentFullName(agentId);
+  };
+
+  const handleAgentChange = (nextAgentId) => {
+    setAgentId(nextAgentId);
+    if (role === 'ADHERENT') applyAgentFullName(nextAgentId);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,6 +98,13 @@ function UserCreateForm({ agents, onClose, reload, addToast, allowAdminRole }) {
     const agentId = agentRaw && String(agentRaw).trim() !== '' ? Number(agentRaw) : null;
     if (roleVal === 'ADHERENT' && (agentId == null || Number.isNaN(agentId))) {
       addToast('warning', 'Pour un compte adhérent, choisissez le porteur mutuelle dans la liste.');
+      return;
+    }
+    if (roleVal === 'ADHERENT' && agentAdherentByAgentId?.has(agentId)) {
+      addToast(
+        'warning',
+        `Ce porteur a déjà un compte adhérent (${agentAdherentByAgentId.get(agentId)}). Choisissez un autre porteur.`,
+      );
       return;
     }
     const body = {
@@ -57,7 +131,15 @@ function UserCreateForm({ agents, onClose, reload, addToast, allowAdminRole }) {
           <label>
             Nom complet <span className="required">*</span>
           </label>
-          <input name="fullName" className="form-control" required autoComplete="name" />
+          <input
+            name="fullName"
+            className="form-control"
+            required
+            autoComplete="name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder={role === 'ADHERENT' ? 'Rempli depuis le porteur sélectionné' : ''}
+          />
         </div>
         <div className="form-group">
           <label>
@@ -65,17 +147,12 @@ function UserCreateForm({ agents, onClose, reload, addToast, allowAdminRole }) {
           </label>
           <input name="email" type="email" className="form-control" placeholder="prenom.nom@srm-ms.ma" required autoComplete="email" />
         </div>
-        <div className="form-group">
-          <label>
-            Mot de passe <span className="required">*</span>
-          </label>
-          <input name="password" type="password" className="form-control" required autoComplete="new-password" />
-        </div>
+        <PasswordField label="Mot de passe" required />
         <div className="form-group">
           <label>
             Rôle <span className="required">*</span>
           </label>
-          <select name="role" className="form-control" required value={role} onChange={(e) => setRole(e.target.value)}>
+          <select name="role" className="form-control" required value={role} onChange={(e) => handleRoleChange(e.target.value)}>
             {allowAdminRole ? <option value="ADMINISTRATEUR">Administrateur</option> : null}
             <option value="OPERATEUR">Opérateur</option>
             <option value="CONSULTATEUR">Consultateur</option>
@@ -87,18 +164,28 @@ function UserCreateForm({ agents, onClose, reload, addToast, allowAdminRole }) {
             <label>
               Porteur mutuelle <span className="required">*</span>
             </label>
-            <select name="agentId" className="form-control" required defaultValue="">
+            <select
+              name="agentId"
+              className="form-control"
+              required
+              value={agentId}
+              onChange={(e) => handleAgentChange(e.target.value)}
+            >
               <option value="" disabled>
                 — Choisir dans la liste —
               </option>
-              {agents.map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {formatAgentOption(a)}
-                </option>
-              ))}
+              {agents.map((a) => {
+                const takenEmail = agentAdherentByAgentId?.get(a.id);
+                return (
+                  <option key={a.id} value={String(a.id)} disabled={!!takenEmail}>
+                    {formatAgentOption(a)}
+                    {takenEmail ? ` — compte existant (${takenEmail})` : ''}
+                  </option>
+                );
+              })}
             </select>
             <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 8, marginBottom: 0, lineHeight: 1.45 }}>
-              Ce compte sera rattaché au dossier de ce porteur (carte mutuelle, remboursements, devis côté adhérent).
+              Le nom complet sera rempli automatiquement (prénom et nom du porteur). Un seul compte adhérent par porteur.
             </p>
             {agents.length === 0 ? (
               <p style={{ fontSize: '0.8125rem', color: 'var(--danger-600)', marginTop: 8, marginBottom: 0 }}>
@@ -112,7 +199,11 @@ function UserCreateForm({ agents, onClose, reload, addToast, allowAdminRole }) {
         <button type="button" className="btn btn-outline" onClick={onClose}>
           Annuler
         </button>
-        <button type="submit" className="btn btn-primary" disabled={role === 'ADHERENT' && agents.length === 0}>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={role === 'ADHERENT' && (agents.length === 0 || !hasFreeAgentForAdherent)}
+        >
           <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer
         </button>
       </div>
@@ -121,8 +212,25 @@ function UserCreateForm({ agents, onClose, reload, addToast, allowAdminRole }) {
 }
 
 /** Formulaire modification : même logique porteur / adhérent. */
-function UserEditForm({ urow, agents, onClose, reload, addToast, allowAdminRole }) {
+function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, addToast, allowAdminRole }) {
   const [role, setRole] = useState(urow.role || 'OPERATEUR');
+  const [fullName, setFullName] = useState(urow.fullName || '');
+  const [agentId, setAgentId] = useState(urow.agentId != null ? String(urow.agentId) : '');
+
+  const applyAgentFullName = (nextAgentId) => {
+    const name = agentFullName(findAgentById(agents, nextAgentId));
+    if (name) setFullName(name);
+  };
+
+  const handleRoleChange = (nextRole) => {
+    setRole(nextRole);
+    if (nextRole === 'ADHERENT' && agentId) applyAgentFullName(agentId);
+  };
+
+  const handleAgentChange = (nextAgentId) => {
+    setAgentId(nextAgentId);
+    if (role === 'ADHERENT') applyAgentFullName(nextAgentId);
+  };
 
   if (!allowAdminRole && urow.role === 'ADMINISTRATEUR') {
     return (
@@ -149,11 +257,18 @@ function UserEditForm({ urow, agents, onClose, reload, addToast, allowAdminRole 
       addToast('warning', 'Pour un compte adhérent, choisissez le porteur mutuelle dans la liste.');
       return;
     }
+    const takenEmail = roleVal === 'ADHERENT' ? agentAdherentByAgentId?.get(agentId) : null;
+    if (takenEmail && urow.agentId !== agentId) {
+      addToast('warning', `Ce porteur a déjà un compte adhérent (${takenEmail}). Choisissez un autre porteur.`);
+      return;
+    }
+    const pwdRaw = String(fd.get('password') || '').trim();
     const body = {
       fullName: String(fd.get('fullName') || '').trim(),
       role: roleVal,
       agentId: roleVal === 'ADHERENT' ? agentId : null,
     };
+    if (pwdRaw) body.password = pwdRaw;
     try {
       await parseJsonOrThrow(await apiFetch(`/api/admin/users/${urow.id}`, { method: 'PUT', body }));
       onClose();
@@ -171,17 +286,30 @@ function UserEditForm({ urow, agents, onClose, reload, addToast, allowAdminRole 
           <label>
             Nom complet <span className="required">*</span>
           </label>
-          <input name="fullName" className="form-control" required defaultValue={urow.fullName || ''} autoComplete="name" />
+          <input
+            name="fullName"
+            className="form-control"
+            required
+            autoComplete="name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder={role === 'ADHERENT' ? 'Rempli depuis le porteur sélectionné' : ''}
+          />
         </div>
         <div className="form-group">
           <label>Email</label>
           <input className="form-control" value={urow.email || ''} readOnly style={{ opacity: 0.85, background: 'var(--gray-50)' }} />
         </div>
+        <PasswordField
+          label="Nouveau mot de passe"
+          hint="L’ancien mot de passe ne peut pas être affiché (stockage sécurisé). Saisissez un nouveau mot de passe pour le communiquer à l’utilisateur, ou laissez vide pour ne pas le modifier."
+          autoComplete="new-password"
+        />
         <div className="form-group">
           <label>
             Rôle <span className="required">*</span>
           </label>
-          <select name="role" className="form-control" required value={role} onChange={(e) => setRole(e.target.value)}>
+          <select name="role" className="form-control" required value={role} onChange={(e) => handleRoleChange(e.target.value)}>
             {allowAdminRole ? <option value="ADMINISTRATEUR">Administrateur</option> : null}
             <option value="OPERATEUR">Opérateur</option>
             <option value="CONSULTATEUR">Consultateur</option>
@@ -197,18 +325,23 @@ function UserEditForm({ urow, agents, onClose, reload, addToast, allowAdminRole 
               name="agentId"
               className="form-control"
               required
-              key={`agent-sel-${urow.id}-${role}`}
-              defaultValue={urow.agentId != null ? String(urow.agentId) : ''}
+              value={agentId}
+              onChange={(e) => handleAgentChange(e.target.value)}
             >
               <option value="">— Choisir dans la liste —</option>
-              {agents.map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {formatAgentOption(a)}
-                </option>
-              ))}
+              {agents.map((a) => {
+                const takenEmail = agentAdherentByAgentId?.get(a.id);
+                const isCurrent = Number(agentId) === a.id;
+                return (
+                  <option key={a.id} value={String(a.id)} disabled={!!takenEmail && !isCurrent}>
+                    {formatAgentOption(a)}
+                    {takenEmail && !isCurrent ? ` — compte existant (${takenEmail})` : ''}
+                  </option>
+                );
+              })}
             </select>
             <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 8, marginBottom: 0, lineHeight: 1.45 }}>
-              L’adhérent ne voit dans l’application que les données de ce porteur.
+              Le nom complet est rempli depuis le porteur (prénom et nom). Un seul compte adhérent par porteur.
             </p>
           </div>
         )}
@@ -233,7 +366,6 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
   const [togglingId, setTogglingId] = useState(null);
 
   const reload = async (opts = {}) => {
@@ -253,6 +385,16 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
   useEffect(() => {
     reload();
   }, []);
+
+  const agentAdherentByAgentId = useMemo(() => {
+    const map = new Map();
+    for (const u of rows) {
+      if (u.role === 'ADHERENT' && u.agentId != null) {
+        map.set(u.agentId, u.email);
+      }
+    }
+    return map;
+  }, [rows]);
 
   const roleColors = {
     ADMINISTRATEUR: 'badge-danger',
@@ -308,21 +450,13 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
   };
 
   const filteredRows = useMemo(() => {
-    let r = rows;
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      r = r.filter(
-        (u) =>
-          String(u.fullName || '')
-            .toLowerCase()
-            .includes(q) || String(u.email || '')
-            .toLowerCase()
-            .includes(q)
-      );
-    }
-    if (roleFilter) r = r.filter((u) => u.role === roleFilter);
-    return r;
-  }, [rows, searchQuery, roleFilter]);
+    if (!searchQuery.trim()) return rows;
+    return rows.filter((u) =>
+      matchesSearch(searchQuery, u.fullName, u.email, ROLE_LABEL[u.role] || u.role, u.active ? 'actif' : 'inactif'),
+    );
+  }, [rows, searchQuery]);
+
+  const { pageData, page, setPage, totalPages } = usePagination(filteredRows, searchQuery);
 
   const closeModal = () => setModal(null);
 
@@ -341,55 +475,43 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
         title="Liste des utilisateurs"
         icon="user-shield"
         toolbar={
-          <div className="table-page-toolbar-row">
-            <div className="table-search-wrap">
-              <span className="table-search-icon-btn" aria-hidden>
-                <FaIcon name="magnifying-glass" />
-              </span>
-              <input
-                type="search"
-                className="form-control table-search-input"
-                placeholder="Rechercher par nom ou e-mail…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoComplete="off"
-              />
-            </div>
-            <select
-              className="form-control table-toolbar-select"
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              aria-label="Filtrer par rôle"
-            >
-              <option value="">Tous les rôles</option>
-              {Object.keys(ROLE_LABEL).map((key) => (
-                <option key={key} value={key}>
-                  {ROLE_LABEL[key]}
-                </option>
-              ))}
-            </select>
-            <span className="toolbar-spacer" />
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() =>
-                setModal({
-                  title: 'Nouvel utilisateur',
-                  content: (
-                    <UserCreateForm
-                      agents={agents}
-                      onClose={closeModal}
-                      reload={reload}
-                      addToast={addToast}
-                      allowAdminRole={allowAdminRole}
-                    />
-                  ),
-                })
-              }
-            >
-              <FaIcon name="plus" className="fa-inline-icon" /> Nouvel utilisateur
-            </button>
-          </div>
+          <ListPageToolbar
+            searchValue={searchQuery}
+            onSearchChange={(e) => setSearchQuery(e.target.value)}
+            searchPlaceholder="Rechercher (nom, e-mail, rôle…)"
+            searchAriaLabel="Rechercher un utilisateur"
+            exportColumns={[
+              { key: 'fullName', label: 'Nom' },
+              { key: 'email', label: 'E-mail' },
+              { key: 'role', label: 'Rôle', value: (u) => ROLE_LABEL[u.role] || u.role },
+              { key: 'active', label: 'Actif', value: (u) => (u.active ? 'Oui' : 'Non') },
+            ]}
+            exportRows={filteredRows}
+            exportFilename="utilisateurs"
+            trailing={
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() =>
+                  setModal({
+                    title: 'Nouvel utilisateur',
+                    content: (
+                      <UserCreateForm
+                        agents={agents}
+                        agentAdherentByAgentId={agentAdherentByAgentId}
+                        onClose={closeModal}
+                        reload={reload}
+                        addToast={addToast}
+                        allowAdminRole={allowAdminRole}
+                      />
+                    ),
+                  })
+                }
+              >
+                <FaIcon name="plus" className="fa-inline-icon" /> Nouvel utilisateur
+              </button>
+            }
+          />
         }
       >
         <div className="data-table-wrapper">
@@ -405,7 +527,7 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((u) => {
+              {pageData.map((u) => {
                 const isSelf = user?.id === u.id || user?.email === u.email;
                 const isTargetAdmin = u.role === 'ADMINISTRATEUR';
                 const operatorCannotToggleAdmin = !allowAdminRole && isTargetAdmin;
@@ -450,6 +572,7 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
                               <UserEditForm
                                 urow={u}
                                 agents={agents}
+                                agentAdherentByAgentId={agentAdherentByAgentId}
                                 onClose={closeModal}
                                 reload={reload}
                                 addToast={addToast}
@@ -479,6 +602,7 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
             </tbody>
           </table>
         </div>
+        <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </TablePageShell>
     </>
   );

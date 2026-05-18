@@ -27,7 +27,8 @@ public class AppUserAdminDtos {
 			String fullName,
 			String role,
 			Boolean active,
-			Long agentId) {}
+			Long agentId,
+			String password) {}
 
 	public record PatchActiveRequest(@NotNull Boolean active) {}
 }

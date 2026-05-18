@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -27,8 +28,9 @@ public class MedicineController {
 
 	@GetMapping
 	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','CONSULTATEUR','ADHERENT')")
-	public List<MedicineResponse> list(Authentication authentication) {
-		return medicineService.list(AuthPrincipal.requireUser(authentication));
+	public List<MedicineResponse> list(
+			@RequestParam(required = false) String q, Authentication authentication) {
+		return medicineService.list(q, AuthPrincipal.requireUser(authentication));
 	}
 
 	@GetMapping("/{id}")

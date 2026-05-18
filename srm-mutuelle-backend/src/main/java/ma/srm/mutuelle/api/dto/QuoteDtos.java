@@ -17,7 +17,15 @@ public class QuoteDtos {
 			BigDecimal montant,
 			int taux,
 			String etat,
-			boolean scanned) {}
+			boolean scanned,
+			boolean hasPdf,
+			String pdfOriginalName,
+			String dentistName,
+			LocalDate depositDate,
+			LocalDate sentDate,
+			LocalDate responseDate,
+			BigDecimal montantPrisEnCharge,
+			String observation) {}
 
 	public record QuoteWriteRequest(
 			String numero,
@@ -28,4 +36,6 @@ public class QuoteDtos {
 			@NotNull BigDecimal montant,
 			int taux,
 			String etat) {}
+
+	public record QuoteReviewRequest(BigDecimal montantPrisEnCharge, String observation, LocalDate responseDate) {}
 }

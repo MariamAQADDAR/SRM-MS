@@ -3,7 +3,7 @@ import { apiFetch, parseJsonOrThrow } from '../api/client';
 const STORAGE_KEY = 'mutuelle_type_config_v1';
 
 export const DEFAULT_TYPE_CONFIG = {
-  quoteTypes: ['Optique', 'Dentaire'],
+  quoteTypes: ['Dentaire', 'Optique', 'Auditif', 'Hospitalisation', 'Autre'],
   ordonnanceTypes: ['Médicament', 'Analyse', 'Radiologie'],
   radioTypes: ['Radio standard', 'IRM', 'Scanner', 'Échographie'],
   careTypes: ['Hospitalisation', 'Chirurgie', 'Maternité', 'Autre'],

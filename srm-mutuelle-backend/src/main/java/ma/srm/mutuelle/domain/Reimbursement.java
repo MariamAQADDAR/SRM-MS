@@ -47,4 +47,34 @@ public class Reimbursement {
 
 	@Column(nullable = false, length = 32)
 	private String status;
+
+	@Column
+	private Integer taux;
+
+	@Column(name = "pdf_storage_key", length = 512)
+	private String pdfStorageKey;
+
+	@Column(name = "pdf_original_name", length = 255)
+	private String pdfOriginalName;
+
+	@Column(name = "establishment_name", length = 255)
+	private String establishmentName;
+
+	@Column(name = "care_type", length = 64)
+	private String careType;
+
+	@Column(name = "medicine_name", length = 255)
+	private String medicineName;
+
+	@Column(name = "deposit_date")
+	private LocalDate depositDate;
+
+	@Column(name = "sent_date")
+	private LocalDate sentDate;
+
+	@Column(name = "response_date")
+	private LocalDate responseDate;
+
+	@Column(columnDefinition = "TEXT")
+	private String observation;
 }

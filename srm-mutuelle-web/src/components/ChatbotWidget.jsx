@@ -1,55 +1,87 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import ChatFormattedMessage from './ChatFormattedMessage';
+import useChatbot from '../hooks/useChatbot';
 
-function replyFor(text) {
-  const t = text.toLowerCase();
-  if (t.includes('remboursement')) return 'Pour suivre un remboursement: ouvrez le module Remboursements puis filtrez par statut.';
-  if (t.includes('devis')) return 'Pour un devis optique/dentaire, deposez les pieces puis suivez la validation dans le module Devis.';
-  if (t.includes('prise en charge')) return 'La prise en charge necessite le type de soin, les dates et l etablissement.';
-  return 'Assistant SRM (mode demo). Posez une question sur remboursements, devis ou prises en charge.';
-}
-
-export default function ChatbotWidget() {
+export default function ChatbotWidget({ user }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState([
-    { id: 'w1', role: 'bot', text: 'Bonjour. Je suis votre assistant SRM.' },
-  ]);
+  const { messages, suggestions, statusLabel, ready, sending, sendMessage } = useChatbot(user);
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, sending, open]);
 
   const send = () => {
     const text = input.trim();
     if (!text) return;
-    setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text }]);
     setInput('');
-    setTimeout(() => {
-      setMessages((prev) => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: replyFor(text) }]);
-    }, 250);
+    sendMessage(text);
   };
+
+  if (!user) return null;
 
   return (
     <>
       {open ? (
-        <div className="chat-fab-panel">
+        <div className="chat-fab-panel chat-fab-panel--smart">
           <div className="chat-fab-head">
-            <strong className="chat-fab-head-title">
-              <i className="fa-solid fa-robot chat-fab-head-icon" aria-hidden />
-              Assistant SRM
-            </strong>
+            <div className="chat-fab-head-main">
+              <strong className="chat-fab-head-title">
+                <i className="fa-solid fa-robot chat-fab-head-icon" aria-hidden />
+                Assistant SRM
+              </strong>
+              <span className="chat-fab-status">{statusLabel}</span>
+            </div>
             <button type="button" className="chat-fab-close" onClick={() => setOpen(false)} aria-label="Fermer">
               <i className="fa-solid fa-xmark" aria-hidden />
             </button>
           </div>
           <div className="chat-fab-body">
+            {!ready && messages.length === 0 ? (
+              <div className="chat-fab-msg bot">
+                <span className="chat-fab-typing">Connexion à vos données…</span>
+              </div>
+            ) : null}
             {messages.map((m) => (
-              <div key={m.id} className={`chat-fab-msg ${m.role}`}>
-                {m.text}
+              <div key={m.id} className={`chat-fab-msg ${m.role === 'user' ? 'user' : 'bot'}`}>
+                <ChatFormattedMessage text={m.text} isUser={m.role === 'user'} />
               </div>
             ))}
+            {sending ? (
+              <div className="chat-fab-msg bot">
+                <span className="chat-fab-typing">Analyse de vos dossiers…</span>
+              </div>
+            ) : null}
+            <div ref={endRef} />
           </div>
+          {suggestions.length > 0 && (
+            <div className="chat-fab-suggestions">
+              {suggestions.slice(0, 3).map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className="chat-fab-suggestion-chip"
+                  disabled={sending || !ready}
+                  onClick={() => sendMessage(s.text)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="chat-fab-input">
-            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Votre message..." />
-            <button type="button" className="chat-fab-send" onClick={send} title="Envoyer">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Votre question…"
+              disabled={!ready || sending}
+              onKeyDown={(e) => e.key === 'Enter' && send()}
+            />
+            <button type="button" className="chat-fab-send" onClick={send} disabled={!ready || sending || !input.trim()} title="Envoyer">
               <i className="fa-solid fa-paper-plane" aria-hidden />
-              <span className="sr-only">Envoyer</span>
             </button>
           </div>
         </div>

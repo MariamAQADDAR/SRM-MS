@@ -13,17 +13,12 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
   if (isAdherent) {
     navSections = [
       {
-        section: 'Principal',
-        items: [
-          { id: 'dashboard', fa: 'chart-line', label: 'Tableau de bord' },
-        ],
-      },
-      {
         section: 'Espace adhérent',
         items: [
           { id: 'devis', fa: 'file-invoice', label: 'Devis', badge: b.devis },
           { id: 'remboursements', fa: 'money-bill-wave', label: 'Remboursements', badge: b.rembPending },
-          { id: 'maladies', fa: 'stethoscope', label: 'Maladies & médicaments', badge: b.maladies },
+          { id: 'prises-en-charge', fa: 'hospital', label: 'Prises en charge', badge: b.pec },
+          { id: 'cartes-mutuelles', fa: 'id-card', label: 'Cartes mutuelles' },
         ],
       },
     ];
@@ -39,6 +34,7 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         section: 'Gestion',
         items: [
           { id: 'beneficiaires', fa: 'users', label: 'Bénéficiaires', badge: b.agents },
+          { id: 'cartes-mutuelles', fa: 'id-card', label: 'Cartes mutuelles' },
           { id: 'ordonnances', fa: 'clipboard-list', label: 'Ordonnances', badge: b.ordonnances },
           { id: 'devis', fa: 'file-invoice', label: 'Devis', badge: b.devis },
           { id: 'remboursements', fa: 'money-bill-wave', label: 'Remboursements', badge: b.rembPending },
@@ -54,12 +50,6 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         ],
       },
     ];
-    if (staffWriter) {
-      navSections.splice(2, 0, {
-        section: 'Communication',
-        items: [{ id: 'notif-broadcast', fa: 'bullhorn', label: 'Centre de publication' }],
-      });
-    }
     const adminSectionItems = [];
     if (staffWriter) {
       adminSectionItems.push({ id: 'utilisateurs', fa: 'user-shield', label: 'Utilisateurs', badge: b.users });

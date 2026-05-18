@@ -53,6 +53,7 @@ public class UserAdminService {
 			if (req.agentId() == null) {
 				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "agentId obligatoire pour ADHERENT");
 			}
+			assertAgentAvailableForAdherent(req.agentId(), null);
 			Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 			u.setAgent(agent);
 		} else {
@@ -92,9 +93,18 @@ public class UserAdminService {
 			if (u.getRole() != AppUserRole.ADHERENT) {
 				u.setAgent(null);
 			} else {
+				assertAgentAvailableForAdherent(req.agentId(), u.getId());
 				Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 				u.setAgent(agent);
 			}
+		}
+		if (req.password() != null && !req.password().isBlank()) {
+			String pwd = req.password().trim();
+			if (pwd.length() < 6) {
+				throw new ResponseStatusException(
+						HttpStatus.BAD_REQUEST, "Mot de passe trop court (6 caractères minimum)");
+			}
+			u.setPasswordHash(passwordEncoder.encode(pwd));
 		}
 		return toDto(appUserRepository.save(u));
 	}
@@ -126,6 +136,20 @@ public class UserAdminService {
 			throw notFound(id);
 		}
 		appUserRepository.deleteById(id);
+	}
+
+	private void assertAgentAvailableForAdherent(Long agentId, Long exceptUserId) {
+		var existing = appUserRepository.findByAgent_Id(agentId).stream()
+				.filter(u -> u.getRole() == AppUserRole.ADHERENT)
+				.filter(u -> exceptUserId == null || !exceptUserId.equals(u.getId()))
+				.findFirst();
+		if (existing.isPresent()) {
+			throw new ResponseStatusException(
+					HttpStatus.CONFLICT,
+					"Ce porteur mutuelle a déjà un compte adhérent ("
+							+ existing.get().getEmail()
+							+ "). Choisissez un autre porteur ou modifiez le compte existant.");
+		}
 	}
 
 	private ResponseStatusException notFound(Long id) {

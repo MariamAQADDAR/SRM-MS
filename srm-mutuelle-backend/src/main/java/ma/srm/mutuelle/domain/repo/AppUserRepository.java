@@ -15,4 +15,6 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 	List<AppUser> findByRole(AppUserRole role);
 
 	List<AppUser> findByAgent_Id(Long agentId);
+
+	List<AppUser> findByRoleAndActiveTrue(AppUserRole role);
 }

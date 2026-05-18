@@ -13,16 +13,16 @@ import EtablissementsPage from '../pages/EtablissementsPage';
 import EntitesPage from '../pages/EntitesPage';
 import UtilisateursPage from '../pages/UtilisateursPage';
 import NotificationsPage from '../pages/NotificationsPage';
-import BroadcastCenterPage from '../pages/BroadcastCenterPage';
 import ProfilPage from '../pages/ProfilPage';
 import ParametragePage from '../pages/ParametragePage';
+import CartesMutuellesPage from '../pages/CartesMutuellesPage';
 import ChatbotWidget from './ChatbotWidget';
 import FaIcon from './FaIcon';
 import { apiFetch, apiMe, parseJsonOrThrow } from '../api/client';
 import { prefetchTypeConfig } from '../config/typeConfig';
 import { isAdherentRole, isStaffWriterRole } from '../authUtils';
 
-const ADHERENT_PAGES = new Set(['dashboard', 'devis', 'remboursements', 'maladies']);
+const ADHERENT_PAGES = new Set(['devis', 'remboursements', 'prises-en-charge', 'cartes-mutuelles', 'notifications', 'profil']);
 
 export default function AppShell() {
   const navigate = useNavigate();
@@ -37,13 +37,13 @@ export default function AppShell() {
     ordonnances: { title: 'Ordonnances', breadcrumb: 'Gestion des ordonnances' },
     devis: { title: 'Devis', breadcrumb: 'Gestion des devis' },
     remboursements: { title: 'Remboursements', breadcrumb: 'Gestion des remboursements' },
+    'cartes-mutuelles': { title: 'Cartes mutuelles', breadcrumb: 'Affiliation famille' },
     'prises-en-charge': { title: 'Prises en charge', breadcrumb: 'Gestion des prises en charge' },
     maladies: { title: 'Maladies spéciales', breadcrumb: 'Gestion des maladies spéciales' },
     etablissements: { title: 'Établissements médicaux', breadcrumb: 'Référentiel' },
     entites: { title: 'Entités organisationnelles', breadcrumb: 'Référentiel' },
     utilisateurs: { title: 'Utilisateurs', breadcrumb: 'Administration' },
     notifications: { title: 'Notifications', breadcrumb: 'Messages' },
-    'notif-broadcast': { title: 'Centre de publication', breadcrumb: 'Notifications' },
     profil: { title: 'Mon profil', breadcrumb: 'Compte' },
     parametrage: { title: 'Paramétrage', breadcrumb: 'Administration' },
   };
@@ -71,18 +71,16 @@ export default function AppShell() {
     if (!u) return;
     try {
       if (isAdherentRole(u)) {
-        const [qRes, rRes, mRes] = await Promise.all([
-          apiFetch('/api/quotes'),
-          apiFetch('/api/reimbursements'),
-          apiFetch('/api/special-diseases'),
-        ]);
+        const [qRes, rRes] = await Promise.all([apiFetch('/api/quotes'), apiFetch('/api/reimbursements')]);
         const quotes = await parseJsonOrThrow(qRes);
         const remb = await parseJsonOrThrow(rRes);
-        const mal = await parseJsonOrThrow(mRes);
+        const pendingQuotes = quotes.filter((q) => {
+          const e = q.etat;
+          return e === 'En attente' || e === 'Brouillon' || e === 'Soumis';
+        }).length;
         setNavBadges({
-          devis: quotes.length,
-          rembPending: remb.filter((x) => x.statut === 'En attente').length,
-          maladies: mal.length,
+          devis: pendingQuotes,
+          rembPending: remb.filter((x) => x.statut === 'En attente' || x.statut === 'En cours').length,
         });
       } else {
         const reqs = [
@@ -109,10 +107,11 @@ export default function AppShell() {
         const fac = out[i++];
         const ent = out[i++];
         const users = isStaffWriterRole(u) ? out[i++] : [];
+        const devisATraiter = quotes.filter((q) => q.etat === 'Soumis').length;
         setNavBadges({
           agents: agents.length,
           ordonnances: ordonnances.length,
-          devis: quotes.length,
+          devis: devisATraiter,
           rembPending: remb.filter((x) => x.statut === 'En attente').length,
           pec: pec.length,
           maladies: mal.length,
@@ -166,6 +165,9 @@ export default function AppShell() {
           /* listes types : fallback défauts / cache local */
         }
         setUser(u);
+        if (isAdherentRole(u)) {
+          setCurrentPage((prev) => (prev === 'dashboard' || !ADHERENT_PAGES.has(prev) ? 'devis' : prev));
+        }
         loadNavBadges(u);
         loadUnread();
       }
@@ -196,7 +198,7 @@ export default function AppShell() {
   useEffect(() => {
     if (!user) return;
     if (isAdherentRole(user) && !ADHERENT_PAGES.has(currentPage)) {
-      setCurrentPage('dashboard');
+      setCurrentPage('devis');
     }
   }, [user, currentPage]);
 
@@ -297,12 +299,13 @@ export default function AppShell() {
     if (isAdherent && !ADHERENT_PAGES.has(currentPage)) {
       return forbiddenForAdherent();
     }
-    if (currentPage === 'notif-broadcast' && !staffWriter) {
-      return forbiddenBroadcast();
-    }
     switch (currentPage) {
       case 'dashboard':
-        return <DashboardPage {...pageProps} />;
+        return isAdherent ? (
+          <DevisPage {...pageProps} />
+        ) : (
+          <DashboardPage {...pageProps} />
+        );
       case 'beneficiaires':
         return isAdherent ? forbiddenForAdherent() : <BeneficiairesPage {...pageProps} />;
       case 'ordonnances':
@@ -311,10 +314,12 @@ export default function AppShell() {
         return <DevisPage {...pageProps} />;
       case 'remboursements':
         return <RemboursementsPage {...pageProps} />;
+      case 'cartes-mutuelles':
+        return <CartesMutuellesPage {...pageProps} />;
       case 'prises-en-charge':
-        return isAdherent ? forbiddenForAdherent() : <PrisesEnChargePage {...pageProps} />;
+        return <PrisesEnChargePage {...pageProps} />;
       case 'maladies':
-        return <MaladiesPage {...pageProps} />;
+        return isAdherent ? forbiddenForAdherent() : <MaladiesPage {...pageProps} />;
       case 'etablissements':
         return isAdherent ? forbiddenForAdherent() : <EtablissementsPage {...pageProps} />;
       case 'entites':
@@ -323,8 +328,6 @@ export default function AppShell() {
         return staffWriter ? <UtilisateursPage {...pageProps} /> : forbiddenForAdherent();
       case 'notifications':
         return <NotificationsPage {...pageProps} onUnreadChanged={setUnreadCount} />;
-      case 'notif-broadcast':
-        return staffWriter ? <BroadcastCenterPage {...pageProps} /> : forbiddenBroadcast();
       case 'profil':
         return <ProfilPage {...pageProps} />;
       case 'parametrage':
@@ -470,7 +473,7 @@ export default function AppShell() {
         </div>
         <div className="page-content">{renderPage()}</div>
       </Layout>
-      <ChatbotWidget />
+      <ChatbotWidget user={user} />
       <Toast toasts={toasts} removeToast={removeToast} />
     </>
   );

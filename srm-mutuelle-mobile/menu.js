@@ -18,7 +18,6 @@ export const PAGE_TOPBAR = {
   entites: { title: 'Entités organisationnelles', breadcrumb: 'Référentiel' },
   utilisateurs: { title: 'Utilisateurs', breadcrumb: 'Administration' },
   notifications: { title: 'Notifications', breadcrumb: 'Messages' },
-  'notif-broadcast': { title: 'Centre de publication', breadcrumb: 'Notifications' },
   profil: { title: 'Mon profil', breadcrumb: 'Compte' },
   parametrage: { title: 'Paramétrage', breadcrumb: 'Administration' },
 };
@@ -40,7 +39,6 @@ export const MENU_ROUTES = [
   { id: 'etablissements', title: 'Établissements', fa: 'building', color: '#6366f1', endpoint: '/api/medical-facilities', vis: 'staff' },
   { id: 'entites', title: 'Entités org.', fa: 'landmark', color: '#1d8fd8', endpoint: '/api/organizational-entities', vis: 'staff' },
   { id: 'notifications', title: 'Notifications', fa: 'bell', color: '#0f6fb8', endpoint: '/api/notifications', vis: 'everyone', isNotifications: true },
-  { id: 'notif-broadcast', title: 'Centre de publication', fa: 'bullhorn', color: '#7c3aed', endpoint: '/api/notification-broadcasts', vis: 'writer' },
   { id: 'parametrage', title: 'Paramétrage', fa: 'sliders', color: '#475569', endpoint: '/api/settings/type-config', vis: 'writer', responseKind: 'map' },
   { id: 'utilisateurs', title: 'Utilisateurs', fa: 'user-shield', color: '#0f6fb8', endpoint: '/api/admin/users', vis: 'writer' },
 ];
@@ -111,16 +109,6 @@ export function verticalNavSections(user, navBadges = {}) {
       items: gestionIds.map((id) => meta(id)).filter(Boolean),
     },
   ];
-
-  if (writer) {
-    const br = meta('notif-broadcast');
-    if (br) {
-      sections.push({
-        section: 'Communication',
-        items: [{ ...br, label: 'Centre de publication' }],
-      });
-    }
-  }
 
   sections.push({
     section: 'Référentiel',

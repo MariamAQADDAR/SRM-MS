@@ -1,0 +1,204 @@
+{
+  "_meta": {
+    "projet": "SRM-MS — Mutuelle Marrakech-Safi",
+    "version": "2026-05-18",
+    "description": "Jeu de données de référence pour PostgreSQL. Les clés correspondent aux tables Flyway (V1–V10).",
+    "ordre_import": [
+      "organizational_entities",
+      "agents",
+      "beneficiaries",
+      "medical_facilities",
+      "contracted_doctors",
+      "medicines",
+      "app_type_config",
+      "mutual_cards",
+      "quotes",
+      "ordonnances",
+      "reimbursements",
+      "care_episodes",
+      "special_disease_declarations",
+      "notifications"
+    ],
+    "important": [
+      "Après un git pull, lancer le backend une fois : Flyway crée le schéma et V2 insère déjà une partie de ce fichier.",
+      "Les comptes app_users (admin, adhérent…) sont créés automatiquement au 1er démarrage (DevUserDataInitializer) — ne pas les insérer à la main sauf besoin avancé.",
+      "V6 et V8 suppriment les devis/ordonnances/PEC démo : les tableaux quotes, ordonnances, etc. sont vides en base après migrations — à remplir via l’application ou les INSERT ci-dessous.",
+      "Les PDF (devis, remboursements, PEC) ne sont pas dans ce JSON : ils sont stockés sur disque (dossiers data/ du backend) lors des dépôts via l’app."
+    ],
+    "notifications_metier": {
+      "adherent": "Types DEVIS, REMBOURSEMENT, PEC — créées par l’API quand l’adhérent dépose ou envoie une demande.",
+      "admin_operateur": "Type DEVIS_A_TRAITER — créée quand un devis passe à l’état Soumis (envoi mutuelle)."
+    }
+  },
+
+  "comptes_demonstration": {
+    "_note": "Référence uniquement — mots de passe créés au 1er démarrage backend, pas d’import SQL.",
+    "utilisateurs": [
+      { "email": "admin@srm-ms.ma", "mot_de_passe": "admin123", "role": "ADMINISTRATEUR", "full_name": "AQADDAR Marieme" },
+      { "email": "operateur@srm-ms.ma", "mot_de_passe": "oper123", "role": "OPERATEUR", "full_name": "Youssef Benali" },
+      { "email": "consult@srm-ms.ma", "mot_de_passe": "cons123", "role": "CONSULTATEUR", "full_name": "Fatima Zahrae" },
+      { "email": "adherent@srm-ms.ma", "mot_de_passe": "adh123", "role": "ADHERENT", "full_name": "Youssef Benali", "agent_matricule": "AGT-001" },
+      { "email": "h.moussaoui@srm-ms.ma", "mot_de_passe": "oper123", "role": "OPERATEUR", "active": false, "full_name": "Hassan Moussaoui" }
+    ]
+  },
+
+  "app_type_config": [
+    { "config_key": "quoteTypes", "values_json": ["Dentaire", "Optique", "Auditif", "Hospitalisation", "Autre"] },
+    { "config_key": "ordonnanceTypes", "values_json": ["Médicament", "Analyse", "Radiologie"] },
+    { "config_key": "radioTypes", "values_json": ["Radio standard", "IRM", "Scanner", "Échographie"] },
+    { "config_key": "careTypes", "values_json": ["Hospitalisation", "Chirurgie", "Maternité", "Autre"] },
+    { "config_key": "facilityTypes", "values_json": ["Hôpital", "Clinique", "Opticien", "Laboratoire"] },
+    { "config_key": "entityTypes", "values_json": ["Direction", "Département", "Service", "Division"] },
+    { "config_key": "maladieTypes", "values_json": ["Diabète", "Hypertension", "Cardiologie", "Autre"] }
+  ],
+
+  "organizational_entities": [
+    { "id": 1, "code": "DIR-FIN", "name": "Direction Financière", "entity_type": "Direction", "parent_id": null },
+    { "id": 2, "code": "DIR-RH", "name": "Direction RH", "entity_type": "Direction", "parent_id": null },
+    { "id": 3, "code": "DIR-SI", "name": "Direction SI & Transformation Digitale", "entity_type": "Direction", "parent_id": null },
+    { "id": 4, "code": "DIR-TECH", "name": "Direction Technique", "entity_type": "Direction", "parent_id": null },
+    { "id": 5, "code": "DIR-COM", "name": "Direction Commerciale", "entity_type": "Direction", "parent_id": null },
+    { "id": 6, "code": "DIR-JUR", "name": "Direction Juridique", "entity_type": "Direction", "parent_id": null },
+    { "id": 7, "code": "DEP-TD", "name": "Département Transformation Digitale", "entity_type": "Département", "parent_id": 3 },
+    { "id": 8, "code": "SRV-INT", "name": "Service d'Intégration SI", "entity_type": "Service", "parent_id": 7 },
+    { "id": 9, "code": "SRV-PAI", "name": "Service Paie", "entity_type": "Service", "parent_id": 2 },
+    { "id": 10, "code": "DIV-OS", "name": "Division Œuvres Sociales", "entity_type": "Division", "parent_id": 2 }
+  ],
+
+  "agents": [
+    { "id": 1, "matricule": "AGT-001", "nom": "Benali", "prenom": "Youssef", "cin": "BK432198", "date_naissance": "1985-03-15", "situation": "Marié", "entite_name": "Direction Financière", "telephone": "0661234567", "email": "y.benali@srm-ms.ma" },
+    { "id": 3, "matricule": "AGT-003", "nom": "Ouazzani", "prenom": "Mohamed", "cin": "BK765432", "date_naissance": "1978-11-03", "situation": "Marié", "entite_name": "Direction Technique", "telephone": "0670001122", "email": "m.ouazzani@srm-ms.ma" },
+    { "id": 5, "matricule": "AGT-005", "nom": "Cherkaoui", "prenom": "Hassan", "cin": "BK998877", "date_naissance": "1982-05-10", "situation": "Marié", "entite_name": "Direction Commerciale", "telephone": "0699887766", "email": "h.cherkaoui@srm-ms.ma" },
+    { "id": 7, "matricule": "AGT-007", "nom": "Idrissi", "prenom": "Karim", "cin": "BK223344", "date_naissance": "1980-12-25", "situation": "Marié", "entite_name": "Direction Financière", "telephone": "0688990011", "email": "k.idrissi@srm-ms.ma" }
+  ],
+
+  "beneficiaries": [
+    { "id": 1, "agent_id": 1, "nom": "Benali", "prenom": "Nadia", "link_type": "Conjoint", "cin": "BK111222", "date_naissance": "1987-04-12" },
+    { "id": 2, "agent_id": 1, "nom": "Benali", "prenom": "Adam", "link_type": "Enfant", "cin": null, "date_naissance": "2012-09-08" },
+    { "id": 3, "agent_id": 1, "nom": "Benali", "prenom": "Aya", "link_type": "Enfant", "cin": null, "date_naissance": "2015-02-14" },
+    { "id": 4, "agent_id": 3, "nom": "Ouazzani", "prenom": "Laila", "link_type": "Conjoint", "cin": "BK333444", "date_naissance": "1980-08-20" },
+    { "id": 5, "agent_id": 3, "nom": "Ouazzani", "prenom": "Ilyas", "link_type": "Enfant", "cin": null, "date_naissance": "2010-03-05" },
+    { "id": 6, "agent_id": 5, "nom": "Cherkaoui", "prenom": "Samira", "link_type": "Conjoint", "cin": "BK555666", "date_naissance": "1985-11-15" },
+    { "id": 7, "agent_id": 7, "nom": "Idrissi", "prenom": "Houda", "link_type": "Conjoint", "cin": "BK777888", "date_naissance": "1983-07-22" },
+    { "id": 8, "agent_id": 7, "nom": "Idrissi", "prenom": "Rayan", "link_type": "Enfant", "cin": null, "date_naissance": "2018-01-10" }
+  ],
+
+  "medical_facilities": [
+    { "id": 1, "name": "CHU Mohammed VI", "facility_type": "Hôpital", "address": "Bd Mohammed VI, Marrakech", "phone": "0524-123456" },
+    { "id": 2, "name": "Clinique Al Farabi", "facility_type": "Clinique", "address": "Rue Ibn Sina, Guéliz", "phone": "0524-654321" },
+    { "id": 3, "name": "Clinique Atlas", "facility_type": "Clinique", "address": "Avenue Hassan II, Marrakech", "phone": "0524-111222" },
+    { "id": 4, "name": "Optique Vision Plus", "facility_type": "Opticien", "address": "Bd Zerktouni, Guéliz", "phone": "0524-333444" },
+    { "id": 5, "name": "Laboratoire BioMed", "facility_type": "Laboratoire", "address": "Rue de Liberté, Marrakech", "phone": "0524-555666" }
+  ],
+
+  "contracted_doctors": [
+    { "medical_facility_id": 1, "full_name": "Dr. Rachidi" },
+    { "medical_facility_id": 1, "full_name": "Dr. Benhima" },
+    { "medical_facility_id": 2, "full_name": "Dr. Tahiri" },
+    { "medical_facility_id": 2, "full_name": "Dr. Amrani" },
+    { "medical_facility_id": 3, "full_name": "Dr. Fassi" },
+    { "medical_facility_id": 3, "full_name": "Dr. Ouahhabi" },
+    { "medical_facility_id": 5, "full_name": "Dr. Lahlou" }
+  ],
+
+  "medicines": [
+    { "name": "Paracétamol 500mg", "reimbursed": true },
+    { "name": "Amoxicilline 1g", "reimbursed": true },
+    { "name": "Insuline rapide", "reimbursed": true }
+  ],
+
+  "mutual_cards": [
+    { "agent_id": 1, "beneficiary_id": null, "card_label": "Titulaire", "holder_nom": "Benali", "holder_prenom": "Youssef", "holder_cin": "BK432198", "holder_date_naissance": "1985-03-15", "pdf_storage_key": null },
+    { "agent_id": 1, "beneficiary_id": 1, "card_label": "Conjoint", "holder_nom": "Benali", "holder_prenom": "Nadia", "holder_cin": "BK111222", "holder_date_naissance": "1987-04-12", "pdf_storage_key": null }
+  ],
+
+  "quotes": [],
+
+  "ordonnances": [],
+
+  "reimbursements": [],
+
+  "care_episodes": [],
+
+  "special_disease_declarations": [],
+
+  "notifications": [],
+
+  "_exemples_a_remplir": {
+    "quote_soumis_pour_notification_admin": {
+      "numero": "DEV-2026-001",
+      "quote_type": "Dentaire",
+      "quote_date": "2026-05-18",
+      "agent_id": 1,
+      "beneficiaire": "Youssef Benali",
+      "montant": 3500.0,
+      "taux": 50,
+      "etat": "Soumis",
+      "scanned": false,
+      "dentist_name": "Dr. Alaoui — Cabinet Sourire",
+      "deposit_date": "2026-05-18",
+      "sent_date": "2026-05-18",
+      "pdf_storage_key": null,
+      "pdf_original_name": null,
+      "_commentaire": "État Soumis → l’API notifie admin/operateur (DEVIS_A_TRAITER). Préférer création via l’app adhérent + envoi mutuelle."
+    },
+    "quote_en_attente": {
+      "numero": "DEV-2026-002",
+      "quote_type": "Optique",
+      "quote_date": "2026-05-17",
+      "agent_id": 1,
+      "beneficiaire": "Nadia Benali",
+      "montant": 2200.0,
+      "taux": 60,
+      "etat": "En attente",
+      "scanned": false,
+      "deposit_date": "2026-05-17",
+      "sent_date": null
+    },
+    "notification_staff": {
+      "app_user_email": "admin@srm-ms.ma",
+      "notif_type": "DEVIS_A_TRAITER",
+      "read_flag": false,
+      "body": "Devis à traiter — n° DEV-2026-001 (Dentaire, Benali).",
+      "created_at": "2026-05-18T10:00:00Z",
+      "_commentaire": "En pratique créée automatiquement par le backend à l’envoi du devis ; utile seulement pour import manuel de test."
+    },
+    "notification_adherent": {
+      "app_user_email": "adherent@srm-ms.ma",
+      "notif_type": "DEVIS",
+      "read_flag": false,
+      "body": "Étape 2/3 — Transmission : votre devis n° DEV-2026-001 a été envoyé à la mutuelle.",
+      "_commentaire": "Créée automatiquement par l’API."
+    },
+    "care_episode_demande": {
+      "numero": "PEC-2026-001",
+      "type_prestation": "Hospitalisation",
+      "date_debut": "2026-06-01",
+      "date_fin": null,
+      "agent_id": 1,
+      "beneficiaire": "Youssef Benali",
+      "establishment_name": "CHU Mohammed VI",
+      "status": "En attente",
+      "montant_demande": 15000.0,
+      "montant_pris_en_charge": 0,
+      "taux": null,
+      "deposit_date": "2026-05-18",
+      "sent_date": null,
+      "pdf_storage_key": null
+    },
+    "reimbursement": {
+      "numero": "RMB-2026-001",
+      "reimbursement_date": "2026-05-10",
+      "agent_id": 1,
+      "beneficiaire": "Youssef Benali",
+      "montant_demande": 800.0,
+      "montant_valide": 0,
+      "status": "En attente",
+      "care_type": "Analyse",
+      "establishment_name": "Laboratoire BioMed",
+      "taux": 80,
+      "deposit_date": "2026-05-10",
+      "sent_date": null
+    }
+  }
+}

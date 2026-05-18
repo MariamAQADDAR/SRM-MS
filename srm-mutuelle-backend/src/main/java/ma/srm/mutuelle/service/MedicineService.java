@@ -19,8 +19,12 @@ public class MedicineService {
 
 	private final MedicineRepository medicineRepository;
 
-	public List<MedicineResponse> list(AppUser user) {
-		return medicineRepository.findAll().stream().map(this::toDto).toList();
+	public List<MedicineResponse> list(String query, AppUser user) {
+		String q = query != null ? query.trim() : "";
+		if (q.length() > 80) {
+			q = q.substring(0, 80);
+		}
+		return medicineRepository.searchByName(q.isEmpty() ? null : q).stream().map(this::toDto).toList();
 	}
 
 	public MedicineResponse get(Long id, AppUser user) {
