@@ -2,8 +2,17 @@ package ma.srm.mutuelle.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDate;
+import java.util.List;
 
 public class AgentDtos {
+
+	public record AgentBeneficiaryRequest(
+			Long id,
+			@NotBlank String nom,
+			@NotBlank String prenom,
+			@NotBlank String type,
+			String cin,
+			LocalDate dateNaissance) {}
 
 	public record AgentResponse(
 			Long id,
@@ -15,7 +24,9 @@ public class AgentDtos {
 			String situation,
 			String entite,
 			String telephone,
-			String email) {}
+			String email,
+			LocalDate dateRecrutement,
+			String statut) {}
 
 	public record AgentWriteRequest(
 			@NotBlank String matricule,
@@ -26,5 +37,8 @@ public class AgentDtos {
 			String situation,
 			@NotBlank String entite,
 			String telephone,
-			String email) {}
+			String email,
+			LocalDate dateRecrutement,
+			String statut,
+			List<AgentBeneficiaryRequest> beneficiaries) {}
 }

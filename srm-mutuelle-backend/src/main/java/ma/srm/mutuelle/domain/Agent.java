@@ -48,4 +48,10 @@ public class Agent {
 
 	@Column(length = 255)
 	private String email;
+
+	@Column(name = "date_recrutement")
+	private LocalDate dateRecrutement;
+
+	@Column(length = 64)
+	private String statut;
 }

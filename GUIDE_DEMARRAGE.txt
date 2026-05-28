@@ -1,0 +1,75 @@
+========================================================================    important 
+             SRM-MS — GUIDE DE DÉMARRAGE RAPIDE
+========================================================================
+
+Ce fichier contient les informations essentielles pour démarrer le backend,
+le frontend, ainsi que les identifiants des comptes de démonstration.
+
+------------------------------------------------------------------------
+1. COMPTES DE DÉMONSTRATION (SEED)
+------------------------------------------------------------------------
+
+Voici les identifiants pour tester l'application selon les rôles :
+
+   Rôle            | Email                  | Mot de passe
+   ----------------|------------------------|--------------
+   Administrateur  | admin@srm-ms.ma        | admin123
+   Adhérent        | adherent@srm-ms.ma     | 11111111
+   Opérateur       | operateur@srm-ms.ma    | oper123
+   Consultateur    | consult@srm-ms.ma      | cons123
+
+Note: Ces comptes sont initialisés automatiquement dans la base de données
+lors du premier démarrage réussi du backend.
+
+------------------------------------------------------------------------
+2. DÉMARRER LE BACKEND (SPRING BOOT)
+------------------------------------------------------------------------
+
+Le backend tourne sur le port 8081 par défaut (ou 8082 selon votre .env).
+
+Étapes :
+   1. Ouvrez un terminal.
+   2. Placez-vous dans le dossier backend :
+      cd c:\Users\HP\Desktop\project\srm-mutuelle-backend
+   3. Lancez le serveur :
+      .\mvnw.cmd spring-boot:run
+
+Vérification :
+   Une fois lancé, ouvrez http://localhost:8081/api/health dans votre navigateur.
+   Vous devriez voir un statut "UP".
+
+------------------------------------------------------------------------
+3. DÉMARRER LE FRONTEND (REACT + VITE)
+------------------------------------------------------------------------
+
+Le frontend tourne sur le port 5173 par défaut.
+
+Étapes :
+   1. Ouvrez un nouveau terminal.
+   2. Placez-vous dans le dossier frontend :
+      cd c:\Users\HP\Desktop\project\srm-mutuelle-web
+   3. Installez les dépendances (si ce n'est pas déjà fait) :
+      npm install
+   4. Lancez le serveur de développement :
+      npm run dev
+
+Accès :
+   Ouvrez http://localhost:5173 dans votre navigateur pour accéder à l'application.
+
+------------------------------------------------------------------------
+4. DÉMARRER LE MOBILE (EXPO / REACT NATIVE) - OPTIONNEL
+------------------------------------------------------------------------
+
+Étapes :
+   1. Ouvrez un nouveau terminal.
+   2. Placez-vous dans le dossier mobile :
+      cd c:\Users\HP\Desktop\project\srm-mutuelle-mobile
+   3. Installez les dépendances (si ce n'est pas déjà fait) :
+      npm install
+   4. Démarrez Expo :
+      npx expo start --lan
+
+Note: Assurez-vous que l'IP dans srm-mutuelle-mobile/config.js correspond
+bien à l'IP locale de votre PC, et que votre téléphone est connecté au
+même réseau Wi-Fi.
+========================================================================

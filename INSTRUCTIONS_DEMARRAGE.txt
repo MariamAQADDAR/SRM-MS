@@ -1,0 +1,52 @@
+=======================================================
+     INSTRUCTIONS POUR LANCER LE PROJET COMPLET
+=======================================================
+
+Si vous changez de réseau Wi-Fi ou que vous éteignez votre ordinateur, voici les étapes à suivre dans l'ordre pour tout relancer correctement.
+
+-------------------------------------------------------
+ÉTAPE 1 : TROUVER VOTRE NOUVELLE ADRESSE IP (Si vous changez de Wi-Fi)
+-------------------------------------------------------
+Si vous avez changé de réseau Wi-Fi, l'adresse IP de votre ordinateur a probablement changé. 
+1. Ouvrez un terminal (PowerShell ou Invite de commandes).
+2. Tapez la commande : ipconfig
+3. Cherchez la ligne "Adresse IPv4" (souvent sous "Carte réseau sans fil Wi-Fi").
+   Exemple : 192.168.1.50
+4. Ouvrez le fichier : srm-mutuelle-mobile\config.js
+5. Remplacez l'ancienne adresse IP par la nouvelle :
+   export const API_BASE_URL = 'http://VOTRE_NOUVELLE_IP:8080';
+
+-------------------------------------------------------
+ÉTAPE 2 : LANCER LE BACKEND (Spring Boot)
+-------------------------------------------------------
+Le backend est le cœur du projet qui gère la base de données.
+1. Ouvrez un NOUVEAU terminal.
+2. Déplacez-vous dans le dossier backend :
+   cd c:\Users\HP\Desktop\project\srm-mutuelle-backend
+3. Lancez la commande suivante :
+   .\start-backend.ps1
+4. Attendez de voir le message "Tomcat started on port 8080".
+
+-------------------------------------------------------
+ÉTAPE 3 : LANCER LE FRONTEND WEB (React/Vite) - Optionnel
+-------------------------------------------------------
+Si vous souhaitez accéder à l'interface sur votre navigateur web.
+1. Ouvrez un DEUXIÈME terminal.
+2. Déplacez-vous dans le dossier web :
+   cd c:\Users\HP\Desktop\project\srm-mutuelle-web
+3. Lancez le serveur :
+   npm run dev
+4. Ouvrez http://localhost:5173 dans votre navigateur.
+
+-------------------------------------------------------
+ÉTAPE 4 : LANCER L'APPLICATION MOBILE (Expo)
+-------------------------------------------------------
+Pour tester l'application sur votre smartphone.
+1. Ouvrez un TROISIÈME terminal.
+2. Déplacez-vous dans le dossier mobile :
+   cd c:\Users\HP\Desktop\project\srm-mutuelle-mobile
+3. Lancez le serveur Expo :
+   npm start
+4. Un QR Code va s'afficher.
+5. Sur votre téléphone, assurez-vous d'être sur le MÊME WI-FI que votre ordinateur.
+6. Ouvrez l'application "Expo Go" (Android) ou l'appareil photo (iPhone) et scannez le QR code.

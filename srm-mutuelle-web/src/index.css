@@ -1,7 +1,12 @@
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ============================================
    CRM MUTUELLE SRM-MS — Design System
    ============================================ */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 /* --- CSS Variables --- */
 :root {
@@ -3377,4 +3382,485 @@ textarea.form-control {
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* ============================================
+   AGENT WORKFLOW MODAL (STEPPER)
+   ============================================ */
+.agent-workflow {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 500px;
+}
+
+/* Stepper Header & Progress Line */
+.stepper-header {
+  position: relative;
+  margin-bottom: 32px;
+  padding: 0 16px;
+}
+
+.stepper-progress {
+  position: absolute;
+  top: 20px;
+  left: 15%;
+  right: 15%;
+  height: 3px;
+  background: var(--gray-200);
+  z-index: 1;
+  border-radius: var(--radius-full);
+}
+
+.stepper-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-500), var(--primary-400));
+  transition: width var(--transition-slow);
+  border-radius: var(--radius-full);
+}
+
+.stepper-steps {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  z-index: 2;
+}
+
+.stepper-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.stepper-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--gray-300);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--gray-500);
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.stepper-step.active .stepper-circle {
+  border-color: var(--primary-500);
+  background: var(--primary-50);
+  color: var(--primary-600);
+  box-shadow: 0 0 0 4px rgba(29, 143, 216, 0.18);
+}
+
+.stepper-step.completed .stepper-circle {
+  border-color: var(--accent-500);
+  background: var(--accent-500);
+  color: #fff;
+}
+
+.stepper-label {
+  margin-top: 10px;
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-500);
+  transition: color var(--transition-base);
+}
+
+.stepper-step.active .stepper-label {
+  color: var(--primary-600);
+}
+
+.stepper-step.completed .stepper-label {
+  color: var(--gray-800);
+}
+
+/* Panel transitions */
+.stepper-content {
+  flex: 1;
+  padding: 8px 16px 24px;
+}
+
+.step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.step-title {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  color: var(--gray-900);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.step-title i, .step-title svg {
+  color: var(--primary-600);
+}
+
+/* Fields & Layout */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--gray-600);
+}
+
+.form-group label .required {
+  color: var(--danger-500);
+  margin-left: 2px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: var(--font-sm);
+  color: var(--gray-800);
+  background: #fff;
+  transition: all var(--transition-fast);
+  outline: none;
+}
+
+.form-control:focus {
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px rgba(29, 143, 216, 0.12);
+}
+
+.form-group.has-error .form-control {
+  border-color: var(--danger-400);
+  background-color: color-mix(in srgb, var(--danger-400) 4%, white);
+}
+
+.field-error {
+  font-size: var(--font-xs);
+  color: var(--danger-600);
+  font-weight: 500;
+}
+
+/* Step 2 - Beneficiaries List & Cards */
+.benefs-list {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  min-height: 180px;
+}
+
+.empty-benefs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 0;
+  color: var(--gray-500);
+}
+
+.empty-benefs .empty-icon {
+  font-size: 38px;
+  color: var(--gray-300);
+  margin-bottom: 12px;
+}
+
+.empty-benefs p {
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 4px;
+}
+
+.empty-benefs span {
+  font-size: var(--font-xs);
+}
+
+.benefs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.benef-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.benef-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-200);
+}
+
+.benef-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--gray-100);
+  padding-bottom: 8px;
+}
+
+.benef-icon-wrapper {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.benef-icon-wrapper.partner {
+  background: color-mix(in srgb, var(--primary-400) 15%, white);
+  color: var(--primary-600);
+}
+
+.benef-icon-wrapper.child {
+  background: color-mix(in srgb, var(--info-400) 15%, white);
+  color: var(--info-600);
+}
+
+.benef-icon-wrapper.elder {
+  background: color-mix(in srgb, var(--warning-400) 15%, white);
+  color: var(--warning-600);
+}
+
+.benef-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.benef-card-info h5 {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.btn-remove-benef {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.btn-remove-benef:hover {
+  background: color-mix(in srgb, var(--danger-500) 10%, white);
+  color: var(--danger-600);
+}
+
+.benef-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.benef-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-xs);
+  color: var(--gray-600);
+}
+
+.benef-meta-item i, .benef-meta-item svg {
+  font-size: 12px;
+  color: var(--gray-400);
+  width: 14px;
+  text-align: center;
+}
+
+/* Add Beneficiary Form Section */
+.add-benef-section {
+  border-top: 1px solid var(--gray-200);
+  padding-top: 20px;
+  margin-top: 10px;
+}
+
+.add-benef-section h5 {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-benef-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .add-benef-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.add-btn-group {
+  justify-content: flex-end;
+  grid-column: 1 / -1;
+  display: flex;
+}
+
+/* Step 3 - Recap & Validation */
+.recap-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.recap-section {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.recap-section h5 {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary-700);
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--gray-200);
+  padding-bottom: 8px;
+}
+
+.recap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .recap-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.recap-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-md);
+}
+
+.recap-label {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
+.recap-val {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+.recap-empty-msg {
+  text-align: center;
+  padding: 16px 0;
+  color: var(--gray-500);
+  font-style: italic;
+  font-size: var(--font-sm);
+}
+
+.recap-table th {
+  background: #fff !important;
+}
+
+/* Stepper Footer */
+.stepper-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--gray-200);
+}
+
+.stepper-footer .btn {
+  min-width: 120px;
+  justify-content: center;
+}
+
+/* Detail modal proche sublist styling */
+.detail-proches-section {
+  margin-top: 24px;
+  border-top: 1px solid var(--gray-200);
+  padding-top: 20px;
+}
+
+.detail-proches-section h4 {
+  font-size: var(--font-base);
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 12px;
+}
+
+.detail-proches-table th {
+  background: var(--gray-50) !important;
+  font-size: var(--font-xs) !important;
 }

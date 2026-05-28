@@ -1,0 +1,31 @@
+=======================================================
+   GUIDE DE DÉMARRAGE RAPIDE - SRM MUTUELLE (Port 8081)
+=======================================================
+
+1. LANCER LE BACKEND (Serveur & Base de données)
+   --------------------------------------------
+   Copiez et collez ces lignes dans un terminal :
+
+   cd c:\Users\HP\Desktop\project\srm-mutuelle-backend
+   .\start-backend.ps1
+
+   (Attendez de voir : "Tomcat started on port 8081")
+
+2. LANCER LE FRONTEND (Interface Web)
+   ----------------------------------
+   Ouvrez un DEUXIÈME terminal, puis copiez et collez :
+
+   cd c:\Users\HP\Desktop\project\srm-mutuelle-web
+   npm run dev
+
+   Accédez ensuite à : http://localhost:5173
+
+3. COMPTES DE TEST (Pour la connexion)
+   -----------------------------------
+   Administrateur : admin@srm-ms.ma    / admin123
+   Opérateur      : operateur@srm-ms.ma / oper123
+   Adhérent       : adherent@srm-ms.ma  / adh123
+
+-------------------------------------------------------
+Vérification santé API : http://localhost:8081/api/health
+-------------------------------------------------------

@@ -15,14 +15,16 @@ import UtilisateursPage from '../pages/UtilisateursPage';
 import NotificationsPage from '../pages/NotificationsPage';
 import ProfilPage from '../pages/ProfilPage';
 import ParametragePage from '../pages/ParametragePage';
-import CartesMutuellesPage from '../pages/CartesMutuellesPage';
+
+import AgentsPage from '../pages/AgentsPage';
+import HistoriquePage from '../pages/HistoriquePage';
 import ChatbotWidget from './ChatbotWidget';
 import FaIcon from './FaIcon';
 import { apiFetch, apiMe, parseJsonOrThrow } from '../api/client';
 import { prefetchTypeConfig } from '../config/typeConfig';
 import { isAdherentRole, isStaffWriterRole } from '../authUtils';
 
-const ADHERENT_PAGES = new Set(['devis', 'remboursements', 'prises-en-charge', 'cartes-mutuelles', 'notifications', 'profil']);
+const ADHERENT_PAGES = new Set(['devis', 'remboursements', 'prises-en-charge', 'historique', 'notifications', 'profil']);
 
 export default function AppShell() {
   const navigate = useNavigate();
@@ -37,14 +39,16 @@ export default function AppShell() {
     ordonnances: { title: 'Ordonnances', breadcrumb: 'Gestion des ordonnances' },
     devis: { title: 'Devis', breadcrumb: 'Gestion des devis' },
     remboursements: { title: 'Remboursements', breadcrumb: 'Gestion des remboursements' },
-    'cartes-mutuelles': { title: 'Cartes mutuelles', breadcrumb: 'Affiliation famille' },
+    
     'prises-en-charge': { title: 'Prises en charge', breadcrumb: 'Gestion des prises en charge' },
     maladies: { title: 'Maladies spéciales', breadcrumb: 'Gestion des maladies spéciales' },
+    agents: { title: 'Agents', breadcrumb: 'Gestion des agents' },
     etablissements: { title: 'Établissements médicaux', breadcrumb: 'Référentiel' },
     entites: { title: 'Entités organisationnelles', breadcrumb: 'Référentiel' },
     utilisateurs: { title: 'Utilisateurs', breadcrumb: 'Administration' },
     notifications: { title: 'Notifications', breadcrumb: 'Messages' },
     profil: { title: 'Mon profil', breadcrumb: 'Compte' },
+    historique: { title: 'Historique personnel', breadcrumb: 'Mon historique d’activités' },
     parametrage: { title: 'Paramétrage', breadcrumb: 'Administration' },
   };
   const pageTitle = pageTitles[currentPage] || { title: 'Page en construction', breadcrumb: 'Inconnu' };
@@ -330,8 +334,12 @@ export default function AppShell() {
         return <NotificationsPage {...pageProps} onUnreadChanged={setUnreadCount} />;
       case 'profil':
         return <ProfilPage {...pageProps} />;
+      case 'historique':
+        return <HistoriquePage {...pageProps} />;
       case 'parametrage':
         return staffWriter ? <ParametragePage {...pageProps} /> : forbiddenBroadcast();
+      case 'agents':
+        return <AgentsPage {...pageProps} />;
       default:
         return (
           <div className="empty-state">
