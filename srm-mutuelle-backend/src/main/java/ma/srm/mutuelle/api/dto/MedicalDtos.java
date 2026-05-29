@@ -15,7 +15,24 @@ public class MedicalDtos {
 
 	public record ContractedDoctorWriteRequest(Long medicalFacilityId, @NotBlank String fullName) {}
 
-	public record MedicineResponse(Long id, String name, boolean reimbursed) {}
+	public record MedicineResponse(
+			Long id,
+			String name,
+			String ean13,
+			String therapeuticClass,
+			String form,
+			String presentation,
+			String type,
+			boolean reimbursed,
+			String note) {}
 
-	public record MedicineWriteRequest(@NotBlank String name, boolean reimbursed) {}
+	public record MedicineWriteRequest(
+			@NotBlank String name,
+			String ean13,
+			String therapeuticClass,
+			String form,
+			String presentation,
+			String type,
+			boolean reimbursed,
+			String note) {}
 }

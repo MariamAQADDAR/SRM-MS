@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import FaIcon from './FaIcon';
 import { isAdherentRole, isStaffWriterRole } from '../authUtils';
 
@@ -16,8 +16,10 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         section: 'Espace adhérent',
         items: [
           { id: 'devis', fa: 'file-invoice', label: 'Devis', badge: b.devis },
+          { id: 'cartes-mutuelles', fa: 'id-card', label: 'Cartes mutuelles' },
           { id: 'remboursements', fa: 'money-bill-wave', label: 'Remboursements', badge: b.rembPending },
           { id: 'prises-en-charge', fa: 'hospital', label: 'Prises en charge', badge: b.pec },
+          { id: 'medicaments', fa: 'pills', label: 'Médicaments' },
 
           { id: 'historique', fa: 'clock-rotate-left', label: 'Mon historique' },
         ],
@@ -36,6 +38,7 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         items: [
           { id: 'agents', fa: 'user-tie', label: 'Agents', badge: b.agents },
           { id: 'beneficiaires', fa: 'users', label: 'Bénéficiaires', badge: b.agents },
+          { id: 'cartes-mutuelles', fa: 'id-card', label: 'Cartes mutuelles' },
 
           { id: 'ordonnances', fa: 'clipboard-list', label: 'Ordonnances', badge: b.ordonnances },
           { id: 'devis', fa: 'file-invoice', label: 'Devis', badge: b.devis },
@@ -49,6 +52,7 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         items: [
           { id: 'etablissements', fa: 'building', label: 'Établissements', badge: b.facilities },
           { id: 'entites', fa: 'landmark', label: 'Entités org.', badge: b.entites },
+          { id: 'medicaments', fa: 'pills', label: 'Médicaments', badge: b.medicaments },
         ],
       },
     ];

@@ -1,10 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePagination } from '../hooks/usePagination';
 import TablePagination from '../components/TablePagination';
 import { canAdminDelete, isAdherentRole, isStaffWriterRole } from '../authUtils';
 import WorkflowSteps from '../components/WorkflowSteps';
 import { PEC_WORKFLOW_STEPS, resolvePecWorkflow } from '../utils/workflowSteps';
-import DetailView from '../components/DetailView';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
 import TablePageShell from '../components/TablePageShell';
@@ -49,6 +48,18 @@ function formatDate(d) {
   if (!s) return '—';
   const [y, m, day] = s.split('-');
   return `${day}/${m}/${y}`;
+}
+
+function DetailSection({ title, icon, children }) {
+  return (
+    <section className="pec-detail-section">
+      <div className="pec-detail-section-title">
+        <FaIcon name={icon} className="fa-inline-icon" />
+        {title}
+      </div>
+      <div className="detail-grid detail-grid--modal">{children}</div>
+    </section>
+  );
 }
 
 function mapRow(r, agentById) {
@@ -189,6 +200,22 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user }) {
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) {
       addToast('error', e.message || 'PDF introuvable');
+    }
+  };
+
+  const downloadCareTemplate = async () => {
+    try {
+      const blob = await apiFetchBlob('/api/document-templates/care-episode-request');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'modele-prise-en-charge.docx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      addToast('error', e.message || 'Modèle prise en charge indisponible');
     }
   };
 
@@ -457,30 +484,44 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user }) {
               </button>
             </div>
           )}
-          <DetailView footer={<DetailModalFooter onClose={closeModal} canEdit={false} />}>
-            <DetailItem label="N° demande">{p.numero}</DetailItem>
-            <DetailItem label="Bénéficiaire">{p.beneficiaire}</DetailItem>
-            <DetailItem label="Type prestation">
-              <span className="badge badge-primary">{p.typePrestation}</span>
-            </DetailItem>
-            <DetailItem label="Établissement">{p.etablissement}</DetailItem>
-            <DetailItem label="Date début">{formatDate(p.dateDebut)}</DetailItem>
-            <DetailItem label="Date fin">{formatDate(p.dateFin)}</DetailItem>
-            <DetailItem label="Date dépôt">{formatDate(p.dateDepot)}</DetailItem>
-            <DetailItem label="Date envoi">{formatDate(p.dateEnvoi)}</DetailItem>
-            <DetailItem label="Date réponse">{formatDate(p.dateReponse)}</DetailItem>
-            <DetailItem label="Statut">{statusBadge(p.statut)}</DetailItem>
-            <DetailItem label="Montant demandé">
-              {p.montantDemande != null ? `${Number(p.montantDemande).toLocaleString('fr-FR')} DH` : '—'}
-            </DetailItem>
-            <DetailItem label="Montant PEC">
-              {p.montantPec != null && Number(p.montantPec) > 0
-                ? `${Number(p.montantPec).toLocaleString('fr-FR')} DH`
-                : '—'}
-            </DetailItem>
-            <DetailItem label="Taux">{p.tauxDisplay}</DetailItem>
-            <DetailItem label="Observation">{p.observation}</DetailItem>
-          </DetailView>
+          <div className="pec-detail-layout">
+            <DetailSection title="Informations" icon="circle-info">
+              <DetailItem label="N° demande">{p.numero}</DetailItem>
+              <DetailItem label="Bénéficiaire">{p.beneficiaire}</DetailItem>
+              <DetailItem label="Agent">{p.nomPrenomAgent}</DetailItem>
+              <DetailItem label="Matricule">{p.matricule}</DetailItem>
+              <DetailItem label="Date demande">{formatDate(p.dateDepot)}</DetailItem>
+              <DetailItem label="Statut">{statusBadge(p.statut)}</DetailItem>
+            </DetailSection>
+
+            <DetailSection title="Détails financiers" icon="coins">
+              <DetailItem label="Montant estimé">
+                {p.montantDemande != null ? `${Number(p.montantDemande).toLocaleString('fr-FR')} DH` : '—'}
+              </DetailItem>
+              <DetailItem label="Taux demandé">{p.tauxDisplay}</DetailItem>
+              <DetailItem label="Montant accordé">
+                {p.montantPec != null && Number(p.montantPec) > 0
+                  ? `${Number(p.montantPec).toLocaleString('fr-FR')} DH`
+                  : '—'}
+              </DetailItem>
+              <DetailItem label="Date réponse">{formatDate(p.dateReponse)}</DetailItem>
+            </DetailSection>
+
+            <DetailSection title="Document & observation" icon="file-medical">
+              <DetailItem label="Type de soin">
+                <span className="badge badge-primary">{p.typePrestation}</span>
+              </DetailItem>
+              <DetailItem label="Établissement">{p.etablissement}</DetailItem>
+              <DetailItem label="Date début">{formatDate(p.dateDebut)}</DetailItem>
+              <DetailItem label="Date fin">{formatDate(p.dateFin)}</DetailItem>
+              <DetailItem label="Date envoi">{formatDate(p.dateEnvoi)}</DetailItem>
+              <DetailItem label="Justificatif">{p.hasPdf ? 'Disponible' : '—'}</DetailItem>
+              <DetailItem label="Observation" fullWidth>
+                {p.observation}
+              </DetailItem>
+            </DetailSection>
+            <DetailModalFooter onClose={closeModal} canEdit={false} />
+          </div>
           {canMutate && staffReviewPanel(p)}
           {isAdherent && p.statut === 'En attente' && (
             <div className="workflow-actions-bar">
@@ -572,6 +613,11 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user }) {
             exportFilename="prises-en-charge"
             showNew={canCreate}
             newLabel={isAdherent ? 'Nouvelle demande PEC (3 étapes)' : 'Nouvelle demande PEC'}
+            trailing={
+              <button type="button" className="btn btn-outline" onClick={downloadCareTemplate}>
+                <FaIcon name="file-word" className="fa-inline-icon" /> Modèle PEC
+              </button>
+            }
             onNew={() => {
               setWizardStep(1);
               setPdfFile(null);

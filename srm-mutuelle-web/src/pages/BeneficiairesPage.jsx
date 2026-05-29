@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePagination } from '../hooks/usePagination';
 import TablePagination from '../components/TablePagination';
 import Modal from '../components/Modal';
@@ -573,17 +573,18 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
   );
 }
 
-export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
-  setPageTitle('Bénéficiaires', 'Gestion des bénéficiaires');
+export default function BeneficiairesPage({ setPageTitle, addToast, user, forcedTab = null }) {
+  setPageTitle(forcedTab === 'agents' ? 'Agents' : 'Bénéficiaires', forcedTab === 'agents' ? 'Gestion des agents' : 'Gestion des bénéficiaires');
   const canMutate = canStaffMutate(user);
   const canDelete = canAdminDelete(user);
-  const [tab, setTab] = useState('agents');
+  const [tab, setTab] = useState(forcedTab || 'agents');
   const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState(null);
   const [agents, setAgents] = useState([]);
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [orgEntities, setOrgEntities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const effectiveTab = forcedTab || tab;
 
   const reload = async () => {
     setLoading(true);
@@ -609,8 +610,6 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
   useEffect(() => {
     reload();
   }, []);
-
-  const entites = [...new Set(agents.map((a) => a.entite))];
 
   const deleteAgent = (a) =>
     adminDeleteRecord({
@@ -647,10 +646,10 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
     });
   }, [beneficiaries, agents, searchQuery]);
 
-  const listForTab = tab === 'agents' ? filteredAgents : filteredProches;
+  const listForTab = effectiveTab === 'agents' ? filteredAgents : filteredProches;
 
   const prochesExportRows = useMemo(() => {
-    const list = tab === 'proches' ? filteredProches : beneficiaries;
+    const list = effectiveTab === 'proches' ? filteredProches : beneficiaries;
     return list.map((p) => {
       const agent = agents.find((x) => x.id === p.agentId);
       return {
@@ -659,12 +658,8 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
         dateNaissance: formatDate(p.dateNaissance),
       };
     });
-  }, [tab, filteredProches, beneficiaries, agents]);
-
-  useEffect(() => {
-    setSearchQuery('');
-  }, [tab]);
-  const { pageData, page, setPage, totalPages } = usePagination(listForTab, tab);
+  }, [effectiveTab, filteredProches, beneficiaries, agents]);
+  const { pageData, page, setPage, totalPages } = usePagination(listForTab, effectiveTab);
 
   const closeModal = () => setModal(null);
 
@@ -864,33 +859,35 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user }) {
           {modal.content}
         </Modal>
       )}
-      <div className="tabs">
-        <div className={`tab-item${tab === 'agents' ? ' active' : ''}`} onClick={() => setTab('agents')}>
-          <FaIcon name="user" className="fa-inline-icon" /> Agents
+      {!forcedTab && (
+        <div className="tabs">
+          <div className={`tab-item${effectiveTab === 'agents' ? ' active' : ''}`} onClick={() => { setTab('agents'); setSearchQuery(''); }}>
+            <FaIcon name="user" className="fa-inline-icon" /> Agents
+          </div>
+          <div className={`tab-item${effectiveTab === 'proches' ? ' active' : ''}`} onClick={() => { setTab('proches'); setSearchQuery(''); }}>
+            <FaIcon name="user-group" className="fa-inline-icon" /> Proches
+          </div>
         </div>
-        <div className={`tab-item${tab === 'proches' ? ' active' : ''}`} onClick={() => setTab('proches')}>
-          <FaIcon name="user-group" className="fa-inline-icon" /> Proches
-        </div>
-      </div>
+      )}
       <TablePageShell
-        title={tab === 'agents' ? 'Liste des agents' : 'Liste des proches'}
-        icon={tab === 'agents' ? 'user' : 'user-group'}
+        title={effectiveTab === 'agents' ? 'Liste des agents' : 'Liste des proches'}
+        icon={effectiveTab === 'agents' ? 'user' : 'user-group'}
         toolbar={
           <ListPageToolbar
             searchValue={searchQuery}
             onSearchChange={(e) => setSearchQuery(e.target.value)}
-            searchPlaceholder={tab === 'agents' ? 'Rechercher un agent…' : 'Rechercher un proche…'}
-            exportColumns={tab === 'agents' ? AGENT_EXPORT_COLS : PROCHE_EXPORT_COLS}
-            exportRows={tab === 'agents' ? filteredAgents : prochesExportRows}
-            exportFilename={tab === 'agents' ? 'agents' : 'proches'}
-            showNew={canMutate && tab === 'agents'}
+            searchPlaceholder={effectiveTab === 'agents' ? 'Rechercher un agent…' : 'Rechercher un proche…'}
+            exportColumns={effectiveTab === 'agents' ? AGENT_EXPORT_COLS : PROCHE_EXPORT_COLS}
+            exportRows={effectiveTab === 'agents' ? filteredAgents : prochesExportRows}
+            exportFilename={effectiveTab === 'agents' ? 'agents' : 'proches'}
+            showNew={canMutate && effectiveTab === 'agents'}
             newLabel="Nouvel agent"
             onNew={() => setModal({ title: 'Ajouter un agent', content: buildAgentForm() })}
           />
         }
       >
         <div className="data-table-wrapper">
-            {tab === 'agents' ? (
+            {effectiveTab === 'agents' ? (
               <table className="data-table">
                 <thead>
                   <tr>

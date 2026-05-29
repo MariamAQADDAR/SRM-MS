@@ -35,8 +35,7 @@ public class MedicineService {
 	public MedicineResponse create(MedicineWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		Medicine m = new Medicine();
-		m.setName(req.name());
-		m.setReimbursed(req.reimbursed());
+		copy(req, m);
 		return toDto(medicineRepository.save(m));
 	}
 
@@ -44,8 +43,7 @@ public class MedicineService {
 	public MedicineResponse update(Long id, MedicineWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		Medicine m = medicineRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médicament introuvable"));
-		m.setName(req.name());
-		m.setReimbursed(req.reimbursed());
+		copy(req, m);
 		return toDto(medicineRepository.save(m));
 	}
 
@@ -55,7 +53,27 @@ public class MedicineService {
 		medicineRepository.deleteById(id);
 	}
 
+	private void copy(MedicineWriteRequest req, Medicine m) {
+		m.setName(req.name());
+		m.setEan13(req.ean13());
+		m.setTherapeuticClass(req.therapeuticClass());
+		m.setForm(req.form());
+		m.setPresentation(req.presentation());
+		m.setType(req.type());
+		m.setReimbursed(req.reimbursed());
+		m.setNote(req.note());
+	}
+
 	private MedicineResponse toDto(Medicine m) {
-		return new MedicineResponse(m.getId(), m.getName(), m.isReimbursed());
+		return new MedicineResponse(
+				m.getId(),
+				m.getName(),
+				m.getEan13(),
+				m.getTherapeuticClass(),
+				m.getForm(),
+				m.getPresentation(),
+				m.getType(),
+				m.isReimbursed(),
+				m.getNote());
 	}
 }

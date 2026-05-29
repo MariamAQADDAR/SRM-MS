@@ -19,7 +19,13 @@ const EXPORT_COLS = [
   { key: 'parentLabel', label: 'Entité parente' },
 ];
 
-const TYPE_COLORS = { Direction: 'badge-primary', Département: 'badge-info', Service: 'badge-success', Division: 'badge-warning' };
+const TYPE_COLORS = {
+  'Direction générale': 'badge-primary',
+  Direction: 'badge-primary',
+  Département: 'badge-info',
+  Division: 'badge-warning',
+  Service: 'badge-success',
+};
 
 export default function EntitesPage({ setPageTitle, addToast, user }) {
   setPageTitle('Entités organisationnelles', 'Référentiel');

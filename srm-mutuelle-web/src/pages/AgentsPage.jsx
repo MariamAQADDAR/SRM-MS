@@ -1,6 +1,5 @@
-import React from 'react';
-import AgentWorkflow from '../components/AgentWorkflow';
+import BeneficiairesPage from './BeneficiairesPage';
 
-export default function AgentsPage() {
-  return <AgentWorkflow />;
+export default function AgentsPage(props) {
+  return <BeneficiairesPage {...props} forcedTab="agents" />;
 }

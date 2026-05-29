@@ -103,6 +103,22 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user }) {
     }
   };
 
+  const downloadMembershipTemplate = async () => {
+    try {
+      const blob = await apiFetchBlob('/api/document-templates/mutual-card-membership');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'bulletin-adhesion-carte-mutuelle.docx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      addToast('error', e.message || 'Modèle carte mutuelle indisponible');
+    }
+  };
+
   const agentLabel = () => {
     if (isAdherent) return null;
     const a = agents.find((x) => String(x.id) === String(effectiveAgentId));
@@ -114,8 +130,8 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user }) {
       title={isAdherent ? 'Mes cartes mutuelles' : 'Cartes mutuelles — famille'}
       icon="id-card"
       toolbar={
-        !isAdherent ? (
-          <div className="table-page-toolbar-row">
+        <div className="table-page-toolbar-row">
+          {!isAdherent && (
             <label className="form-group" style={{ margin: 0, minWidth: 280 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-600)' }}>Porteur</span>
               <select
@@ -130,8 +146,12 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user }) {
                 ))}
               </select>
             </label>
-          </div>
-        ) : null
+          )}
+          <span className="toolbar-spacer" />
+          <button type="button" className="btn btn-outline" onClick={downloadMembershipTemplate}>
+            <FaIcon name="file-word" className="fa-inline-icon" /> Bulletin d&apos;adhésion
+          </button>
+        </div>
       }
     >
       <p className="cartes-intro">

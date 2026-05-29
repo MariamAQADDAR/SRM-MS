@@ -8,7 +8,7 @@ export const DEFAULT_TYPE_CONFIG = {
   radioTypes: ['Radio standard', 'IRM', 'Scanner', 'Échographie'],
   careTypes: ['Hospitalisation', 'Chirurgie', 'Maternité', 'Autre'],
   facilityTypes: ['Hôpital', 'Clinique', 'Opticien', 'Laboratoire'],
-  entityTypes: ['Direction', 'Département', 'Service', 'Division'],
+  entityTypes: ['Direction générale', 'Direction', 'Département', 'Division', 'Service'],
   maladieTypes: ['Diabète', 'Hypertension', 'Cardiologie', 'Autre'],
 };
 

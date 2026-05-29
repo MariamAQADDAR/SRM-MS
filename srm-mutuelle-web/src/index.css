@@ -56,7 +56,7 @@
   --gray-950: #020617;
 
   /* Sidebar */
-  --sidebar-bg: linear-gradient(180deg, #1f78ba 0%, #2d93cf 55%, #52b7e8 100%);
+  --sidebar-bg: linear-gradient(180deg, #0f3f68 0%, #145f93 52%, #1c85bf 100%);
   --sidebar-width: 280px;
   --topbar-height: 72px;
   --sidebar-collapsed: 80px;
@@ -575,7 +575,7 @@ body.login-route-active {
 }
 
 .sidebar-header {
-  padding: 14px 12px;
+  padding: 18px 14px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -588,15 +588,19 @@ body.login-route-active {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgba(2, 6, 23, 0.18);
 }
 
 .sidebar-header .s-brand-img {
-  width: 160px;
+  width: 172px;
   height: auto;
-  max-height: 66px;
+  max-height: 72px;
   object-fit: contain;
   object-position: center;
-  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.25));
+  filter: none;
 }
 
 .sidebar-header .s-logo {
@@ -2175,6 +2179,49 @@ textarea.form-control {
   font-size: 14px;
   font-weight: 700;
   color: var(--gray-800);
+}
+
+.pec-detail-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pec-detail-section {
+  padding: 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: var(--shadow-sm);
+}
+
+.pec-detail-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--primary-800);
+  font-size: var(--font-sm);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pec-detail-section .detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 900px) {
+  .pec-detail-section .detail-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .pec-detail-section .detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .pdf-upload-zone {

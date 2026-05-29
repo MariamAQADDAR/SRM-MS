@@ -8,6 +8,16 @@ import org.springframework.data.repository.query.Param;
 
 public interface MedicineRepository extends JpaRepository<Medicine, Long> {
 
-	@Query("SELECT m FROM Medicine m WHERE :q IS NULL OR :q = '' OR LOWER(m.name) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY m.name")
+	@Query("""
+			SELECT m FROM Medicine m
+			WHERE :q IS NULL OR :q = ''
+				OR LOWER(m.name) LIKE LOWER(CONCAT('%', :q, '%'))
+				OR LOWER(COALESCE(m.ean13, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+				OR LOWER(COALESCE(m.therapeuticClass, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+				OR LOWER(COALESCE(m.form, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+				OR LOWER(COALESCE(m.presentation, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+				OR LOWER(COALESCE(m.type, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+			ORDER BY m.name
+			""")
 	List<Medicine> searchByName(@Param("q") String q);
 }

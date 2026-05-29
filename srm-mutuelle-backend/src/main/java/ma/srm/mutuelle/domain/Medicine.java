@@ -24,6 +24,24 @@ public class Medicine {
 	@Column(nullable = false, unique = true)
 	private String name;
 
+	@Column(name = "ean13", length = 32)
+	private String ean13;
+
+	@Column(name = "therapeutic_class", length = 120)
+	private String therapeuticClass;
+
+	@Column(length = 80)
+	private String form;
+
+	@Column(length = 160)
+	private String presentation;
+
+	@Column(name = "medicine_type", length = 40)
+	private String type;
+
 	@Column(nullable = false)
 	private boolean reimbursed = true;
+
+	@Column(length = 500)
+	private String note;
 }

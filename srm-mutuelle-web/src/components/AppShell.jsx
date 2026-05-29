@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import Toast from './Toast';
@@ -11,10 +11,12 @@ import PrisesEnChargePage from '../pages/PrisesEnChargePage';
 import MaladiesPage from '../pages/MaladiesPage';
 import EtablissementsPage from '../pages/EtablissementsPage';
 import EntitesPage from '../pages/EntitesPage';
+import MedicamentsPage from '../pages/MedicamentsPage';
 import UtilisateursPage from '../pages/UtilisateursPage';
 import NotificationsPage from '../pages/NotificationsPage';
 import ProfilPage from '../pages/ProfilPage';
 import ParametragePage from '../pages/ParametragePage';
+import CartesMutuellesPage from '../pages/CartesMutuellesPage';
 
 import AgentsPage from '../pages/AgentsPage';
 import HistoriquePage from '../pages/HistoriquePage';
@@ -24,7 +26,16 @@ import { apiFetch, apiMe, parseJsonOrThrow } from '../api/client';
 import { prefetchTypeConfig } from '../config/typeConfig';
 import { isAdherentRole, isStaffWriterRole } from '../authUtils';
 
-const ADHERENT_PAGES = new Set(['devis', 'remboursements', 'prises-en-charge', 'historique', 'notifications', 'profil']);
+const ADHERENT_PAGES = new Set([
+  'devis',
+  'cartes-mutuelles',
+  'remboursements',
+  'prises-en-charge',
+  'medicaments',
+  'historique',
+  'notifications',
+  'profil',
+]);
 
 export default function AppShell() {
   const navigate = useNavigate();
@@ -39,12 +50,14 @@ export default function AppShell() {
     ordonnances: { title: 'Ordonnances', breadcrumb: 'Gestion des ordonnances' },
     devis: { title: 'Devis', breadcrumb: 'Gestion des devis' },
     remboursements: { title: 'Remboursements', breadcrumb: 'Gestion des remboursements' },
+    'cartes-mutuelles': { title: 'Cartes mutuelles', breadcrumb: 'Affiliation famille' },
     
     'prises-en-charge': { title: 'Prises en charge', breadcrumb: 'Gestion des prises en charge' },
     maladies: { title: 'Maladies spéciales', breadcrumb: 'Gestion des maladies spéciales' },
     agents: { title: 'Agents', breadcrumb: 'Gestion des agents' },
     etablissements: { title: 'Établissements médicaux', breadcrumb: 'Référentiel' },
     entites: { title: 'Entités organisationnelles', breadcrumb: 'Référentiel' },
+    medicaments: { title: 'Médicaments', breadcrumb: 'Référentiel médicaments' },
     utilisateurs: { title: 'Utilisateurs', breadcrumb: 'Administration' },
     notifications: { title: 'Notifications', breadcrumb: 'Messages' },
     profil: { title: 'Mon profil', breadcrumb: 'Compte' },
@@ -75,9 +88,14 @@ export default function AppShell() {
     if (!u) return;
     try {
       if (isAdherentRole(u)) {
-        const [qRes, rRes] = await Promise.all([apiFetch('/api/quotes'), apiFetch('/api/reimbursements')]);
+        const [qRes, rRes, pRes] = await Promise.all([
+          apiFetch('/api/quotes'),
+          apiFetch('/api/reimbursements'),
+          apiFetch('/api/care-episodes'),
+        ]);
         const quotes = await parseJsonOrThrow(qRes);
         const remb = await parseJsonOrThrow(rRes);
+        const pec = await parseJsonOrThrow(pRes);
         const pendingQuotes = quotes.filter((q) => {
           const e = q.etat;
           return e === 'En attente' || e === 'Brouillon' || e === 'Soumis';
@@ -85,6 +103,7 @@ export default function AppShell() {
         setNavBadges({
           devis: pendingQuotes,
           rembPending: remb.filter((x) => x.statut === 'En attente' || x.statut === 'En cours').length,
+          pec: pec.filter((x) => x.statut === 'En attente' || x.statut === 'En cours').length,
         });
       } else {
         const reqs = [
@@ -96,6 +115,7 @@ export default function AppShell() {
           apiFetch('/api/special-diseases'),
           apiFetch('/api/medical-facilities'),
           apiFetch('/api/organizational-entities'),
+          apiFetch('/api/medicines'),
         ];
         if (isStaffWriterRole(u)) {
           reqs.push(apiFetch('/api/admin/users'));
@@ -110,6 +130,7 @@ export default function AppShell() {
         const mal = out[i++];
         const fac = out[i++];
         const ent = out[i++];
+        const medicines = out[i++];
         const users = isStaffWriterRole(u) ? out[i++] : [];
         const devisATraiter = quotes.filter((q) => q.etat === 'Soumis').length;
         setNavBadges({
@@ -121,6 +142,7 @@ export default function AppShell() {
           maladies: mal.length,
           facilities: fac.length,
           entites: ent.length,
+          medicaments: medicines.length,
           users: users.length,
         });
       }
@@ -328,6 +350,8 @@ export default function AppShell() {
         return isAdherent ? forbiddenForAdherent() : <EtablissementsPage {...pageProps} />;
       case 'entites':
         return isAdherent ? forbiddenForAdherent() : <EntitesPage {...pageProps} />;
+      case 'medicaments':
+        return <MedicamentsPage {...pageProps} />;
       case 'utilisateurs':
         return staffWriter ? <UtilisateursPage {...pageProps} /> : forbiddenForAdherent();
       case 'notifications':

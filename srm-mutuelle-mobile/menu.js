@@ -34,7 +34,7 @@ export const MENU_ROUTES = [
   { id: 'ordonnances', title: 'Ordonnances', fa: 'clipboard-list', color: '#8b5cf6', endpoint: '/api/ordonnances', vis: 'staff' },
   { id: 'devis', title: 'Devis', fa: 'file-invoice', color: '#f59e0b', endpoint: '/api/quotes', vis: 'everyone' },
   { id: 'remboursements', title: 'Remboursements', fa: 'money-bill-wave', color: '#10b981', endpoint: '/api/reimbursements', vis: 'everyone' },
-  { id: 'prises-en-charge', title: 'Prises en charge', fa: 'hospital', color: '#ec4899', endpoint: '/api/care-episodes', vis: 'staff' },
+  { id: 'prises-en-charge', title: 'Prises en charge', fa: 'hospital', color: '#ec4899', endpoint: '/api/care-episodes', vis: 'everyone' },
   { id: 'maladies', title: 'Maladies spéciales', fa: 'stethoscope', color: '#ef4444', endpoint: '/api/special-diseases', vis: 'everyone' },
   { id: 'etablissements', title: 'Établissements', fa: 'building', color: '#6366f1', endpoint: '/api/medical-facilities', vis: 'staff' },
   { id: 'entites', title: 'Entités org.', fa: 'landmark', color: '#1d8fd8', endpoint: '/api/organizational-entities', vis: 'staff' },
@@ -89,7 +89,7 @@ export function verticalNavSections(user, navBadges = {}) {
       },
       {
         section: 'Espace adhérent',
-        items: [meta('devis'), meta('remboursements'), { ...meta('maladies'), label: 'Maladies & médicaments' }].filter(Boolean),
+        items: [meta('devis'), meta('prises-en-charge'), meta('remboursements'), { ...meta('maladies'), label: 'Maladies & médicaments' }].filter(Boolean),
       },
     ];
   }
@@ -138,6 +138,7 @@ export function bottomNavEssentials(user) {
     return [
       { id: DASHBOARD_PAGE_ID, label: 'Accueil', fa: 'home' },
       { id: 'devis', label: 'Devis', fa: 'file-invoice' },
+      { id: 'prises-en-charge', label: 'PEC', fa: 'hospital' },
       { id: 'remboursements', label: 'Remboursements', fa: 'money-bill-wave' },
       { id: 'profil', label: 'Profil', fa: 'user' },
     ];
