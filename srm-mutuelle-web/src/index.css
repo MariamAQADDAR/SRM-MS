@@ -3969,3 +3969,127 @@ textarea.form-control {
   background: var(--gray-50) !important;
   font-size: var(--font-xs) !important;
 }
+
+/* Organigramme SRM-MS — vue arborescence entités */
+.org-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.org-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.org-stat-chip strong {
+  color: var(--primary-600);
+}
+
+.org-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-right: 8px;
+}
+
+.org-view-toggle button {
+  border: none;
+  background: #fff;
+  padding: 8px 14px;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--gray-600);
+  cursor: pointer;
+}
+
+.org-view-toggle button.active {
+  background: var(--primary-600);
+  color: #fff;
+}
+
+.org-tree-panel {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 12px 8px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.org-tree-node {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.org-tree-item {
+  margin: 2px 0;
+}
+
+.org-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.org-tree-row:hover {
+  background: var(--gray-50);
+}
+
+.org-tree-toggle {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.org-tree-toggle.placeholder {
+  visibility: hidden;
+}
+
+.org-tree-code {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--primary-600);
+  font-weight: 700;
+  min-width: 88px;
+}
+
+.org-tree-name {
+  flex: 1;
+  font-size: var(--font-sm);
+  color: var(--gray-800);
+  font-weight: 500;
+}
+
+.org-tree-children {
+  margin-left: 22px;
+  padding-left: 12px;
+  border-left: 2px solid var(--gray-100);
+}
+
+.org-type-filter {
+  min-width: 180px;
+}
+
