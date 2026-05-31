@@ -983,7 +983,22 @@ body.login-route-active {
 .notif-item {
   padding: 12px 14px;
   border-bottom: 1px solid var(--gray-100);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
 }
+
+.notif-item:hover {
+  background-color: var(--gray-50);
+}
+
+.notif-item.unread {
+  background-color: #f0f7ff;
+}
+
+.notif-item.unread:hover {
+  background-color: #e5f1ff;
+}
+
 
 .notif-item.unread .notif-item-title::before {
   content: '•';
@@ -1080,6 +1095,49 @@ body.login-route-active {
   border-radius: 50%;
   border: 2px solid white;
 }
+
+.topbar-btn .notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--danger-500);
+  color: white;
+  border-radius: 9px;
+  border: 1.5px solid white;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.notif-panel-footer {
+  padding: 10px 14px;
+  border-top: 1px solid var(--gray-100);
+  display: flex;
+  justify-content: center;
+  background: var(--gray-50);
+}
+
+.btn-view-all {
+  background: transparent;
+  border: none;
+  color: var(--primary-600);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.btn-view-all:hover {
+  color: var(--primary-700);
+  text-decoration: underline;
+}
+
 
 /* --- Page Content --- */
 .page-content {

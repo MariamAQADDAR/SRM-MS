@@ -40,16 +40,16 @@ public class ReimbursementService {
 			if (aid == null) {
 				return List.of();
 			}
-			return reimbursementRepository.findByAgent_IdOrderByReimbursementDateDesc(aid).stream()
+			return reimbursementRepository.findByAgent_IdAndDeletedFalseOrderByReimbursementDateDesc(aid).stream()
 					.map(this::toDto)
 					.toList();
 		}
-		return reimbursementRepository.findAll().stream().map(this::toDto).toList();
+		return reimbursementRepository.findByDeletedFalseOrderByReimbursementDateDesc().stream().map(this::toDto).toList();
 	}
 
 	public ReimbursementResponse get(Long id, AppUser user) {
 		Reimbursement r = reimbursementRepository
-				.findById(id)
+				.findByIdAndDeletedFalse(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
 		AccessRules.assertAgentScope(user, r.getAgent().getId());
 		return toDto(r);
@@ -57,7 +57,7 @@ public class ReimbursementService {
 
 	public byte[] readDocument(Long id, AppUser user) {
 		Reimbursement r = reimbursementRepository
-				.findById(id)
+				.findByIdAndDeletedFalse(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
 		AccessRules.assertAgentScope(user, r.getAgent().getId());
 		return reimbursementPdfStorageService.readBytes(r.getPdfStorageKey());
@@ -144,7 +144,7 @@ public class ReimbursementService {
 	public ReimbursementResponse update(Long id, ReimbursementWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		Reimbursement r = reimbursementRepository
-				.findById(id)
+				.findByIdAndDeletedFalse(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
 		Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 		if (req.numero() != null) {
@@ -162,14 +162,29 @@ public class ReimbursementService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		reimbursementRepository.deleteById(id);
+		Reimbursement r = reimbursementRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
+		r.setDeleted(true);
+		reimbursementRepository.save(r);
+	}
+
+	public List<ReimbursementResponse> listArchived(AppUser user) {
+		AccessRules.assertAdmin(user);
+		return reimbursementRepository.findByDeletedTrueOrderByReimbursementDateDesc().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		Reimbursement r = reimbursementRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
+		r.setDeleted(false);
+		reimbursementRepository.save(r);
 	}
 
 	@Transactional
 	public ReimbursementResponse validate(Long id, ValidateReimbursementRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		Reimbursement r = reimbursementRepository
-				.findById(id)
+				.findByIdAndDeletedFalse(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
 		if (!"En cours".equals(r.getStatus()) && !"En attente".equals(r.getStatus())) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande déjà traitée ou clôturée");
@@ -206,7 +221,7 @@ public class ReimbursementService {
 	public ReimbursementResponse reject(Long id, RejectReimbursementRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		Reimbursement r = reimbursementRepository
-				.findById(id)
+				.findByIdAndDeletedFalse(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
 		if ("Traité".equals(r.getStatus()) || "Clôturé".equals(r.getStatus())) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande déjà finalisée");
@@ -225,7 +240,7 @@ public class ReimbursementService {
 	public ReimbursementResponse close(Long id, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		Reimbursement r = reimbursementRepository
-				.findById(id)
+				.findByIdAndDeletedFalse(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
 		r.setStatus("Clôturé");
 		r.setResponseDate(LocalDate.now());
@@ -236,7 +251,7 @@ public class ReimbursementService {
 
 	private Reimbursement loadScoped(Long id, AppUser user) {
 		Reimbursement r = reimbursementRepository
-				.findById(id)
+				.findByIdAndDeletedFalse(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
 		if (user.getRole() == AppUserRole.ADHERENT) {
 			AccessRules.assertAgentScope(user, r.getAgent().getId());

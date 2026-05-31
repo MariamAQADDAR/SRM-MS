@@ -13,6 +13,8 @@ import DetailItem from '../components/DetailItem';
 import DetailView from '../components/DetailView';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { adminDeleteRecord } from '../utils/adminDelete';
+import WorkflowSteps from '../components/WorkflowSteps';
+import { resolveAgentWorkflow } from '../utils/workflowSteps';
 
 const AGENT_EXPORT_COLS = [
   { key: 'matricule', label: 'Matricule' },
@@ -665,11 +667,13 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user, forced
 
   const viewAgent = (a) => {
     const proches = beneficiaries.filter((p) => p.agentId === a.id);
+    const wf = resolveAgentWorkflow(a.statut);
     setModal({
       title: `Agent : ${a.prenom} ${a.nom}`,
       variant: 'detail',
       content: (
         <>
+          <WorkflowSteps {...wf} />
           <div className="detail-agent-ids">
             <span>{a.matricule}</span>
             <span>{a.cin}</span>

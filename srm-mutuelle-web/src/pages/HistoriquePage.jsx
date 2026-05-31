@@ -34,8 +34,12 @@ function formatDate(d) {
   return `${day}/${m}/${y}`;
 }
 
-export default function HistoriquePage({ setPageTitle, addToast, user }) {
-  setPageTitle('Historique personnel', 'Mon historique d’activités');
+export default function HistoriquePage({ setPageTitle, addToast, user, personalMode = false }) {
+  const effectiveAdherent = personalMode || isAdherentRole(user);
+  setPageTitle(
+    personalMode ? 'Mon historique' : 'Historique personnel',
+    personalMode ? 'Mon espace — Historique' : `Mon historique d'activités`,
+  );
 
   const [activeTab, setActiveTab] = useState('pec'); // 'pec', 'devis', 'remb', 'cards'
   const [loading, setLoading] = useState(true);
@@ -49,8 +53,7 @@ export default function HistoriquePage({ setPageTitle, addToast, user }) {
   const [rembList, setRembList] = useState([]);
   const [cardsList, setCardsList] = useState([]);
   const [agents, setAgents] = useState([]);
-  const isAdherent = isAdherentRole(user);
-
+  const isAdherent = effectiveAdherent;
 
   const agentId = user?.agentId;
 
@@ -99,14 +102,20 @@ export default function HistoriquePage({ setPageTitle, addToast, user }) {
     return Object.fromEntries((agents || []).map((a) => [a.id, a]));
   }, [agents]);
 
+  // In personal/adherent mode: filter raw lists to own agentId
+  const myAgentId = isAdherent && agentId != null ? String(agentId) : null;
+  const ownPecList    = isAdherent ? (myAgentId ? pecList.filter((p) => String(p.agentId) === myAgentId) : []) : pecList;
+  const ownQuotesList = isAdherent ? (myAgentId ? quotesList.filter((q) => String(q.agentId) === myAgentId) : []) : quotesList;
+  const ownRembList   = isAdherent ? (myAgentId ? rembList.filter((r) => String(r.agentId) === myAgentId) : []) : rembList;
+
   // Statistics calculation
   const stats = useMemo(() => {
-    const totalReimbursed = rembList
+    const totalReimbursed = ownRembList
       .filter((r) => r.statut === 'Traité')
       .reduce((sum, r) => sum + (Number(r.montantValide) || 0), 0);
 
-    const approvedPec = pecList.filter((p) => p.statut === 'Approuvé').length;
-    const approvedQuotes = quotesList.filter((q) => q.etat === 'Approuvé').length;
+    const approvedPec = ownPecList.filter((p) => p.statut === 'Approuvé').length;
+    const approvedQuotes = ownQuotesList.filter((q) => q.etat === 'Approuvé').length;
     const issuedCards = cardsList.filter((c) => c.hasPdf).length;
 
     return {
@@ -115,7 +124,7 @@ export default function HistoriquePage({ setPageTitle, addToast, user }) {
       approvedQuotes,
       issuedCards,
     };
-  }, [pecList, quotesList, rembList, cardsList]);
+  }, [ownPecList, ownQuotesList, ownRembList, cardsList]);
 
   // Document downloads
   const downloadDoc = async (type, item) => {
@@ -137,7 +146,7 @@ export default function HistoriquePage({ setPageTitle, addToast, user }) {
 
   // Filtered lists
   const filteredPec = useMemo(() => {
-    return pecList.filter((p) => {
+    return ownPecList.filter((p) => {
       const matchesSearch =
         p.numero?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.beneficiaire?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -146,10 +155,10 @@ export default function HistoriquePage({ setPageTitle, addToast, user }) {
       const matchesStatus = !statusFilter || p.statut === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [pecList, searchQuery, statusFilter]);
+  }, [ownPecList, searchQuery, statusFilter]);
 
   const filteredQuotes = useMemo(() => {
-    return quotesList.filter((q) => {
+    return ownQuotesList.filter((q) => {
       const matchesSearch =
         q.numero?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         q.beneficiaire?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -159,10 +168,10 @@ export default function HistoriquePage({ setPageTitle, addToast, user }) {
       const matchesStatus = !statusFilter || q.etat === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [quotesList, searchQuery, statusFilter]);
+  }, [ownQuotesList, searchQuery, statusFilter]);
 
   const filteredRemb = useMemo(() => {
-    return rembList.filter((r) => {
+    return ownRembList.filter((r) => {
       const matchesSearch =
         r.numero?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.beneficiaire?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -172,7 +181,7 @@ export default function HistoriquePage({ setPageTitle, addToast, user }) {
       const matchesStatus = !statusFilter || r.statut === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [rembList, searchQuery, statusFilter]);
+  }, [ownRembList, searchQuery, statusFilter]);
 
   const filteredCards = useMemo(() => {
     return cardsList.filter((c) => {
@@ -187,11 +196,11 @@ export default function HistoriquePage({ setPageTitle, addToast, user }) {
   // Distinct statuses based on active tab
   const statusOptions = useMemo(() => {
     let list = [];
-    if (activeTab === 'pec') list = [...new Set(pecList.map((p) => p.statut))];
-    else if (activeTab === 'devis') list = [...new Set(quotesList.map((q) => q.etat))];
-    else if (activeTab === 'remb') list = [...new Set(rembList.map((r) => r.statut))];
+    if (activeTab === 'pec') list = [...new Set(ownPecList.map((p) => p.statut))];
+    else if (activeTab === 'devis') list = [...new Set(ownQuotesList.map((q) => q.etat))];
+    else if (activeTab === 'remb') list = [...new Set(ownRembList.map((r) => r.statut))];
     return list.filter(Boolean);
-  }, [activeTab, pecList, quotesList, rembList]);
+  }, [activeTab, ownPecList, ownQuotesList, ownRembList]);
 
   // Excel export columns & rows
   const handleExport = () => {
@@ -430,8 +439,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user }) {
         </article>
       </section>
 
-
-    // ... existing code ...
     {/* Tabs Header Navigation */}
     <div className="tabs-header-wrapper" style={{ display: 'flex', borderBottom: '2px solid var(--gray-200)', marginBottom: '20px', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
       <button

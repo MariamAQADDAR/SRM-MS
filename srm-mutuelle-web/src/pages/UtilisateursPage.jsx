@@ -68,26 +68,34 @@ function PasswordField({ name = 'password', required = false, label, hint, autoC
   );
 }
 
-/** Formulaire création : porteur en liste déroulante si rôle = Adhérent (plus de saisie « Agent ID »). */
+/**
+ * Formulaire création.
+ * Quand rôle = Adhérent : "Nom complet" devient un <select> des agents libres.
+ * Quand rôle = Administrateur : un select optionnel permet de lier un agent.
+ * Sélectionner un agent remplit fullName et agentId automatiquement.
+ */
 function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addToast, allowAdminRole }) {
   const [role, setRole] = useState('OPERATEUR');
   const [fullName, setFullName] = useState('');
   const [agentId, setAgentId] = useState('');
-  const hasFreeAgentForAdherent = agents.some((a) => !agentAdherentByAgentId?.has(a.id));
 
-  const applyAgentFullName = (nextAgentId) => {
-    const name = agentFullName(findAgentById(agents, nextAgentId));
-    if (name) setFullName(name);
-  };
+  // Seuls les agents sans compte adhérent sont proposés pour Adhérent
+  const freeAgents = agents.filter((a) => !agentAdherentByAgentId?.has(a.id));
+  const hasFreeAgentForAdherent = freeAgents.length > 0;
+
+  // Les rôles qui peuvent être liés à un agent
+  const needsAgentLink = role === 'ADHERENT' || role === 'ADMINISTRATEUR';
 
   const handleRoleChange = (nextRole) => {
     setRole(nextRole);
-    if (nextRole === 'ADHERENT' && agentId) applyAgentFullName(agentId);
+    setAgentId('');
+    setFullName('');
   };
 
   const handleAgentChange = (nextAgentId) => {
     setAgentId(nextAgentId);
-    if (role === 'ADHERENT') applyAgentFullName(nextAgentId);
+    const name = agentFullName(findAgentById(agents, nextAgentId));
+    if (name) setFullName(name);
   };
 
   const handleSubmit = async (e) => {
@@ -95,24 +103,28 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
     const fd = new FormData(e.target);
     const roleVal = fd.get('role');
     const agentRaw = fd.get('agentId');
-    const agentId = agentRaw && String(agentRaw).trim() !== '' ? Number(agentRaw) : null;
-    if (roleVal === 'ADHERENT' && (agentId == null || Number.isNaN(agentId))) {
+    const resolvedAgentId = agentRaw && String(agentRaw).trim() !== '' ? Number(agentRaw) : null;
+    const resolvedFullName = (roleVal === 'ADHERENT' || roleVal === 'ADMINISTRATEUR') && fullName
+      ? fullName
+      : String(fd.get('fullName') || '').trim();
+
+    if (roleVal === 'ADHERENT' && (resolvedAgentId == null || Number.isNaN(resolvedAgentId))) {
       addToast('warning', 'Pour un compte adhérent, choisissez le porteur mutuelle dans la liste.');
       return;
     }
-    if (roleVal === 'ADHERENT' && agentAdherentByAgentId?.has(agentId)) {
+    if (roleVal === 'ADHERENT' && agentAdherentByAgentId?.has(resolvedAgentId)) {
       addToast(
         'warning',
-        `Ce porteur a déjà un compte adhérent (${agentAdherentByAgentId.get(agentId)}). Choisissez un autre porteur.`,
+        `Ce porteur a déjà un compte adhérent (${agentAdherentByAgentId.get(resolvedAgentId)}). Choisissez un autre porteur.`,
       );
       return;
     }
     const body = {
       email: fd.get('email'),
       password: fd.get('password'),
-      fullName: fd.get('fullName'),
+      fullName: resolvedFullName,
       role: roleVal,
-      agentId: roleVal === 'ADHERENT' ? agentId : null,
+      agentId: needsAgentLink && resolvedAgentId ? resolvedAgentId : null,
     };
     try {
       await parseJsonOrThrow(await apiFetch('/api/admin/users', { method: 'POST', body }));
@@ -127,27 +139,62 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
   return (
     <form onSubmit={handleSubmit}>
       <div className="form-grid">
+        {/* Nom complet : dropdown agents si Adhérent, sinon saisie libre */}
         <div className="form-group">
           <label>
             Nom complet <span className="required">*</span>
           </label>
-          <input
-            name="fullName"
-            className="form-control"
-            required
-            autoComplete="name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder={role === 'ADHERENT' ? 'Rempli depuis le porteur sélectionné' : ''}
-          />
+          {role === 'ADHERENT' ? (
+            <>
+              <select
+                name="agentId"
+                className="form-control"
+                required
+                value={agentId}
+                onChange={(e) => handleAgentChange(e.target.value)}
+              >
+                <option value="" disabled>— Sélectionner un porteur —</option>
+                {freeAgents.map((a) => (
+                  <option key={a.id} value={String(a.id)}>
+                    {formatAgentOption(a)}
+                  </option>
+                ))}
+              </select>
+              {agents.length === 0 ? (
+                <p style={{ fontSize: '0.8125rem', color: 'var(--danger-600)', marginTop: 6, marginBottom: 0 }}>
+                  Aucun porteur enregistré. Créez d'abord un agent dans le menu Agents.
+                </p>
+              ) : freeAgents.length === 0 ? (
+                <p style={{ fontSize: '0.8125rem', color: 'var(--danger-600)', marginTop: 6, marginBottom: 0 }}>
+                  Tous les porteurs ont déjà un compte adhérent. Ajoutez d'abord un nouvel agent.
+                </p>
+              ) : (
+                <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 6, marginBottom: 0 }}>
+                  Le nom sera rempli automatiquement depuis le porteur sélectionné.
+                </p>
+              )}
+            </>
+          ) : (
+            <input
+              name="fullName"
+              className="form-control"
+              required
+              autoComplete="name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          )}
         </div>
+
         <div className="form-group">
           <label>
             Email <span className="required">*</span>
           </label>
           <input name="email" type="email" className="form-control" placeholder="prenom.nom@srm-ms.ma" required autoComplete="email" />
         </div>
+
         <PasswordField label="Mot de passe" required />
+
         <div className="form-group">
           <label>
             Rôle <span className="required">*</span>
@@ -159,42 +206,31 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
             <option value="ADHERENT">Adhérent</option>
           </select>
         </div>
-        {role === 'ADHERENT' && (
+
+        {/* Porteur pour l'Admin (optionnel) */}
+        {role === 'ADMINISTRATEUR' && (
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label>
-              Porteur mutuelle <span className="required">*</span>
-            </label>
+            <label>Porteur mutuelle lié <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>(optionnel)</span></label>
             <select
               name="agentId"
               className="form-control"
-              required
               value={agentId}
               onChange={(e) => handleAgentChange(e.target.value)}
             >
-              <option value="" disabled>
-                — Choisir dans la liste —
-              </option>
-              {agents.map((a) => {
-                const takenEmail = agentAdherentByAgentId?.get(a.id);
-                return (
-                  <option key={a.id} value={String(a.id)} disabled={!!takenEmail}>
-                    {formatAgentOption(a)}
-                    {takenEmail ? ` — compte existant (${takenEmail})` : ''}
-                  </option>
-                );
-              })}
+              <option value="">— Aucun porteur —</option>
+              {agents.map((a) => (
+                <option key={a.id} value={String(a.id)}>
+                  {formatAgentOption(a)}
+                </option>
+              ))}
             </select>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 8, marginBottom: 0, lineHeight: 1.45 }}>
-              Le nom complet sera rempli automatiquement (prénom et nom du porteur). Un seul compte adhérent par porteur.
+            <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 6, marginBottom: 0 }}>
+              L'administrateur peut être lié à une fiche agent pour accéder à son espace personnel.
             </p>
-            {agents.length === 0 ? (
-              <p style={{ fontSize: '0.8125rem', color: 'var(--danger-600)', marginTop: 8, marginBottom: 0 }}>
-                Aucun porteur enregistré. Créez d’abord un agent dans le menu Agents.
-              </p>
-            ) : null}
           </div>
         )}
       </div>
+
       <div className="modal-footer" style={{ padding: '16px 0 0' }}>
         <button type="button" className="btn btn-outline" onClick={onClose}>
           Annuler
@@ -211,25 +247,30 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
   );
 }
 
-/** Formulaire modification : même logique porteur / adhérent. */
+/**
+ * Formulaire modification.
+ * Quand rôle = Adhérent : "Nom complet" devient un <select> des agents disponibles
+ * (libres + l'agent actuellement attribué à cet utilisateur).
+ */
 function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, addToast, allowAdminRole }) {
   const [role, setRole] = useState(urow.role || 'OPERATEUR');
   const [fullName, setFullName] = useState(urow.fullName || '');
   const [agentId, setAgentId] = useState(urow.agentId != null ? String(urow.agentId) : '');
 
-  const applyAgentFullName = (nextAgentId) => {
-    const name = agentFullName(findAgentById(agents, nextAgentId));
-    if (name) setFullName(name);
-  };
+  // Agents disponibles : libres + celui actuellement attribué à cet utilisateur
+  const availableAgents = agents.filter((a) => !agentAdherentByAgentId?.has(a.id) || a.id === urow.agentId);
 
   const handleRoleChange = (nextRole) => {
     setRole(nextRole);
-    if (nextRole === 'ADHERENT' && agentId) applyAgentFullName(agentId);
+    if (nextRole !== 'ADHERENT') {
+      setAgentId('');
+    }
   };
 
   const handleAgentChange = (nextAgentId) => {
     setAgentId(nextAgentId);
-    if (role === 'ADHERENT') applyAgentFullName(nextAgentId);
+    const name = agentFullName(findAgentById(agents, nextAgentId));
+    if (name) setFullName(name);
   };
 
   if (!allowAdminRole && urow.role === 'ADMINISTRATEUR') {
@@ -247,26 +288,32 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
     );
   }
 
+  const needsAgentLink = role === 'ADHERENT' || role === 'ADMINISTRATEUR';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const roleVal = fd.get('role');
     const agentRaw = fd.get('agentId');
-    const agentId = agentRaw && String(agentRaw).trim() !== '' ? Number(agentRaw) : null;
-    if (roleVal === 'ADHERENT' && (agentId == null || Number.isNaN(agentId))) {
+    const resolvedAgentId = agentRaw && String(agentRaw).trim() !== '' ? Number(agentRaw) : null;
+    const resolvedFullName = (roleVal === 'ADHERENT' || roleVal === 'ADMINISTRATEUR') && fullName
+      ? fullName
+      : String(fd.get('fullName') || '').trim();
+
+    if (roleVal === 'ADHERENT' && (resolvedAgentId == null || Number.isNaN(resolvedAgentId))) {
       addToast('warning', 'Pour un compte adhérent, choisissez le porteur mutuelle dans la liste.');
       return;
     }
-    const takenEmail = roleVal === 'ADHERENT' ? agentAdherentByAgentId?.get(agentId) : null;
-    if (takenEmail && urow.agentId !== agentId) {
+    const takenEmail = roleVal === 'ADHERENT' ? agentAdherentByAgentId?.get(resolvedAgentId) : null;
+    if (takenEmail && urow.agentId !== resolvedAgentId) {
       addToast('warning', `Ce porteur a déjà un compte adhérent (${takenEmail}). Choisissez un autre porteur.`);
       return;
     }
     const pwdRaw = String(fd.get('password') || '').trim();
     const body = {
-      fullName: String(fd.get('fullName') || '').trim(),
+      fullName: resolvedFullName,
       role: roleVal,
-      agentId: roleVal === 'ADHERENT' ? agentId : null,
+      agentId: needsAgentLink && resolvedAgentId ? resolvedAgentId : null,
     };
     if (pwdRaw) body.password = pwdRaw;
     try {
@@ -282,29 +329,55 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
   return (
     <form key={`edit-${urow.id}`} onSubmit={handleSubmit}>
       <div className="form-grid">
+        {/* Nom complet : dropdown agents si Adhérent, sinon saisie libre */}
         <div className="form-group">
           <label>
             Nom complet <span className="required">*</span>
           </label>
-          <input
-            name="fullName"
-            className="form-control"
-            required
-            autoComplete="name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder={role === 'ADHERENT' ? 'Rempli depuis le porteur sélectionné' : ''}
-          />
+          {role === 'ADHERENT' ? (
+            <>
+              <select
+                name="agentId"
+                className="form-control"
+                required
+                value={agentId}
+                onChange={(e) => handleAgentChange(e.target.value)}
+              >
+                <option value="">— Choisir dans la liste —</option>
+                {availableAgents.map((a) => (
+                  <option key={a.id} value={String(a.id)}>
+                    {formatAgentOption(a)}
+                    {a.id === urow.agentId ? ' — (porteur actuel)' : ''}
+                  </option>
+                ))}
+              </select>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 6, marginBottom: 0 }}>
+                Le nom est rempli depuis le porteur sélectionné. Un seul compte adhérent par porteur.
+              </p>
+            </>
+          ) : (
+            <input
+              name="fullName"
+              className="form-control"
+              required
+              autoComplete="name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          )}
         </div>
+
         <div className="form-group">
           <label>Email</label>
           <input className="form-control" value={urow.email || ''} readOnly style={{ opacity: 0.85, background: 'var(--gray-50)' }} />
         </div>
+
         <PasswordField
           label="Nouveau mot de passe"
-          hint="L’ancien mot de passe ne peut pas être affiché (stockage sécurisé). Saisissez un nouveau mot de passe pour le communiquer à l’utilisateur, ou laissez vide pour ne pas le modifier."
+          hint="L'ancien mot de passe ne peut pas être affiché (stockage sécurisé). Saisissez un nouveau mot de passe pour le communiquer à l'utilisateur, ou laissez vide pour ne pas le modifier."
           autoComplete="new-password"
         />
+
         <div className="form-group">
           <label>
             Rôle <span className="required">*</span>
@@ -316,36 +389,32 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
             <option value="ADHERENT">Adhérent</option>
           </select>
         </div>
-        {role === 'ADHERENT' && (
+
+        {/* Porteur pour l'Admin (optionnel) */}
+        {role === 'ADMINISTRATEUR' && (
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label>
-              Porteur mutuelle <span className="required">*</span>
-            </label>
+            <label>Porteur mutuelle lié <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>(optionnel)</span></label>
             <select
               name="agentId"
               className="form-control"
-              required
               value={agentId}
               onChange={(e) => handleAgentChange(e.target.value)}
             >
-              <option value="">— Choisir dans la liste —</option>
-              {agents.map((a) => {
-                const takenEmail = agentAdherentByAgentId?.get(a.id);
-                const isCurrent = Number(agentId) === a.id;
-                return (
-                  <option key={a.id} value={String(a.id)} disabled={!!takenEmail && !isCurrent}>
-                    {formatAgentOption(a)}
-                    {takenEmail && !isCurrent ? ` — compte existant (${takenEmail})` : ''}
-                  </option>
-                );
-              })}
+              <option value="">— Aucun porteur —</option>
+              {agents.map((a) => (
+                <option key={a.id} value={String(a.id)}>
+                  {formatAgentOption(a)}
+                  {a.id === urow.agentId ? ' — (actuel)' : ''}
+                </option>
+              ))}
             </select>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 8, marginBottom: 0, lineHeight: 1.45 }}>
-              Le nom complet est rempli depuis le porteur (prénom et nom). Un seul compte adhérent par porteur.
+            <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 6, marginBottom: 0 }}>
+              L'administrateur peut être lié à une fiche agent pour accéder à son espace personnel.
             </p>
           </div>
         )}
       </div>
+
       <div className="modal-footer" style={{ padding: '16px 0 0' }}>
         <button type="button" className="btn btn-outline" onClick={onClose}>
           Annuler

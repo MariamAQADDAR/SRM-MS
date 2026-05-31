@@ -55,4 +55,16 @@ public class SpecialDiseaseController {
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		specialDiseaseService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<SpecialDiseaseResponse> listArchived(Authentication authentication) {
+		return specialDiseaseService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		specialDiseaseService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
 }

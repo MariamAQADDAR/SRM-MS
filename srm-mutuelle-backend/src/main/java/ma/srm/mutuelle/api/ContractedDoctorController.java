@@ -56,4 +56,16 @@ public class ContractedDoctorController {
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		contractedDoctorService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<ContractedDoctorResponse> listArchived(Authentication authentication) {
+		return contractedDoctorService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		contractedDoctorService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
 }

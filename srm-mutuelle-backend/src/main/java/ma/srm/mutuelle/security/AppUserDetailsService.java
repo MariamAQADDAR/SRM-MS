@@ -16,7 +16,7 @@ public class AppUserDetailsService implements UserDetailsService {
 	@Override
 	public UserDetails loadUserByUsername(String username) {
 		return appUserRepository
-				.findByEmailIgnoreCase(username)
+				.findByEmailIgnoreCaseAndDeletedFalse(username)
 				.orElseThrow(() -> new UsernameNotFoundException("Utilisateur introuvable"));
 	}
 }

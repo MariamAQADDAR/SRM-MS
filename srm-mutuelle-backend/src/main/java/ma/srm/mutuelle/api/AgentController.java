@@ -56,4 +56,16 @@ public class AgentController {
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		agentService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<AgentResponse> listArchived(Authentication authentication) {
+		return agentService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public AgentResponse restore(@PathVariable Long id, Authentication authentication) {
+		return agentService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
 }

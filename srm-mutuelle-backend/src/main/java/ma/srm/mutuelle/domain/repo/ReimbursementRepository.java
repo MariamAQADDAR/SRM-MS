@@ -8,10 +8,16 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface ReimbursementRepository extends JpaRepository<Reimbursement, Long> {
 
-	List<Reimbursement> findByAgent_IdOrderByReimbursementDateDesc(Long agentId);
+	List<Reimbursement> findByAgent_IdAndDeletedFalseOrderByReimbursementDateDesc(Long agentId);
 
-	long countByStatus(String status);
+	long countByStatusAndDeletedFalse(String status);
 
-	@Query("select coalesce(sum(r.montantValide), 0) from Reimbursement r where r.status in ('Traité','Clôturé')")
+	@Query("select coalesce(sum(r.montantValide), 0) from Reimbursement r where r.status in ('Traité','Clôturé') and r.deleted = false")
 	BigDecimal sumMontantValideTraites();
+
+	List<Reimbursement> findByDeletedFalseOrderByReimbursementDateDesc();
+
+	List<Reimbursement> findByDeletedTrueOrderByReimbursementDateDesc();
+
+	java.util.Optional<Reimbursement> findByIdAndDeletedFalse(Long id);
 }

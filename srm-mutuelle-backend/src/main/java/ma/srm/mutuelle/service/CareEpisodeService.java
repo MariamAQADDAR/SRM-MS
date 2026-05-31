@@ -41,9 +41,9 @@ public class CareEpisodeService {
 			if (aid == null) {
 				return List.of();
 			}
-			return careEpisodeRepository.findByAgent_IdOrderByDateDebutDesc(aid).stream().map(this::toDto).toList();
+			return careEpisodeRepository.findByAgent_IdAndDeletedFalseOrderByDateDebutDesc(aid).stream().map(this::toDto).toList();
 		}
-		return careEpisodeRepository.findAll().stream().map(this::toDto).toList();
+		return careEpisodeRepository.findByDeletedFalseOrderByDateDebutDesc().stream().map(this::toDto).toList();
 	}
 
 	public CareEpisodeResponse get(Long id, AppUser user) {
@@ -214,11 +214,26 @@ public class CareEpisodeService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		careEpisodeRepository.deleteById(id);
+		CareEpisode e = load(id);
+		e.setDeleted(true);
+		careEpisodeRepository.save(e);
+	}
+
+	public List<CareEpisodeResponse> listArchived(AppUser user) {
+		AccessRules.assertAdmin(user);
+		return careEpisodeRepository.findByDeletedTrueOrderByDateDebutDesc().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		CareEpisode e = careEpisodeRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PEC introuvable"));
+		e.setDeleted(false);
+		careEpisodeRepository.save(e);
 	}
 
 	private CareEpisode load(Long id) {
-		return careEpisodeRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PEC introuvable"));
+		return careEpisodeRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PEC introuvable"));
 	}
 
 	private CareEpisode loadScoped(Long id, AppUser user) {

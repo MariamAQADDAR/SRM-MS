@@ -87,11 +87,15 @@ function WizardSteps({ step }) {
   );
 }
 
-export default function RemboursementsPage({ setPageTitle, addToast, user }) {
-  setPageTitle('Remboursements', 'Demandes de remboursement');
+export default function RemboursementsPage({ setPageTitle, addToast, user, personalMode = false }) {
+  const effectiveAdherent = personalMode || isAdherentRole(user);
+  setPageTitle(
+    personalMode ? 'Mes remboursements' : 'Remboursements',
+    personalMode ? 'Mon espace — Remboursements' : 'Demandes de remboursement',
+  );
   const canMutate = isStaffWriterRole(user);
   const canDelete = canAdminDelete(user);
-  const isAdherent = isAdherentRole(user);
+  const isAdherent = effectiveAdherent;
   const canCreate = isAdherent || canMutate;
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,6 +137,11 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
   const agentById = Object.fromEntries((agents || []).map((a) => [a.id, a]));
   const rowsView = rows.map((r) => mapRow(r, agentById));
 
+  // In personal / adherent mode: restrict to the user's own records
+  const visibleRows = isAdherent
+    ? (user?.agentId != null ? rowsView.filter((r) => String(r.agentId) === String(user.agentId)) : [])
+    : rowsView;
+
   const beneficiaryOptions = useMemo(() => {
     const opts = [];
     if (isAdherent) {
@@ -152,7 +161,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
   }, [agents, beneficiaries, myAgent, isAdherent]);
 
   const data = useMemo(() => {
-    let list = [...rowsView];
+    let list = [...visibleRows];
     if (searchQuery.trim()) {
       list = list.filter((r) =>
         matchesSearch(
@@ -224,7 +233,11 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
       if (fd.get('depositDate')) body.append('depositDate', fd.get('depositDate'));
       if (medicineName) body.append('medicineName', medicineName);
       if (fd.get('observation')) body.append('observation', fd.get('observation'));
-      if (!isAdherent && fd.get('agentId')) body.append('agentId', fd.get('agentId'));
+      if (!isAdherent && fd.get('agentId')) {
+        body.append('agentId', fd.get('agentId'));
+      } else if (isAdherent && user?.agentId != null) {
+        body.append('agentId', String(user.agentId));
+      }
 
       try {
         await parseJsonOrThrow(await apiFetch('/api/reimbursements/request', { method: 'POST', body }));
@@ -499,6 +512,25 @@ export default function RemboursementsPage({ setPageTitle, addToast, user }) {
     return (
       <div className="card">
         <div className="card-body">Chargement…</div>
+      </div>
+    );
+  }
+
+  const myAgentObj = isAdherent && user?.agentId != null ? agents.find((a) => a.id === Number(user.agentId)) : null;
+
+  if (isAdherent && (!user?.agentId || !myAgentObj)) {
+    return (
+      <div className="card">
+        <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
+          <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
+            <FaIcon name="triangle-exclamation" />
+          </div>
+          <h4>Compte non associé à un porteur</h4>
+          <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+            Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+            Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
+          </p>
+        </div>
       </div>
     );
   }

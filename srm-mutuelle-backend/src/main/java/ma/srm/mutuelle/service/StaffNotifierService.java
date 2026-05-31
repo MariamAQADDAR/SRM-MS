@@ -27,7 +27,7 @@ public class StaffNotifierService {
 			return;
 		}
 		for (AppUserRole role : STAFF_ROLES) {
-			for (AppUser u : appUserRepository.findByRoleAndActiveTrue(role)) {
+			for (AppUser u : appUserRepository.findByRoleAndActiveTrueAndDeletedFalse(role)) {
 				Notification n = new Notification();
 				n.setAppUser(u);
 				n.setNotifType(notifType);

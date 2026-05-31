@@ -29,16 +29,16 @@ public class BeneficiaryService {
 			if (mine == null) {
 				return List.of();
 			}
-			return beneficiaryRepository.findByAgent_IdOrderById(mine).stream().map(this::toDto).toList();
+			return beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(mine).stream().map(this::toDto).toList();
 		}
 		if (agentIdFilter != null) {
-			return beneficiaryRepository.findByAgent_IdOrderById(agentIdFilter).stream().map(this::toDto).toList();
+			return beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(agentIdFilter).stream().map(this::toDto).toList();
 		}
-		return beneficiaryRepository.findAll().stream().map(this::toDto).toList();
+		return beneficiaryRepository.findByDeletedFalseOrderById().stream().map(this::toDto).toList();
 	}
 
 	public BeneficiaryResponse get(Long id, AppUser user) {
-		Beneficiary b = beneficiaryRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bénéficiaire introuvable"));
+		Beneficiary b = beneficiaryRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bénéficiaire introuvable"));
 		AccessRules.assertAgentScope(user, b.getAgent().getId());
 		return toDto(b);
 	}
@@ -60,7 +60,7 @@ public class BeneficiaryService {
 	@Transactional
 	public BeneficiaryResponse update(Long id, BeneficiaryWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
-		Beneficiary b = beneficiaryRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bénéficiaire introuvable"));
+		Beneficiary b = beneficiaryRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bénéficiaire introuvable"));
 		Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 		b.setAgent(agent);
 		b.setNom(req.nom());
@@ -74,10 +74,22 @@ public class BeneficiaryService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		if (!beneficiaryRepository.existsById(id)) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Bénéficiaire introuvable");
-		}
-		beneficiaryRepository.deleteById(id);
+		Beneficiary b = beneficiaryRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bénéficiaire introuvable"));
+		b.setDeleted(true);
+		beneficiaryRepository.save(b);
+	}
+
+	public List<BeneficiaryResponse> listArchived(AppUser user) {
+		AccessRules.assertAdmin(user);
+		return beneficiaryRepository.findByDeletedTrueOrderById().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		Beneficiary b = beneficiaryRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bénéficiaire introuvable"));
+		b.setDeleted(false);
+		beneficiaryRepository.save(b);
 	}
 
 	private BeneficiaryResponse toDto(Beneficiary b) {

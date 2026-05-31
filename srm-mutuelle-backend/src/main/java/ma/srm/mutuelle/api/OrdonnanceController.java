@@ -55,4 +55,16 @@ public class OrdonnanceController {
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		ordonnanceService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<OrdonnanceResponse> listArchived(Authentication authentication) {
+		return ordonnanceService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		ordonnanceService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
 }

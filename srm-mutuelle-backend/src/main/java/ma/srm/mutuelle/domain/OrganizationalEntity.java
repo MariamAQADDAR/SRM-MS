@@ -36,4 +36,7 @@ public class OrganizationalEntity {
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "parent_id")
 	private OrganizationalEntity parent;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
 }

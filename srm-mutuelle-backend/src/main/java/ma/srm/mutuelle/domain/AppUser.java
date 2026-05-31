@@ -48,12 +48,24 @@ public class AppUser implements UserDetails {
 	@Column(nullable = false)
 	private boolean active = true;
 
+	@Column(name = "force_password_change", nullable = false)
+	private boolean forcePasswordChange = true;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "agent_id")
 	private Agent agent;
 
 	@Column(name = "last_login_at")
 	private Instant lastLoginAt;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
+
+	@Column(name = "reset_token", unique = true)
+	private String resetToken;
+
+	@Column(name = "reset_token_expiry")
+	private Instant resetTokenExpiry;
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {

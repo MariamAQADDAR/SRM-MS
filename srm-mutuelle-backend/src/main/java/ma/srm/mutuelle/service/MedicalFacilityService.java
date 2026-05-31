@@ -23,11 +23,11 @@ public class MedicalFacilityService {
 	private final ContractedDoctorRepository contractedDoctorRepository;
 
 	public List<MedicalFacilityResponse> list(AppUser user) {
-		return medicalFacilityRepository.findAll().stream().map(this::toDto).toList();
+		return medicalFacilityRepository.findByDeletedFalseOrderByName().stream().map(this::toDto).toList();
 	}
 
 	public MedicalFacilityResponse get(Long id, AppUser user) {
-		return toDto(medicalFacilityRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Établissement introuvable")));
+		return toDto(medicalFacilityRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Établissement introuvable")));
 	}
 
 	@Transactional
@@ -44,7 +44,7 @@ public class MedicalFacilityService {
 	@Transactional
 	public MedicalFacilityResponse update(Long id, MedicalFacilityWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
-		MedicalFacility f = medicalFacilityRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Établissement introuvable"));
+		MedicalFacility f = medicalFacilityRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Établissement introuvable"));
 		f.setName(req.nom());
 		f.setFacilityType(req.type());
 		f.setAddress(req.adresse());
@@ -55,18 +55,25 @@ public class MedicalFacilityService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		if (!medicalFacilityRepository.existsById(id)) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Établissement introuvable");
-		}
-		try {
-			medicalFacilityRepository.deleteById(id);
-		} catch (Exception e) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "Suppression impossible (médecins liés)");
-		}
+		MedicalFacility f = medicalFacilityRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Établissement introuvable"));
+		f.setDeleted(true);
+		medicalFacilityRepository.save(f);
+	}
+
+	public List<MedicalFacilityResponse> listArchived(AppUser user) {
+		return medicalFacilityRepository.findByDeletedTrueOrderByName().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		MedicalFacility f = medicalFacilityRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Établissement introuvable"));
+		f.setDeleted(false);
+		medicalFacilityRepository.save(f);
 	}
 
 	private MedicalFacilityResponse toDto(MedicalFacility f) {
-		List<String> medecins = contractedDoctorRepository.findByMedicalFacility_IdOrderById(f.getId()).stream()
+		List<String> medecins = contractedDoctorRepository.findByMedicalFacility_IdAndDeletedFalseOrderById(f.getId()).stream()
 				.map(ContractedDoctor::getFullName)
 				.toList();
 		return new MedicalFacilityResponse(

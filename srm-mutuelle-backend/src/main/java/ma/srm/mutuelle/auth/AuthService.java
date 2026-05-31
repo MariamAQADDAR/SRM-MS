@@ -10,6 +10,7 @@ import ma.srm.mutuelle.domain.AppUser;
 import ma.srm.mutuelle.domain.repo.AppUserRepository;
 import ma.srm.mutuelle.security.AppUserDetailsService;
 import ma.srm.mutuelle.security.JwtService;
+import ma.srm.mutuelle.service.EmailService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -18,6 +19,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +30,7 @@ public class AuthService {
 	private final PasswordEncoder passwordEncoder;
 	private final JwtService jwtService;
 	private final AppUserRepository appUserRepository;
+	private final EmailService emailService;
 
 	@Transactional
 	public LoginResponse login(LoginRequest request) {
@@ -45,7 +49,7 @@ public class AuthService {
 		user.setLastLoginAt(Instant.now());
 		appUserRepository.save(user);
 		String token = jwtService.generateToken(user);
-		return new LoginResponse(token, UserProfileDto.fromEntity(user));
+		return new LoginResponse(token, UserProfileDto.fromEntity(user), user.isForcePasswordChange());
 	}
 
 	@Transactional
@@ -54,6 +58,36 @@ public class AuthService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mot de passe actuel incorrect");
 		}
 		user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+		user.setForcePasswordChange(false);
+		appUserRepository.save(user);
+	}
+
+	@Transactional
+	public void forgotPassword(String email) {
+		AppUser user = appUserRepository.findByEmailIgnoreCaseAndDeletedFalse(email.trim())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Aucun utilisateur trouvé avec cet email"));
+		
+		String token = UUID.randomUUID().toString();
+		user.setResetToken(token);
+		user.setResetTokenExpiry(Instant.now().plus(1, ChronoUnit.HOURS));
+		appUserRepository.save(user);
+
+		emailService.sendPasswordResetEmail(user.getEmail(), token);
+	}
+
+	@Transactional
+	public void resetPassword(String token, String newPassword) {
+		AppUser user = appUserRepository.findByResetToken(token)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Jeton de réinitialisation invalide"));
+		
+		if (user.getResetTokenExpiry() == null || Instant.now().isAfter(user.getResetTokenExpiry())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le jeton de réinitialisation a expiré");
+		}
+
+		user.setPasswordHash(passwordEncoder.encode(newPassword));
+		user.setForcePasswordChange(false);
+		user.setResetToken(null);
+		user.setResetTokenExpiry(null);
 		appUserRepository.save(user);
 	}
 }

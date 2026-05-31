@@ -57,4 +57,16 @@ public class MedicineController {
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		medicineService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<MedicineResponse> listArchived(Authentication authentication) {
+		return medicineService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		medicineService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
 }

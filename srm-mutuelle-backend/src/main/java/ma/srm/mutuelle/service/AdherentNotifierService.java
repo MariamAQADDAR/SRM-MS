@@ -25,7 +25,7 @@ public class AdherentNotifierService {
 		if (agentId == null || body == null || body.isBlank()) {
 			return;
 		}
-		for (AppUser u : appUserRepository.findByAgent_Id(agentId)) {
+		for (AppUser u : appUserRepository.findByAgent_IdAndDeletedFalse(agentId)) {
 			if (u.getRole() != AppUserRole.ADHERENT) {
 				continue;
 			}

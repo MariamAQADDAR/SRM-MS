@@ -77,4 +77,7 @@ public class Reimbursement {
 
 	@Column(columnDefinition = "TEXT")
 	private String observation;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
 }

@@ -30,9 +30,16 @@ public class AgentService {
 			if (aid == null) {
 				return List.of();
 			}
-			return agentRepository.findById(aid).map(a -> List.of(toDto(a))).orElse(List.of());
+			return agentRepository.findById(aid)
+					.filter(a -> !a.isDeleted())
+					.map(a -> List.of(toDto(a))).orElse(List.of());
 		}
-		return agentRepository.findAll().stream().map(this::toDto).toList();
+		return agentRepository.findByDeletedFalse().stream().map(this::toDto).toList();
+	}
+
+	public List<AgentResponse> listArchived(AppUser user) {
+		AccessRules.assertAdmin(user);
+		return agentRepository.findByDeletedTrue().stream().map(this::toDto).toList();
 	}
 
 	public AgentResponse get(Long id, AppUser user) {
@@ -71,7 +78,7 @@ public class AgentService {
 		Agent saved = agentRepository.save(a);
 
 		if (req.beneficiaries() != null) {
-			List<Beneficiary> existing = beneficiaryRepository.findByAgent_IdOrderById(id);
+			List<Beneficiary> existing = beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(id);
 			java.util.Set<Long> incomingIds = req.beneficiaries().stream()
 					.map(AgentBeneficiaryRequest::id)
 					.filter(java.util.Objects::nonNull)
@@ -112,14 +119,20 @@ public class AgentService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		if (!agentRepository.existsById(id)) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent introuvable");
-		}
-		try {
-			agentRepository.deleteById(id);
-		} catch (Exception ex) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "Impossible de supprimer (données liées)");
-		}
+		Agent a = agentRepository.findById(id)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent introuvable"));
+		a.setDeleted(true);
+		agentRepository.save(a);
+	}
+
+	@Transactional
+	public AgentResponse restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		Agent a = agentRepository.findById(id)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent introuvable"));
+		a.setDeleted(false);
+		agentRepository.save(a);
+		return toDto(a);
 	}
 
 	private void copy(AgentWriteRequest req, Agent a) {

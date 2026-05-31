@@ -53,6 +53,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [dark, setDark] = useState(false);
   const [lang, setLang] = useState('fr');
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const navigate = useNavigate();
   const t = COPY[lang] || COPY.fr;
 
@@ -67,6 +70,11 @@ export default function Login() {
     setLoading(true);
     try {
       const data = await apiLogin(email, password);
+      if (data.forcePasswordChange) {
+        setMustChangePassword(true);
+        setLoading(false);
+        return;
+      }
       const payload = sessionUserFromLoginResponse(data);
       if (!payload.token) {
         throw new Error('Réponse serveur invalide');
@@ -75,6 +83,50 @@ export default function Login() {
       navigate('/app');
     } catch (err) {
       setError(err.message || 'Connexion impossible');
+    } finally {
+      if (!mustChangePassword) setLoading(false);
+    }
+  };
+
+  const handleChangePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError('Les mots de passe ne correspondent pas');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Mot de passe trop court (6 caractères minimum)');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      // Pour changer le mot de passe, on doit d'abord se connecter pour obtenir un token.
+      // Mais forcePasswordChange nous a empêché d'enregistrer le token ?
+      // En fait, on a besoin du token temporaire pour appeler /api/auth/change-password
+      const data = await apiLogin(email, password);
+      const payload = sessionUserFromLoginResponse(data);
+      
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${payload.token}`
+        },
+        body: JSON.stringify({
+          currentPassword: password,
+          newPassword: newPassword
+        })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Erreur lors du changement de mot de passe');
+      }
+      
+      sessionStorage.setItem('mutuelle_user', JSON.stringify(payload));
+      navigate('/app');
+    } catch (err) {
+      setError(err.message || 'Changement de mot de passe impossible');
     } finally {
       setLoading(false);
     }
@@ -140,58 +192,111 @@ export default function Login() {
               </div>
             ) : null}
 
-            <form className="login-split-form" onSubmit={handleSubmit} autoComplete="off">
-              <div className="login-split-field">
-                <label htmlFor="loginEmail">
-                  {t.email} <span className="login-split-required">*</span>
-                </label>
-                <input
-                  type="email"
-                  id="loginEmail"
-                  className="login-split-input"
-                  placeholder={t.emailPh}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="login-split-field">
-                <label htmlFor="loginPassword">
-                  {t.password} <span className="login-split-required">*</span>
-                </label>
-                <div className="login-split-password-wrap">
+            {mustChangePassword ? (
+              <form className="login-split-form" onSubmit={handleChangePasswordSubmit} autoComplete="off">
+                <div className="login-split-alert" role="alert" style={{backgroundColor: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd'}}>
+                  <FaIcon name="shield-halved" className="fa-inline-icon" /> Pour des raisons de sécurité, veuillez modifier votre mot de passe pour votre première connexion.
+                </div>
+                <div className="login-split-field">
+                  <label htmlFor="newPassword">
+                    Nouveau mot de passe <span className="login-split-required">*</span>
+                  </label>
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    id="loginPassword"
-                    className="login-split-input login-split-input--password"
-                    placeholder={t.passwordPh}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    type="password"
+                    id="newPassword"
+                    className="login-split-input"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
                     required
                   />
-                  <button
-                    type="button"
-                    className="login-split-password-toggle"
-                    onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                  >
-                    <FaIcon name={showPassword ? 'eye-slash' : 'eye'} />
-                  </button>
                 </div>
-              </div>
-
-              <button type="submit" className="login-split-submit" disabled={!!loading}>
-                {loading ? (
-                  <span
-                    className="spinner"
-                    style={{ width: '20px', height: '20px', borderWidth: '2px', margin: '0 auto' }}
+                <div className="login-split-field">
+                  <label htmlFor="confirmPassword">
+                    Confirmer le mot de passe <span className="login-split-required">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    className="login-split-input"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
                   />
-                ) : (
-                  t.submit
-                )}
-              </button>
-            </form>
+                </div>
+                <button type="submit" className="login-split-submit" disabled={!!loading}>
+                  {loading ? (
+                    <span
+                      className="spinner"
+                      style={{ width: '20px', height: '20px', borderWidth: '2px', margin: '0 auto' }}
+                    />
+                  ) : (
+                    "Mettre à jour et se connecter"
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form className="login-split-form" onSubmit={handleSubmit} autoComplete="off">
+                <div className="login-split-field">
+                  <label htmlFor="loginEmail">
+                    {t.email} <span className="login-split-required">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    id="loginEmail"
+                    className="login-split-input"
+                    placeholder={t.emailPh}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="login-split-field">
+                  <label htmlFor="loginPassword">
+                    {t.password} <span className="login-split-required">*</span>
+                  </label>
+                  <div className="login-split-password-wrap">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      id="loginPassword"
+                      className="login-split-input login-split-input--password"
+                      placeholder={t.passwordPh}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="login-split-password-toggle"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    >
+                      <FaIcon name={showPassword ? 'eye-slash' : 'eye'} />
+                    </button>
+                  </div>
+                  <div style={{ marginTop: '8px', textAlign: 'right' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => navigate('/forgot-password')} 
+                      style={{ background: 'none', border: 'none', color: 'var(--primary-600)', fontSize: '0.85rem', cursor: 'pointer', padding: 0 }}
+                    >
+                      Mot de passe oublié ?
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="login-split-submit" disabled={!!loading}>
+                  {loading ? (
+                    <span
+                      className="spinner"
+                      style={{ width: '20px', height: '20px', borderWidth: '2px', margin: '0 auto' }}
+                    />
+                  ) : (
+                    t.submit
+                  )}
+                </button>
+              </form>
+            )}
           </div>
 
           <p className="login-split-copy">© {new Date().getFullYear()} {t.copyright}</p>

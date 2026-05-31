@@ -1,32 +1,31 @@
 import { useEffect, useState } from 'react';
 import FaIcon from './FaIcon';
-import { isAdherentRole, isStaffWriterRole } from '../authUtils';
+import { isAdherentRole, isStaffWriterRole, isAdminRole } from '../authUtils';
 
 export default function Layout({ children, currentPage, onNavigate, user, navBadges }) {
   if (!user) return null;
 
   const isAdherent = isAdherentRole(user);
   const staffWriter = isStaffWriterRole(user);
+  const isAdmin = isAdminRole(user);
   const b = navBadges || {};
 
-  let navSections;
-  if (isAdherent) {
-    navSections = [
-      {
-        section: 'Espace adhérent',
-        items: [
-          { id: 'devis', fa: 'file-invoice', label: 'Devis', badge: b.devis },
-          { id: 'cartes-mutuelles', fa: 'id-card', label: 'Cartes mutuelles' },
-          { id: 'remboursements', fa: 'money-bill-wave', label: 'Remboursements', badge: b.rembPending },
-          { id: 'prises-en-charge', fa: 'hospital', label: 'Prises en charge', badge: b.pec },
-          { id: 'medicaments', fa: 'pills', label: 'Médicaments' },
+  const navSections = [
+    {
+      section: 'Mon espace',
+      items: [
+        { id: 'mes-devis', fa: 'file-invoice', label: 'Mes devis', badge: b['mes-devis'] },
+        { id: 'mes-cartes', fa: 'id-card', label: 'Mes cartes mutuelles' },
+        { id: 'mes-remboursements', fa: 'money-bill-wave', label: 'Mes remboursements', badge: b['mes-rembPending'] },
+        { id: 'mes-prises-en-charge', fa: 'hospital', label: 'Mes prises en charge', badge: b['mes-pec'] },
+        { id: 'medicaments', fa: 'pills', label: 'Médicaments' },
+        { id: 'mon-historique', fa: 'clock-rotate-left', label: 'Mon historique' },
+      ],
+    },
+  ];
 
-          { id: 'historique', fa: 'clock-rotate-left', label: 'Mon historique' },
-        ],
-      },
-    ];
-  } else {
-    navSections = [
+  if (!isAdherent) {
+    navSections.push(
       {
         section: 'Principal',
         items: [
@@ -36,10 +35,9 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
       {
         section: 'Gestion',
         items: [
-          { id: 'agents', fa: 'user-tie', label: 'Agents', badge: b.agents },
+          ...(isAdmin ? [{ id: 'agents', fa: 'user-tie', label: 'Agents', badge: b.agents }] : []),
           { id: 'beneficiaires', fa: 'users', label: 'Bénéficiaires', badge: b.agents },
           { id: 'cartes-mutuelles', fa: 'id-card', label: 'Cartes mutuelles' },
-
           { id: 'ordonnances', fa: 'clipboard-list', label: 'Ordonnances', badge: b.ordonnances },
           { id: 'devis', fa: 'file-invoice', label: 'Devis', badge: b.devis },
           { id: 'remboursements', fa: 'money-bill-wave', label: 'Remboursements', badge: b.rembPending },
@@ -54,12 +52,16 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
           { id: 'entites', fa: 'landmark', label: 'Entités org.', badge: b.entites },
           { id: 'medicaments', fa: 'pills', label: 'Médicaments', badge: b.medicaments },
         ],
-      },
-    ];
+      }
+    );
+
     const adminSectionItems = [];
     if (staffWriter) {
       adminSectionItems.push({ id: 'utilisateurs', fa: 'user-shield', label: 'Utilisateurs', badge: b.users });
       adminSectionItems.push({ id: 'parametrage', fa: 'sliders', label: 'Paramétrage' });
+    }
+    if (isAdmin) {
+      adminSectionItems.push({ id: 'archives', fa: 'box-archive', label: 'Archives' });
     }
     if (adminSectionItems.length > 0) {
       navSections.push({

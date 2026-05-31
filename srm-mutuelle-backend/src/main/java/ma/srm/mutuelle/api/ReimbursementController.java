@@ -113,6 +113,18 @@ public class ReimbursementController {
 		reimbursementService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
 
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<ReimbursementResponse> listArchived(Authentication authentication) {
+		return reimbursementService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		reimbursementService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
+
 	@PostMapping("/{id}/validate")
 	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
 	public ReimbursementResponse validate(

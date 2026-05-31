@@ -38,4 +38,6 @@ public class QuoteDtos {
 			String etat) {}
 
 	public record QuoteReviewRequest(BigDecimal montantPrisEnCharge, String observation, LocalDate responseDate) {}
+
+	public record QuoteStatusRequest(@NotBlank String etat) {}
 }

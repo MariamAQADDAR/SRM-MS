@@ -24,9 +24,12 @@ public class UserAdminService {
 	private final AppUserRepository appUserRepository;
 	private final AgentRepository agentRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final EmailService emailService;
 
-	public List<AppUserResponse> listAll() {
-		return appUserRepository.findAll().stream().map(this::toDto).toList();
+	public List<AppUserResponse> listAll(AppUser actor) {
+		return appUserRepository.findByDeletedFalseOrderById().stream()
+				.filter(u -> actor.getRole() == AppUserRole.ADMINISTRATEUR || u.getRole() != AppUserRole.ADMINISTRATEUR)
+				.map(this::toDto).toList();
 	}
 
 	public AppUserResponse get(Long id) {
@@ -35,7 +38,7 @@ public class UserAdminService {
 
 	@Transactional
 	public AppUserResponse create(CreateAppUserRequest req, AppUser actor) {
-		if (appUserRepository.existsByEmailIgnoreCase(req.email())) {
+		if (appUserRepository.existsByEmailIgnoreCaseAndDeletedFalse(req.email())) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Email déjà utilisé");
 		}
 		AppUserRole role = parseRole(req.role());
@@ -59,7 +62,12 @@ public class UserAdminService {
 		} else {
 			u.setAgent(null);
 		}
-		return toDto(appUserRepository.save(u));
+		AppUser saved = appUserRepository.save(u);
+		
+		// Envoyer le mot de passe par email
+		emailService.sendWelcomeEmail(saved.getEmail(), req.password());
+		
+		return toDto(saved);
 	}
 
 	@Transactional
@@ -132,14 +140,29 @@ public class UserAdminService {
 		if (actor.getId().equals(id)) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Suppression de soi-même interdite");
 		}
-		if (!appUserRepository.existsById(id)) {
-			throw notFound(id);
+		AppUser u = appUserRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> notFound(id));
+		u.setDeleted(true);
+		appUserRepository.save(u);
+	}
+
+	public List<AppUserResponse> listArchived(AppUser actor) {
+		return appUserRepository.findByDeletedTrueOrderById().stream()
+				.filter(u -> actor.getRole() == AppUserRole.ADMINISTRATEUR || u.getRole() != AppUserRole.ADMINISTRATEUR)
+				.map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser actor) {
+		if (actor.getRole() == AppUserRole.OPERATEUR) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès refusé : les opérateurs ne peuvent pas restaurer un utilisateur.");
 		}
-		appUserRepository.deleteById(id);
+		AppUser u = appUserRepository.findById(id).orElseThrow(() -> notFound(id));
+		u.setDeleted(false);
+		appUserRepository.save(u);
 	}
 
 	private void assertAgentAvailableForAdherent(Long agentId, Long exceptUserId) {
-		var existing = appUserRepository.findByAgent_Id(agentId).stream()
+		var existing = appUserRepository.findByAgent_IdAndDeletedFalse(agentId).stream()
 				.filter(u -> u.getRole() == AppUserRole.ADHERENT)
 				.filter(u -> exceptUserId == null || !exceptUserId.equals(u.getId()))
 				.findFirst();

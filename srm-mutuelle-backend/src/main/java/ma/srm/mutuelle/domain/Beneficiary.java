@@ -43,4 +43,7 @@ public class Beneficiary {
 
 	@Column(name = "date_naissance")
 	private LocalDate dateNaissance;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
 }

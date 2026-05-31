@@ -1,0 +1,2 @@
+ALTER TABLE app_users
+ADD COLUMN force_password_change BOOLEAN NOT NULL DEFAULT TRUE;

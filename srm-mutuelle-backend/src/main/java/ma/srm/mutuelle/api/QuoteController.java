@@ -142,6 +142,42 @@ public class QuoteController {
 		return quoteService.submit(id, AuthPrincipal.requireUser(authentication));
 	}
 
+	@PostMapping(
+			value = "/{id}/update",
+			consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+			produces = MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','ADHERENT')")
+	public QuoteResponse updateWithDocument(
+			@PathVariable Long id,
+			@RequestParam(required = false) Long agentId,
+			@RequestParam(required = false) String beneficiaire,
+			@RequestParam(required = false) String quoteType,
+			@RequestParam(required = false) String providerName,
+			@RequestParam(required = false) String dateDevis,
+			@RequestParam(required = false) String dateDepot,
+			@RequestParam(required = false) BigDecimal montant,
+			@RequestParam(required = false) Integer taux,
+			@RequestParam(required = false) String observation,
+			@RequestParam(value = "file", required = false) MultipartFile file,
+			Authentication authentication)
+			throws Exception {
+		LocalDate devis = dateDevis != null && !dateDevis.isBlank() ? LocalDate.parse(dateDevis) : null;
+		LocalDate depot = dateDepot != null && !dateDepot.isBlank() ? LocalDate.parse(dateDepot) : null;
+		return quoteService.updateWithDocument(
+				id,
+				agentId,
+				beneficiaire,
+				quoteType,
+				providerName,
+				devis,
+				depot,
+				montant,
+				taux,
+				observation,
+				file,
+				AuthPrincipal.requireUser(authentication));
+	}
+
 	@PutMapping("/{id}")
 	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
 	public QuoteResponse update(
@@ -153,6 +189,18 @@ public class QuoteController {
 	@PreAuthorize("hasRole('ADMINISTRATEUR')")
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		quoteService.delete(id, AuthPrincipal.requireUser(authentication));
+	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<QuoteResponse> listArchived(Authentication authentication) {
+		return quoteService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		quoteService.restore(id, AuthPrincipal.requireUser(authentication));
 	}
 
 	@PostMapping("/{id}/scan")

@@ -54,4 +54,7 @@ public class Agent {
 
 	@Column(length = 64)
 	private String statut;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
 }

@@ -30,13 +30,13 @@ public class SpecialDiseaseService {
 			if (aid == null) {
 				return List.of();
 			}
-			return repository.findByAgent_IdOrderByDeclarationDateDesc(aid).stream().map(this::toDto).toList();
+			return repository.findByAgent_IdAndDeletedFalseOrderByDeclarationDateDesc(aid).stream().map(this::toDto).toList();
 		}
-		return repository.findAll().stream().map(this::toDto).toList();
+		return repository.findByDeletedFalseOrderByDeclarationDateDesc().stream().map(this::toDto).toList();
 	}
 
 	public SpecialDiseaseResponse get(Long id, AppUser user) {
-		SpecialDiseaseDeclaration d = repository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
+		SpecialDiseaseDeclaration d = repository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
 		AccessRules.assertAgentScope(user, d.getAgent().getId());
 		return toDto(d);
 	}
@@ -58,7 +58,7 @@ public class SpecialDiseaseService {
 	@Transactional
 	public SpecialDiseaseResponse update(Long id, SpecialDiseaseWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
-		SpecialDiseaseDeclaration d = repository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
+		SpecialDiseaseDeclaration d = repository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
 		Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 		if (req.numero() != null) {
 			d.setNumero(req.numero());
@@ -74,7 +74,22 @@ public class SpecialDiseaseService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		repository.deleteById(id);
+		SpecialDiseaseDeclaration d = repository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
+		d.setDeleted(true);
+		repository.save(d);
+	}
+
+	public List<SpecialDiseaseResponse> listArchived(AppUser user) {
+		AccessRules.assertAdmin(user);
+		return repository.findByDeletedTrueOrderByDeclarationDateDesc().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		SpecialDiseaseDeclaration d = repository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
+		d.setDeleted(false);
+		repository.save(d);
 	}
 
 	private SpecialDiseaseResponse toDto(SpecialDiseaseDeclaration d) {

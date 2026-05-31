@@ -30,13 +30,13 @@ public class OrdonnanceService {
 			if (aid == null) {
 				return List.of();
 			}
-			return ordonnanceRepository.findByAgent_IdOrderByOrdDateDesc(aid).stream().map(this::toDto).toList();
+			return ordonnanceRepository.findByAgent_IdAndDeletedFalseOrderByOrdDateDesc(aid).stream().map(this::toDto).toList();
 		}
-		return ordonnanceRepository.findAll().stream().map(this::toDto).toList();
+		return ordonnanceRepository.findByDeletedFalseOrderByOrdDateDesc().stream().map(this::toDto).toList();
 	}
 
 	public OrdonnanceResponse get(Long id, AppUser user) {
-		Ordonnance o = ordonnanceRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable"));
+		Ordonnance o = ordonnanceRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable"));
 		AccessRules.assertAgentScope(user, o.getAgent().getId());
 		return toDto(o);
 	}
@@ -61,7 +61,7 @@ public class OrdonnanceService {
 	@Transactional
 	public OrdonnanceResponse update(Long id, OrdonnanceWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
-		Ordonnance o = ordonnanceRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable"));
+		Ordonnance o = ordonnanceRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable"));
 		Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 		if (req.numero() != null) {
 			o.setNumero(req.numero());
@@ -80,10 +80,22 @@ public class OrdonnanceService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		if (!ordonnanceRepository.existsById(id)) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable");
-		}
-		ordonnanceRepository.deleteById(id);
+		Ordonnance o = ordonnanceRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable"));
+		o.setDeleted(true);
+		ordonnanceRepository.save(o);
+	}
+
+	public List<OrdonnanceResponse> listArchived(AppUser user) {
+		AccessRules.assertAdmin(user);
+		return ordonnanceRepository.findByDeletedTrueOrderByOrdDateDesc().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		Ordonnance o = ordonnanceRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable"));
+		o.setDeleted(false);
+		ordonnanceRepository.save(o);
 	}
 
 	private OrdonnanceResponse toDto(Ordonnance o) {

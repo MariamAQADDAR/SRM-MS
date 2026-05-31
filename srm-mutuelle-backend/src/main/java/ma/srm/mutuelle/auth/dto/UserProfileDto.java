@@ -4,7 +4,7 @@ import ma.srm.mutuelle.domain.AppUser;
 import ma.srm.mutuelle.domain.AppUserRole;
 
 public record UserProfileDto(
-		Long id, String email, String fullName, String role, String roleLabel, Long agentId) {
+		Long id, String email, String fullName, String role, String roleLabel, Long agentId, boolean forcePasswordChange) {
 
 	public static UserProfileDto fromEntity(AppUser user) {
 		return new UserProfileDto(
@@ -13,7 +13,8 @@ public record UserProfileDto(
 				user.getFullName(),
 				user.getRole().name(),
 				toRoleLabel(user.getRole()),
-				user.getAgentIdOrNull());
+				user.getAgentIdOrNull(),
+				user.isForcePasswordChange());
 	}
 
 	private static String toRoleLabel(AppUserRole role) {

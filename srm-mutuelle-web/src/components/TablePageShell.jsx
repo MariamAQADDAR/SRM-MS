@@ -7,10 +7,12 @@ export default function TablePageShell({ title, icon = 'table', toolbar, childre
   const showToolbar = toolbar != null && toolbar !== false;
   return (
     <div className={`table-page-shell ${className}`.trim()}>
-      <header className="table-page-head">
-        <FaIcon name={icon} className="table-page-head-icon fa-inline-icon" />
-        <span className="table-page-head-title">{title}</span>
-      </header>
+      {title ? (
+        <header className="table-page-head">
+          <FaIcon name={icon} className="table-page-head-icon fa-inline-icon" />
+          <span className="table-page-head-title">{title}</span>
+        </header>
+      ) : null}
       {showToolbar && <div className="table-page-toolbar">{toolbar}</div>}
       <div className="table-page-body">{children}</div>
     </div>

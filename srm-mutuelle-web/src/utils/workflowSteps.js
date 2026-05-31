@@ -64,3 +64,25 @@ export function resolvePecWorkflow(statut) {
     terminalLabel: terminal ? statut : null,
   };
 }
+
+/** Workflow agent — recrutement (3 étapes). */
+export const AGENT_WORKFLOW_STEPS = [
+  { step: 1, label: 'Enregistrement', hint: 'Fiche agent créée' },
+  { step: 2, label: 'Vérification', hint: 'Instruction dossier' },
+  { step: 3, label: 'Intégration', hint: 'Décision d\'activité' },
+];
+
+export function resolveAgentWorkflow(statut) {
+  const terminal = statut === 'Actif' || statut === 'Suspendu';
+  let activeStep = 1;
+  if (statut === 'Actif' || statut === 'Suspendu') activeStep = 3;
+  else if (statut === 'Inactif') activeStep = 2;
+  else activeStep = 1;
+
+  return {
+    steps: AGENT_WORKFLOW_STEPS,
+    activeStep,
+    terminal,
+    terminalLabel: terminal ? statut : null,
+  };
+}

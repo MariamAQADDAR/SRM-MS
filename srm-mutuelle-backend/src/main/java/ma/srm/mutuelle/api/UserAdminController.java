@@ -28,8 +28,8 @@ public class UserAdminController {
 	private final UserAdminService userAdminService;
 
 	@GetMapping
-	public List<AppUserResponse> list() {
-		return userAdminService.listAll();
+	public List<AppUserResponse> list(Authentication authentication) {
+		return userAdminService.listAll(AuthPrincipal.requireUser(authentication));
 	}
 
 	@GetMapping("/{id}")
@@ -57,5 +57,15 @@ public class UserAdminController {
 	@DeleteMapping("/{id}")
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		userAdminService.delete(id, AuthPrincipal.requireUser(authentication));
+	}
+
+	@GetMapping("/archived")
+	public List<AppUserResponse> listArchived(Authentication authentication) {
+		return userAdminService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		userAdminService.restore(id, AuthPrincipal.requireUser(authentication));
 	}
 }

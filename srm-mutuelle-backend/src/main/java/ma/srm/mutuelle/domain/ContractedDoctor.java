@@ -30,4 +30,7 @@ public class ContractedDoctor {
 
 	@Column(name = "full_name", nullable = false)
 	private String fullName;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
 }

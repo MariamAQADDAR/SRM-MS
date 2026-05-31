@@ -13,9 +13,13 @@ function linkBadge(label) {
   return <span className={`badge ${map[label] || 'badge-neutral'}`}>{label}</span>;
 }
 
-export default function CartesMutuellesPage({ setPageTitle, addToast, user }) {
-  setPageTitle('Cartes mutuelles', 'Affiliation famille');
-  const isAdherent = isAdherentRole(user);
+export default function CartesMutuellesPage({ setPageTitle, addToast, user, personalMode = false }) {
+  const effectiveAdherent = personalMode || isAdherentRole(user);
+  setPageTitle(
+    personalMode ? 'Mes cartes mutuelles' : 'Cartes mutuelles',
+    personalMode ? 'Mon espace — Cartes' : 'Affiliation famille',
+  );
+  const isAdherent = effectiveAdherent;
   const canGenerate = isAdherent || isStaffWriterRole(user);
 
   const [agents, setAgents] = useState([]);
@@ -24,7 +28,7 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user }) {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
 
-  const effectiveAgentId = isAdherent && user?.agentId != null ? String(user.agentId) : selectedAgentId;
+  const effectiveAgentId = isAdherent ? (user?.agentId != null ? String(user.agentId) : null) : selectedAgentId;
 
   const loadAgents = useCallback(async () => {
     if (isAdherent) return;

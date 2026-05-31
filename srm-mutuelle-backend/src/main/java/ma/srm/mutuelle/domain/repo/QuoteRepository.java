@@ -6,7 +6,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface QuoteRepository extends JpaRepository<Quote, Long> {
 
-	List<Quote> findByAgent_IdOrderByQuoteDateDesc(Long agentId);
+	List<Quote> findByAgent_IdAndDeletedFalseOrderByQuoteDateDesc(Long agentId);
 
-	long countByEtat(String etat);
+	long countByEtatAndDeletedFalse(String etat);
+
+	List<Quote> findByDeletedFalseOrderByQuoteDateDesc();
+
+	List<Quote> findByDeletedTrueOrderByQuoteDateDesc();
+
+	java.util.Optional<Quote> findByIdAndDeletedFalse(Long id);
 }

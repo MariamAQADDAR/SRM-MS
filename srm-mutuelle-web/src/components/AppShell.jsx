@@ -20,19 +20,20 @@ import CartesMutuellesPage from '../pages/CartesMutuellesPage';
 
 import AgentsPage from '../pages/AgentsPage';
 import HistoriquePage from '../pages/HistoriquePage';
+import ArchivesPage from '../pages/ArchivesPage';
 import ChatbotWidget from './ChatbotWidget';
 import FaIcon from './FaIcon';
 import { apiFetch, apiMe, parseJsonOrThrow } from '../api/client';
 import { prefetchTypeConfig } from '../config/typeConfig';
-import { isAdherentRole, isStaffWriterRole } from '../authUtils';
+import { isAdherentRole, isStaffWriterRole, isAdminRole } from '../authUtils';
 
 const ADHERENT_PAGES = new Set([
-  'devis',
-  'cartes-mutuelles',
-  'remboursements',
-  'prises-en-charge',
+  'mes-devis',
+  'mes-cartes',
+  'mes-remboursements',
+  'mes-prises-en-charge',
   'medicaments',
-  'historique',
+  'mon-historique',
   'notifications',
   'profil',
 ]);
@@ -40,9 +41,47 @@ const ADHERENT_PAGES = new Set([
 export default function AppShell() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState(() => {
+    return sessionStorage.getItem('srm_current_page') || 'dashboard';
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('srm_current_page', currentPage);
+  }, [currentPage]);
   const [navBadges, setNavBadges] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pwdLoading, setPwdLoading] = useState(false);
+
+  const handleForcePasswordChange = async (e) => {
+    e.preventDefault();
+    if (pwdForm.newPassword.length < 6) {
+      addToast('warning', 'Le nouveau mot de passe doit faire au moins 6 caractères');
+      return;
+    }
+    if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+      addToast('warning', 'Les mots de passe ne correspondent pas');
+      return;
+    }
+    setPwdLoading(true);
+    try {
+      await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: pwdForm.currentPassword,
+          newPassword: pwdForm.newPassword,
+        }),
+      });
+      addToast('success', 'Mot de passe modifié avec succès');
+      const meRes = await apiMe();
+      if (meRes) setUser(meRes);
+    } catch (err) {
+      addToast('error', err.message || 'Erreur lors du changement de mot de passe');
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   const pageTitles = {
     dashboard: { title: 'Tableau de bord', breadcrumb: 'Accueil' },
@@ -51,7 +90,6 @@ export default function AppShell() {
     devis: { title: 'Devis', breadcrumb: 'Gestion des devis' },
     remboursements: { title: 'Remboursements', breadcrumb: 'Gestion des remboursements' },
     'cartes-mutuelles': { title: 'Cartes mutuelles', breadcrumb: 'Affiliation famille' },
-    
     'prises-en-charge': { title: 'Prises en charge', breadcrumb: 'Gestion des prises en charge' },
     maladies: { title: 'Maladies spéciales', breadcrumb: 'Gestion des maladies spéciales' },
     agents: { title: 'Agents', breadcrumb: 'Gestion des agents' },
@@ -59,10 +97,17 @@ export default function AppShell() {
     entites: { title: 'Entités organisationnelles', breadcrumb: 'Référentiel' },
     medicaments: { title: 'Médicaments', breadcrumb: 'Référentiel médicaments' },
     utilisateurs: { title: 'Utilisateurs', breadcrumb: 'Administration' },
+    archives: { title: 'Archives', breadcrumb: 'Administration' },
     notifications: { title: 'Notifications', breadcrumb: 'Messages' },
     profil: { title: 'Mon profil', breadcrumb: 'Compte' },
-    historique: { title: 'Historique personnel', breadcrumb: 'Mon historique d’activités' },
+    historique: { title: 'Historique personnel', breadcrumb: `Mon historique d'activités` },
     parametrage: { title: 'Paramétrage', breadcrumb: 'Administration' },
+    // Personal-space pages (all roles)
+    'mes-devis': { title: 'Mes devis', breadcrumb: 'Mon espace — Mes devis' },
+    'mes-cartes': { title: 'Mes cartes mutuelles', breadcrumb: 'Mon espace — Cartes' },
+    'mes-remboursements': { title: 'Mes remboursements', breadcrumb: 'Mon espace — Remboursements' },
+    'mes-prises-en-charge': { title: 'Mes prises en charge', breadcrumb: 'Mon espace — PEC' },
+    'mon-historique': { title: 'Mon historique', breadcrumb: 'Mon espace — Historique' },
   };
   const pageTitle = pageTitles[currentPage] || { title: 'Page en construction', breadcrumb: 'Inconnu' };
 
@@ -192,7 +237,7 @@ export default function AppShell() {
         }
         setUser(u);
         if (isAdherentRole(u)) {
-          setCurrentPage((prev) => (prev === 'dashboard' || !ADHERENT_PAGES.has(prev) ? 'devis' : prev));
+          setCurrentPage((prev) => (prev === 'dashboard' || !ADHERENT_PAGES.has(prev) ? 'mes-devis' : prev));
         }
         loadNavBadges(u);
         loadUnread();
@@ -224,7 +269,7 @@ export default function AppShell() {
   useEffect(() => {
     if (!user) return;
     if (isAdherentRole(user) && !ADHERENT_PAGES.has(currentPage)) {
-      setCurrentPage('devis');
+      setCurrentPage('mes-devis');
     }
   }, [user, currentPage]);
 
@@ -287,6 +332,25 @@ export default function AppShell() {
     }
   };
 
+  const handleNotifClick = async (n) => {
+    const type = (n.notifType || '').toUpperCase();
+    const isAdh = isAdherentRole(user);
+    let target = 'notifications';
+    if (type.includes('DEVIS')) {
+      target = isAdh ? 'mes-devis' : 'devis';
+    } else if (type.includes('REMBOURSEMENT')) {
+      target = isAdh ? 'mes-remboursements' : 'remboursements';
+    } else if (type.includes('PEC')) {
+      target = isAdh ? 'mes-prises-en-charge' : 'prises-en-charge';
+    }
+
+    if (!n.read) {
+      await markNotifRead(n.id);
+    }
+    setCurrentPage(target);
+    setNotifPopupOpen(false);
+  };
+
   if (!user) return null;
 
   const initials = (user.name || 'U')
@@ -298,6 +362,7 @@ export default function AppShell() {
 
   const isAdherent = isAdherentRole(user);
   const staffWriter = isStaffWriterRole(user);
+  const isAdmin = isAdminRole(user);
 
   const pageProps = { setPageTitle, addToast, user };
 
@@ -322,13 +387,27 @@ export default function AppShell() {
   );
 
   const renderPage = () => {
+    // Adherents are only allowed in ADHERENT_PAGES
     if (isAdherent && !ADHERENT_PAGES.has(currentPage)) {
       return forbiddenForAdherent();
     }
     switch (currentPage) {
+      // ── Personal space (all roles) ────────────────────────────────
+      case 'mes-devis':
+        return <DevisPage {...pageProps} personalMode />;
+      case 'mes-remboursements':
+        return <RemboursementsPage {...pageProps} personalMode />;
+      case 'mes-cartes':
+        return <CartesMutuellesPage {...pageProps} personalMode />;
+      case 'mes-prises-en-charge':
+        return <PrisesEnChargePage {...pageProps} personalMode />;
+      case 'mon-historique':
+        return <HistoriquePage {...pageProps} personalMode />;
+
+      // ── Staff / management pages ──────────────────────────────────
       case 'dashboard':
         return isAdherent ? (
-          <DevisPage {...pageProps} />
+          <DevisPage {...pageProps} personalMode />
         ) : (
           <DashboardPage {...pageProps} />
         );
@@ -355,13 +434,15 @@ export default function AppShell() {
       case 'utilisateurs':
         return staffWriter ? <UtilisateursPage {...pageProps} /> : forbiddenForAdherent();
       case 'notifications':
-        return <NotificationsPage {...pageProps} onUnreadChanged={setUnreadCount} />;
+        return <NotificationsPage {...pageProps} onUnreadChanged={setUnreadCount} onNavigate={setCurrentPage} />;
       case 'profil':
         return <ProfilPage {...pageProps} />;
       case 'historique':
         return <HistoriquePage {...pageProps} />;
       case 'parametrage':
         return staffWriter ? <ParametragePage {...pageProps} /> : forbiddenBroadcast();
+      case 'archives':
+        return isAdmin ? <ArchivesPage {...pageProps} /> : forbiddenBroadcast();
       case 'agents':
         return <AgentsPage {...pageProps} />;
       default:
@@ -375,6 +456,88 @@ export default function AppShell() {
         );
     }
   };
+
+  if (user && user.forcePasswordChange) {
+    return (
+      <div className="auth-container">
+        <div className="auth-panel" style={{ maxWidth: '400px' }}>
+          <div className="auth-brand">
+            <div className="auth-logo">
+              <FaIcon name="shield-halved" />
+            </div>
+            <h2>SRM Mutuelle</h2>
+          </div>
+          <h3 style={{ textAlign: 'center', marginBottom: '20px' }}>Changement obligatoire</h3>
+          <p style={{ textAlign: 'center', color: 'var(--text-color)', marginBottom: '20px', fontSize: '14px' }}>
+            Pour des raisons de sécurité, vous devez modifier votre mot de passe lors de votre première connexion.
+          </p>
+          <form onSubmit={handleForcePasswordChange} className="auth-form">
+            <div className="form-group">
+              <label>Mot de passe actuel (celui reçu par email)</label>
+              <div className="input-group">
+                <span className="input-icon"><FaIcon name="lock" /></span>
+                <input
+                  type="password"
+                  required
+                  value={pwdForm.currentPassword}
+                  onChange={(e) => setPwdForm({ ...pwdForm, currentPassword: e.target.value })}
+                  placeholder="Mot de passe actuel"
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Nouveau mot de passe</label>
+              <div className="input-group">
+                <span className="input-icon"><FaIcon name="key" /></span>
+                <input
+                  type="password"
+                  required
+                  minLength="6"
+                  value={pwdForm.newPassword}
+                  onChange={(e) => setPwdForm({ ...pwdForm, newPassword: e.target.value })}
+                  placeholder="Nouveau mot de passe (min 6 car.)"
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Confirmer le nouveau mot de passe</label>
+              <div className="input-group">
+                <span className="input-icon"><FaIcon name="check-double" /></span>
+                <input
+                  type="password"
+                  required
+                  minLength="6"
+                  value={pwdForm.confirmPassword}
+                  onChange={(e) => setPwdForm({ ...pwdForm, confirmPassword: e.target.value })}
+                  placeholder="Confirmer"
+                />
+              </div>
+            </div>
+            <button type="submit" className="btn btn-primary auth-submit" disabled={pwdLoading}>
+              {pwdLoading ? 'Modification en cours...' : 'Changer mon mot de passe'}
+            </button>
+            <div style={{ marginTop: '15px', textAlign: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => {
+                  localStorage.removeItem('srm_token');
+                  window.location.reload();
+                }}
+              >
+                Déconnexion
+              </button>
+            </div>
+          </form>
+          <div className="toast-container">
+            {toasts.map((t) => (
+              <Toast key={t.id} type={t.type} message={t.message} onClose={() => removeToast(t.id)} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -401,7 +564,7 @@ export default function AppShell() {
                 tabIndex={0}
               >
                 <FaIcon name="bell" />
-                {unreadCount > 0 ? <span className="notif-dot" /> : null}
+                {unreadCount > 0 ? <span className="notif-badge">{unreadCount}</span> : null}
               </div>
               {notifPopupOpen && (
                 <div className="topbar-dropdown-panel notif-dropdown-panel">
@@ -415,8 +578,13 @@ export default function AppShell() {
                     ) : notifRows.length === 0 ? (
                       <div className="notif-empty">Aucune notification.</div>
                     ) : (
-                      notifRows.map((n) => (
-                        <div key={n.id} className={`notif-item${n.read ? '' : ' unread'}`}>
+                      notifRows.slice(0, 5).map((n) => (
+                        <div
+                          key={n.id}
+                          className={`notif-item${n.read ? '' : ' unread'}`}
+                          onClick={() => handleNotifClick(n)}
+                          style={{ cursor: 'pointer' }}
+                        >
                           <div className="notif-item-title">{n.notifType || 'Notification'}</div>
                           <div className="notif-item-body">{n.body}</div>
                           <div className="notif-item-footer">
@@ -425,7 +593,10 @@ export default function AppShell() {
                               <button
                                 type="button"
                                 className="btn btn-outline btn-sm"
-                                onClick={() => markNotifRead(n.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markNotifRead(n.id);
+                                }}
                               >
                                 Marquer lu
                               </button>
@@ -434,6 +605,18 @@ export default function AppShell() {
                         </div>
                       ))
                     )}
+                  </div>
+                  <div className="notif-panel-footer">
+                    <button
+                      type="button"
+                      className="btn-view-all"
+                      onClick={() => {
+                        setCurrentPage('notifications');
+                        setNotifPopupOpen(false);
+                      }}
+                    >
+                      Voir tout
+                    </button>
                   </div>
                 </div>
               )}

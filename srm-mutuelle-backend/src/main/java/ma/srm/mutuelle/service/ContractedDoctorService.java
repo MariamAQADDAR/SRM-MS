@@ -24,15 +24,15 @@ public class ContractedDoctorService {
 
 	public List<ContractedDoctorResponse> list(Long facilityId) {
 		if (facilityId != null) {
-			return contractedDoctorRepository.findByMedicalFacility_IdOrderById(facilityId).stream()
+			return contractedDoctorRepository.findByMedicalFacility_IdAndDeletedFalseOrderById(facilityId).stream()
 					.map(this::toDto)
 					.toList();
 		}
-		return contractedDoctorRepository.findAll().stream().map(this::toDto).toList();
+		return contractedDoctorRepository.findByDeletedFalseOrderById().stream().map(this::toDto).toList();
 	}
 
 	public ContractedDoctorResponse get(Long id, AppUser user) {
-		return toDto(contractedDoctorRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médecin introuvable")));
+		return toDto(contractedDoctorRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médecin introuvable")));
 	}
 
 	@Transactional
@@ -50,7 +50,7 @@ public class ContractedDoctorService {
 	@Transactional
 	public ContractedDoctorResponse update(Long id, ContractedDoctorWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
-		ContractedDoctor d = contractedDoctorRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médecin introuvable"));
+		ContractedDoctor d = contractedDoctorRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médecin introuvable"));
 		MedicalFacility f = medicalFacilityRepository
 				.findById(req.medicalFacilityId())
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Établissement introuvable"));
@@ -62,7 +62,21 @@ public class ContractedDoctorService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		contractedDoctorRepository.deleteById(id);
+		ContractedDoctor d = contractedDoctorRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médecin introuvable"));
+		d.setDeleted(true);
+		contractedDoctorRepository.save(d);
+	}
+
+	public List<ContractedDoctorResponse> listArchived(AppUser user) {
+		return contractedDoctorRepository.findByDeletedTrueOrderById().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		ContractedDoctor d = contractedDoctorRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médecin introuvable"));
+		d.setDeleted(false);
+		contractedDoctorRepository.save(d);
 	}
 
 	private ContractedDoctorResponse toDto(ContractedDoctor d) {

@@ -8,13 +8,21 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
-	Optional<AppUser> findByEmailIgnoreCase(String email);
+	Optional<AppUser> findByEmailIgnoreCaseAndDeletedFalse(String email);
 
-	boolean existsByEmailIgnoreCase(String email);
+	boolean existsByEmailIgnoreCaseAndDeletedFalse(String email);
 
-	List<AppUser> findByRole(AppUserRole role);
+	List<AppUser> findByRoleAndDeletedFalse(AppUserRole role);
 
-	List<AppUser> findByAgent_Id(Long agentId);
+	List<AppUser> findByAgent_IdAndDeletedFalse(Long agentId);
 
-	List<AppUser> findByRoleAndActiveTrue(AppUserRole role);
+	List<AppUser> findByRoleAndActiveTrueAndDeletedFalse(AppUserRole role);
+
+	List<AppUser> findByDeletedFalseOrderById();
+
+	List<AppUser> findByDeletedTrueOrderById();
+
+	Optional<AppUser> findByIdAndDeletedFalse(Long id);
+
+	Optional<AppUser> findByResetToken(String resetToken);
 }

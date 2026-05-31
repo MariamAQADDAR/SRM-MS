@@ -70,7 +70,7 @@ public class SecurityConfig {
 				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(reg -> reg.requestMatchers(HttpMethod.OPTIONS, "/**")
 						.permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/auth/login")
+						.requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/forgot-password", "/api/auth/reset-password")
 						.permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/health")
 						.permitAll()

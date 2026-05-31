@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { isAdherentRole, isStaffWriterRole } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
@@ -76,12 +76,12 @@ function BeneficiaryField({ agents, readOnly }) {
   );
 }
 
-function DentistFields({ dentistes }) {
+function DentistFields({ dentistes, defaultValueDentistId, defaultValueDentisteLibre }) {
   return (
     <>
       <div className="form-group">
         <label>Dentiste conventionné</label>
-        <select name="dentisteId" className="form-control">
+        <select name="dentisteId" className="form-control" defaultValue={defaultValueDentistId}>
           <option value="">— Choisir —</option>
           {dentistes.map((doc) => (
             <option key={doc.id} value={String(doc.id)}>
@@ -92,7 +92,7 @@ function DentistFields({ dentistes }) {
       </div>
       <div className="form-group">
         <label>Ou nom du dentiste</label>
-        <input name="dentisteLibre" className="form-control" placeholder="Si hors liste" />
+        <input name="dentisteLibre" className="form-control" defaultValue={defaultValueDentisteLibre} placeholder="Si hors liste" />
       </div>
     </>
   );
@@ -168,9 +168,13 @@ function StaffReviewPanel({ d, reviewPec, setReviewPec, reviewObs, setReviewObs,
   );
 }
 
-export default function DevisPage({ setPageTitle, addToast, user }) {
-  setPageTitle('Devis', 'Gestion des devis');
-  const isAdherent = isAdherentRole(user);
+export default function DevisPage({ setPageTitle, addToast, user, personalMode = false }) {
+  const effectiveAdherent = personalMode || isAdherentRole(user);
+  setPageTitle(
+    personalMode ? 'Mes devis' : 'Devis',
+    personalMode ? 'Mon espace — Mes devis' : 'Gestion des devis',
+  );
+  const isAdherent = effectiveAdherent;
   const canStaffActions = isStaffWriterRole(user);
   const canCreate = isAdherent || canStaffActions;
 
@@ -224,6 +228,14 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
   const agentsForForm = isAdherent && myAgent ? [myAgent] : agents;
 
   let data = [...quoteRows];
+  // In personal mode (or adherent role): restrict list to the user's own agent
+  if (isAdherent) {
+    if (user?.agentId != null) {
+      data = data.filter((d) => String(d.agentId) === String(user.agentId));
+    } else {
+      data = [];
+    }
+  }
   if (filterType) data = data.filter((d) => d.typeLabel === filterType);
   if (filterMatricule) data = data.filter((d) => d.matricule.toLowerCase().includes(filterMatricule.toLowerCase()));
   if (filterNom) data = data.filter((d) => d.nomPrenomAgent.toLowerCase().includes(filterNom.toLowerCase()));
@@ -282,7 +294,7 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
     body.append('quoteType', quoteType);
     body.append('montant', String(montant));
     body.append('taux', String(fd.get('taux') || '60'));
-    if (!isAdherent) body.append('agentId', String(agent.id));
+    if (!isAdherent || user.roleCode !== 'ADHERENT') body.append('agentId', String(agent.id));
     body.append('beneficiaire', agentLabel);
     if (providerName) body.append('providerName', providerName);
     const today = new Date().toISOString().split('T')[0];
@@ -304,94 +316,220 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
     }
   };
 
-  const createForm = (
-    <form onSubmit={handleCreateQuote}>
-      <div className="form-grid">
-        <div className="form-group">
-          <label>Type de devis</label>
-          <select name="quoteType" className="form-control" defaultValue={quoteTypes[0] || 'Dentaire'} required>
-            {quoteTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-        {isAdherent && myAgent && (
-          <>
-            <input type="hidden" name="beneficiaire" value={`${myAgent.prenom} ${myAgent.nom}`} />
-            <BeneficiaryField agents={agentsForForm} readOnly />
-          </>
-        )}
-        {!isAdherent && <BeneficiaryField agents={agentsForForm} readOnly={false} />}
-        <DentistFields dentistes={dentistes} />
-        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label>Autre prestataire (optique, auditif, hospi…)</label>
-          <input name="providerName" className="form-control" placeholder="Nom du professionnel ou établissement" />
-        </div>
-        <div className="form-group">
-          <label>Date devis</label>
-          <input
-            name="dateDevis"
-            type="date"
-            className="form-control"
-            defaultValue={new Date().toISOString().split('T')[0]}
-            required
+  const handleEditQuote = async (e) => {
+    e.preventDefault();
+    const formEl = e.currentTarget;
+    const fileFromInput = formEl.querySelector('input[name="pdfDocument"]')?.files?.[0];
+    const file = fileFromInput || pdfFile;
+    const fd = new FormData(formEl);
+    const quoteId = modal?.quote?.id;
+    if (!quoteId) {
+      addToast('error', 'Identifiant du devis introuvable');
+      return;
+    }
+
+    const agentLabel = isAdherent && myAgent ? `${myAgent.prenom} ${myAgent.nom}` : fd.get('beneficiaire');
+    const agent = agentsForForm.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
+    if (!agent) {
+      addToast(
+        'error',
+        isAdherent
+          ? 'Compte adhérent sans porteur associé. Reconnectez-vous ou contactez l’administrateur.'
+          : 'Porteur invalide',
+      );
+      return;
+    }
+    const quoteType = String(fd.get('quoteType') || 'Dentaire');
+    const dentistSelect = fd.get('dentisteId');
+    const dentistCustom = String(fd.get('dentisteLibre') || '').trim();
+    const providerFree = String(fd.get('providerName') || '').trim();
+    const dentistRow = dentistSelect ? dentistes.find((d) => String(d.id) === String(dentistSelect)) : null;
+    const providerName = dentistRow?.fullName || dentistCustom || providerFree || '';
+
+    const body = new FormData();
+    const montant = fd.get('montant');
+    if (!montant || Number(montant) <= 0) {
+      addToast('error', 'Indiquez un montant de devis valide');
+      return;
+    }
+
+    if (file) {
+      body.append('file', file, file.name || 'devis.pdf');
+    }
+    body.append('quoteType', quoteType);
+    body.append('montant', String(montant));
+    body.append('taux', String(fd.get('taux') || '60'));
+    if (!isAdherent || user.roleCode !== 'ADHERENT') body.append('agentId', String(agent.id));
+    body.append('beneficiaire', agentLabel);
+    if (providerName) body.append('providerName', providerName);
+
+    const dateDevis = fd.get('dateDevis');
+    const dateDepot = fd.get('dateDepot');
+    if (dateDevis) body.append('dateDevis', String(dateDevis));
+    if (dateDepot) body.append('dateDepot', String(dateDepot));
+    
+    const obs = fd.get('observation');
+    if (obs !== null) body.append('observation', obs);
+
+    try {
+      await parseJsonOrThrow(await apiFetch(`/api/quotes/${quoteId}/update`, { method: 'POST', body }));
+      setPdfFile(null);
+      setModal(null);
+      addToast('success', 'Devis modifié avec succès.');
+      reload();
+    } catch (err) {
+      addToast('error', err.message || 'Erreur lors de la modification');
+    }
+  };
+
+  const renderQuoteForm = (mode, q = null) => {
+    const isEdit = mode === 'edit';
+    const docMatch = q ? dentistes.find((doc) => doc.fullName === q.dentistName) : null;
+    const defaultDentistId = docMatch ? String(docMatch.id) : '';
+    const defaultDentisteLibre = !docMatch && q ? q.dentistName : '';
+
+    return (
+      <form onSubmit={isEdit ? handleEditQuote : handleCreateQuote}>
+        <div className="form-grid">
+          <div className="form-group">
+            <label>Type de devis</label>
+            <select name="quoteType" className="form-control" defaultValue={q ? q.type : (quoteTypes[0] || 'Dentaire')} required>
+              {quoteTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          {isAdherent && myAgent && (
+            <>
+              <input type="hidden" name="beneficiaire" value={`${myAgent.prenom} ${myAgent.nom}`} />
+              <BeneficiaryField agents={agentsForForm} readOnly />
+            </>
+          )}
+          {!isAdherent && (
+            <div className="form-group">
+              <label>Bénéficiaire</label>
+              <select name="beneficiaire" className="form-control" defaultValue={q ? q.beneficiaire : ''} required>
+                {agentsForForm.map((a) => (
+                  <option key={a.id} value={`${a.prenom} ${a.nom}`}>
+                    {a.prenom} {a.nom}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <DentistFields
+            dentistes={dentistes}
+            defaultValueDentistId={defaultDentistId}
+            defaultValueDentisteLibre={defaultDentisteLibre}
           />
-        </div>
-        <div className="form-group">
-          <label>Date dépôt</label>
-          <input
-            name="dateDepot"
-            type="date"
-            className="form-control"
-            defaultValue={new Date().toISOString().split('T')[0]}
-            required
-          />
-        </div>
-        <MontantFields />
-        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label>PDF du devis (obligatoire)</label>
-          <div className="pdf-upload-zone">
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>Autre prestataire (optique, auditif, hospi…)</label>
             <input
-              type="file"
-              name="pdfDocument"
-              accept="application/pdf,.pdf"
+              name="providerName"
               className="form-control"
-              onChange={(ev) => setPdfFile(ev.target.files?.[0] || null)}
+              defaultValue={q && !docMatch ? q.dentistName : ''}
+              placeholder="Nom du professionnel ou établissement"
+            />
+          </div>
+          <div className="form-group">
+            <label>Date devis</label>
+            <input
+              name="dateDevis"
+              type="date"
+              className="form-control"
+              defaultValue={q ? q.date : new Date().toISOString().split('T')[0]}
               required
             />
-            {pdfFile ? (
-              <p className="pdf-upload-hint">
-                <FaIcon name="file-pdf" className="fa-inline-icon" /> {pdfFile.name} ({Math.round(pdfFile.size / 1024)} Ko)
-              </p>
-            ) : (
-              <p className="pdf-upload-hint">Format PDF uniquement, 15 Mo max.</p>
-            )}
+          </div>
+          <div className="form-group">
+            <label>Date dépôt</label>
+            <input
+              name="dateDepot"
+              type="date"
+              className="form-control"
+              defaultValue={q ? q.depositDate : new Date().toISOString().split('T')[0]}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Montant devis (DH)</label>
+            <input
+              name="montant"
+              type="number"
+              step="0.01"
+              min="0"
+              className="form-control"
+              defaultValue={q ? q.montant : ''}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Taux (%)</label>
+            <input
+              name="taux"
+              type="number"
+              min="0"
+              max="100"
+              className="form-control"
+              defaultValue={q ? q.taux : '60'}
+              required
+            />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>PDF du devis {isEdit ? '(Optionnel, laissez vide pour conserver l’actuel)' : '(Obligatoire)'}</label>
+            <div className="pdf-upload-zone">
+              <input
+                type="file"
+                name="pdfDocument"
+                accept="application/pdf,.pdf"
+                className="form-control"
+                onChange={(ev) => setPdfFile(ev.target.files?.[0] || null)}
+                required={!isEdit}
+              />
+              {pdfFile ? (
+                <p className="pdf-upload-hint">
+                  <FaIcon name="file-pdf" className="fa-inline-icon" /> {pdfFile.name} ({Math.round(pdfFile.size / 1024)} Ko)
+                </p>
+              ) : q?.hasPdf ? (
+                <p className="pdf-upload-hint" style={{ color: 'var(--primary-600)' }}>
+                  <FaIcon name="file-pdf" className="fa-inline-icon" /> PDF actuel : {q.pdfOriginalName || 'devis.pdf'}
+                </p>
+              ) : (
+                <p className="pdf-upload-hint">Format PDF uniquement, 15 Mo max.</p>
+              )}
+            </div>
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>Observation (optionnel)</label>
+            <textarea
+              name="observation"
+              className="form-control"
+              rows={2}
+              defaultValue={q && q.observation !== '—' ? q.observation : ''}
+              placeholder="Précisions pour la mutuelle…"
+            />
           </div>
         </div>
-        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label>Observation (optionnel)</label>
-          <textarea name="observation" className="form-control" rows={2} placeholder="Précisions pour la mutuelle…" />
+        <div className="modal-footer" style={{ padding: '16px 0 0' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => {
+              setPdfFile(null);
+              setModal(null);
+            }}
+          >
+            Annuler
+          </button>
+          <button type="submit" className="btn btn-primary">
+            <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer les modifications
+          </button>
         </div>
-      </div>
-      <div className="modal-footer" style={{ padding: '16px 0 0' }}>
-        <button
-          type="button"
-          className="btn btn-outline"
-          onClick={() => {
-            setPdfFile(null);
-            setModal(null);
-          }}
-        >
-          Annuler
-        </button>
-        <button type="submit" className="btn btn-primary">
-          <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer le devis
-        </button>
-      </div>
-    </form>
-  );
+      </form>
+    );
+  };
 
   const doAction = async (path, label, body) => {
     try {
@@ -493,11 +631,30 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
     return `Étape ${wf.activeStep}/3 — ${wf.steps[wf.activeStep - 1].label}`;
   };
 
+  if (isAdherent && (!user?.agentId || !myAgent)) {
+    return (
+      <div className="card">
+        <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
+          <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
+            <FaIcon name="triangle-exclamation" />
+          </div>
+          <h4>Compte non associé à un porteur</h4>
+          <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+            Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+            Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
-          {modal.mode === 'create' ? createForm : modal.content}
+          {modal.mode === 'create' || modal.mode === 'edit'
+            ? renderQuoteForm(modal.mode, modal.quote)
+            : modal.content}
         </Modal>
       )}
       <TablePageShell
@@ -614,15 +771,29 @@ export default function DevisPage({ setPageTitle, addToast, user }) {
                       <FaIcon name="eye" />
                     </button>
                     {(d.etat === 'En attente' || d.etat === 'Brouillon') && (isAdherent || canStaffActions) && (
-                      <button
-                        className="btn btn-icon btn-edit"
-                        type="button"
-                        title="Envoyer à la mutuelle"
-                        disabled={!d.hasPdf}
-                        onClick={() => doAction(`/api/quotes/${d.id}/submit`, 'Devis envoyé à la mutuelle')}
-                      >
-                        <FaIcon name="paper-plane" />
-                      </button>
+                      <>
+                        <button
+                          className="btn btn-icon btn-outline"
+                          type="button"
+                          title="Modifier"
+                          style={{ color: 'var(--primary-600)', borderColor: 'var(--primary-200)', marginRight: '4px' }}
+                          onClick={() => {
+                            setPdfFile(null);
+                            setModal({ title: `Modifier le devis ${d.numero}`, mode: 'edit', quote: d });
+                          }}
+                        >
+                          <FaIcon name="pen" />
+                        </button>
+                        <button
+                          className="btn btn-icon btn-edit"
+                          type="button"
+                          title="Envoyer à la mutuelle"
+                          disabled={!d.hasPdf}
+                          onClick={() => doAction(`/api/quotes/${d.id}/submit`, 'Devis envoyé à la mutuelle')}
+                        >
+                          <FaIcon name="paper-plane" />
+                        </button>
+                      </>
                     )}
                     {canStaffActions && d.etat === 'Soumis' && !d.scanned && (
                       <button

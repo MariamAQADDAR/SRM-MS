@@ -19,9 +19,9 @@ public class StatsService {
 
 	public StatsSummary getSummary() {
 		long agents = agentRepository.count();
-		long ordonnances = ordonnanceRepository.count();
-		long rembEnAttente = reimbursementRepository.countByStatus("En attente");
-		long devisEnAttente = quoteRepository.countByEtat("En attente");
+		long ordonnances = ordonnanceRepository.countByDeletedFalse();
+		long rembEnAttente = reimbursementRepository.countByStatusAndDeletedFalse("En attente");
+		long devisEnAttente = quoteRepository.countByEtatAndDeletedFalse("En attente");
 		BigDecimal totalValide = reimbursementRepository.sumMontantValideTraites();
 		return new StatsSummary(agents, ordonnances, rembEnAttente, devisEnAttente, totalValide);
 	}

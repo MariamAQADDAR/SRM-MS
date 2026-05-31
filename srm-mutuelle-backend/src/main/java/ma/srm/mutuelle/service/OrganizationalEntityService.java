@@ -20,11 +20,11 @@ public class OrganizationalEntityService {
 	private final OrganizationalEntityRepository repository;
 
 	public List<OrgEntityResponse> list(AppUser user) {
-		return repository.findAll().stream().map(this::toDto).toList();
+		return repository.findByDeletedFalseOrderByName().stream().map(this::toDto).toList();
 	}
 
 	public OrgEntityResponse get(Long id, AppUser user) {
-		return toDto(repository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Entité introuvable")));
+		return toDto(repository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Entité introuvable")));
 	}
 
 	@Transactional
@@ -43,7 +43,7 @@ public class OrganizationalEntityService {
 	@Transactional
 	public OrgEntityResponse update(Long id, OrgEntityWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
-		OrganizationalEntity e = repository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Entité introuvable"));
+		OrganizationalEntity e = repository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Entité introuvable"));
 		e.setCode(req.code());
 		e.setName(req.nom());
 		e.setEntityType(req.type());
@@ -58,7 +58,21 @@ public class OrganizationalEntityService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		repository.deleteById(id);
+		OrganizationalEntity e = repository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Entité introuvable"));
+		e.setDeleted(true);
+		repository.save(e);
+	}
+
+	public List<OrgEntityResponse> listArchived(AppUser user) {
+		return repository.findByDeletedTrueOrderByName().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		OrganizationalEntity e = repository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Entité introuvable"));
+		e.setDeleted(false);
+		repository.save(e);
 	}
 
 	private OrgEntityResponse toDto(OrganizationalEntity e) {

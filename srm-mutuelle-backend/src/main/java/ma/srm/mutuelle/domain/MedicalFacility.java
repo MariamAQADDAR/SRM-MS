@@ -32,4 +32,7 @@ public class MedicalFacility {
 
 	@Column(length = 32)
 	private String phone;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
 }

@@ -58,4 +58,16 @@ public class BeneficiaryController {
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		beneficiaryService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<BeneficiaryResponse> listArchived(Authentication authentication) {
+		return beneficiaryService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		beneficiaryService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
 }

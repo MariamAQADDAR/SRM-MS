@@ -56,7 +56,7 @@ public class MutualCardService {
 				agent.getDateNaissance(),
 				titulaireCard));
 
-		for (Beneficiary b : beneficiaryRepository.findByAgent_IdOrderById(agentId)) {
+		for (Beneficiary b : beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(agentId)) {
 			MutualCard card = cards.stream()
 					.filter(c -> c.getBeneficiary() != null && c.getBeneficiary().getId().equals(b.getId()))
 					.findFirst()
@@ -100,7 +100,7 @@ public class MutualCardService {
 			card.setHolderDateNaissance(agent.getDateNaissance());
 		} else {
 			Beneficiary b = beneficiaryRepository
-					.findByIdAndAgent_Id(req.beneficiaryId(), req.agentId())
+					.findByIdAndAgent_IdAndDeletedFalse(req.beneficiaryId(), req.agentId())
 					.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bénéficiaire introuvable pour ce porteur"));
 			card = mutualCardRepository
 					.findByAgent_IdAndBeneficiary_Id(req.agentId(), req.beneficiaryId())

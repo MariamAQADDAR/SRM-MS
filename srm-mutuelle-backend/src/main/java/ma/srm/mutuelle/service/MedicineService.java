@@ -28,7 +28,7 @@ public class MedicineService {
 	}
 
 	public MedicineResponse get(Long id, AppUser user) {
-		return toDto(medicineRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médicament introuvable")));
+		return toDto(medicineRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médicament introuvable")));
 	}
 
 	@Transactional
@@ -42,7 +42,7 @@ public class MedicineService {
 	@Transactional
 	public MedicineResponse update(Long id, MedicineWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
-		Medicine m = medicineRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médicament introuvable"));
+		Medicine m = medicineRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médicament introuvable"));
 		copy(req, m);
 		return toDto(medicineRepository.save(m));
 	}
@@ -50,7 +50,22 @@ public class MedicineService {
 	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		medicineRepository.deleteById(id);
+		Medicine m = medicineRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médicament introuvable"));
+		m.setDeleted(true);
+		medicineRepository.save(m);
+	}
+
+	public List<MedicineResponse> listArchived(AppUser user) {
+		AccessRules.assertAdmin(user);
+		return medicineRepository.findByDeletedTrueOrderByName().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		Medicine m = medicineRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Médicament introuvable"));
+		m.setDeleted(false);
+		medicineRepository.save(m);
 	}
 
 	private void copy(MedicineWriteRequest req, Medicine m) {

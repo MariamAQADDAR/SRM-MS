@@ -77,4 +77,7 @@ public class Quote {
 
 	@Column(columnDefinition = "TEXT")
 	private String observation;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
 }

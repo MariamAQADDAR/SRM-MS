@@ -129,4 +129,16 @@ public class CareEpisodeController {
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		careEpisodeService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<CareEpisodeResponse> listArchived(Authentication authentication) {
+		return careEpisodeService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		careEpisodeService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
 }

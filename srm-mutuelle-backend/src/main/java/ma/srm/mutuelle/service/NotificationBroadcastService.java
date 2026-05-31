@@ -84,8 +84,8 @@ public class NotificationBroadcastService {
 		String content = b.getTitle() + (b.getBody() != null ? "\n\n" + b.getBody() : "");
 		List<AppUser> targets =
 				switch (b.getAudience()) {
-					case ALL_ADHERENTS -> appUserRepository.findByRole(AppUserRole.ADHERENT);
-					case ALL_USERS -> appUserRepository.findAll();
+					case ALL_ADHERENTS -> appUserRepository.findByRoleAndDeletedFalse(AppUserRole.ADHERENT);
+					case ALL_USERS -> appUserRepository.findByDeletedFalseOrderById();
 				};
 		for (AppUser target : targets) {
 			Notification n = new Notification();

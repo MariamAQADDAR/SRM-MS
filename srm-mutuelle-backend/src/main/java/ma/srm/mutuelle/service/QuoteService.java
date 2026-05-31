@@ -8,6 +8,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import ma.srm.mutuelle.api.dto.QuoteDtos.QuoteResponse;
 import ma.srm.mutuelle.api.dto.QuoteDtos.QuoteReviewRequest;
+import ma.srm.mutuelle.api.dto.QuoteDtos.QuoteStatusRequest;
 import ma.srm.mutuelle.api.dto.QuoteDtos.QuoteWriteRequest;
 import ma.srm.mutuelle.api.support.AccessRules;
 import ma.srm.mutuelle.domain.Agent;
@@ -39,13 +40,13 @@ public class QuoteService {
 			if (aid == null) {
 				return List.of();
 			}
-			return quoteRepository.findByAgent_IdOrderByQuoteDateDesc(aid).stream().map(this::toDto).toList();
+			return quoteRepository.findByAgent_IdAndDeletedFalseOrderByQuoteDateDesc(aid).stream().map(this::toDto).toList();
 		}
-		return quoteRepository.findAll().stream().map(this::toDto).toList();
+		return quoteRepository.findByDeletedFalseOrderByQuoteDateDesc().stream().map(this::toDto).toList();
 	}
 
 	public QuoteResponse get(Long id, AppUser user) {
-		Quote q = quoteRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
+		Quote q = quoteRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
 		AccessRules.assertAgentScope(user, q.getAgent().getId());
 		return toDto(q);
 	}
@@ -205,9 +206,72 @@ public class QuoteService {
 	}
 
 	@Transactional
+	public QuoteResponse updateWithDocument(
+			Long id,
+			Long agentId,
+			String beneficiaire,
+			String quoteType,
+			String providerName,
+			LocalDate dateDevis,
+			LocalDate dateDepot,
+			BigDecimal montant,
+			Integer taux,
+			String observation,
+			MultipartFile file,
+			AppUser user)
+			throws IOException {
+		Quote q = quoteRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
+		if (user.getRole() == ma.srm.mutuelle.domain.AppUserRole.ADHERENT) {
+			AccessRules.assertAgentScope(user, q.getAgent().getId());
+			if (agentId != null) {
+				AccessRules.assertAgentScope(user, agentId);
+			}
+			String etat = q.getEtat();
+			if (!"En attente".equals(etat) && !"Brouillon".equals(etat)) {
+				throw new ResponseStatusException(HttpStatus.CONFLICT, "Le devis ne peut plus être modifié");
+			}
+		} else {
+			AccessRules.assertStaffWrite(user);
+		}
+
+		if (agentId != null) {
+			Agent agent = agentRepository.findById(agentId).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
+			q.setAgent(agent);
+		}
+		if (beneficiaire != null) {
+			q.setBeneficiaire(beneficiaire);
+		}
+		if (quoteType != null && !quoteType.isBlank()) {
+			q.setQuoteType(quoteType.trim());
+		}
+		if (providerName != null) {
+			q.setDentistName(providerName);
+		}
+		if (dateDevis != null) {
+			q.setQuoteDate(dateDevis);
+		}
+		if (dateDepot != null) {
+			q.setDepositDate(dateDepot);
+		}
+		if (montant != null) {
+			q.setMontant(montant);
+		}
+		if (taux != null) {
+			q.setTaux(taux);
+		}
+		if (observation != null) {
+			q.setObservation(observation);
+		}
+		if (file != null && !file.isEmpty()) {
+			attachPdf(q, file);
+		}
+		return toDto(quoteRepository.save(q));
+	}
+
+	@Transactional
 	public QuoteResponse update(Long id, QuoteWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
-		Quote q = quoteRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
+		Quote q = quoteRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
 		Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 		if (req.numero() != null) {
 			q.setNumero(req.numero());
@@ -225,15 +289,38 @@ public class QuoteService {
 	}
 
 	@Transactional
+	public QuoteResponse updateStatus(Long id, QuoteStatusRequest req, AppUser user) {
+		AccessRules.assertStaffWrite(user);
+		Quote q = quoteRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
+		q.setEtat(req.etat());
+		return toDto(quoteRepository.save(q));
+	}
+
+	@Transactional
 	public void delete(Long id, AppUser user) {
 		AccessRules.assertAdmin(user);
-		quoteRepository.deleteById(id);
+		Quote q = quoteRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
+		q.setDeleted(true);
+		quoteRepository.save(q);
+	}
+
+	public List<QuoteResponse> listArchived(AppUser user) {
+		AccessRules.assertAdmin(user);
+		return quoteRepository.findByDeletedTrueOrderByQuoteDateDesc().stream().map(this::toDto).toList();
+	}
+
+	@Transactional
+	public void restore(Long id, AppUser user) {
+		AccessRules.assertAdmin(user);
+		Quote q = quoteRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
+		q.setDeleted(false);
+		quoteRepository.save(q);
 	}
 
 	@Transactional
 	public QuoteResponse scan(Long id, AppUser user) {
 		AccessRules.assertStaffWrite(user);
-		Quote q = quoteRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
+		Quote q = quoteRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Devis introuvable"));
 		if (!"Soumis".equals(q.getEtat()) && !q.isScanned()) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Le devis doit être soumis avant instruction");
 		}

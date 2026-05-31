@@ -419,10 +419,10 @@ public class ChatbotService {
 				s.agentName = a.getPrenom() + " " + a.getNom();
 				s.agentMatricule = a.getMatricule();
 			});
-			s.quotes = quoteRepository.findByAgent_IdOrderByQuoteDateDesc(s.agentId);
-			s.reimbursements = reimbursementRepository.findByAgent_IdOrderByReimbursementDateDesc(s.agentId);
-			s.ordonnances = ordonnanceRepository.findByAgent_IdOrderByOrdDateDesc(s.agentId);
-			s.beneficiaries = beneficiaryRepository.findByAgent_IdOrderById(s.agentId);
+			s.quotes = quoteRepository.findByAgent_IdAndDeletedFalseOrderByQuoteDateDesc(s.agentId);
+			s.reimbursements = reimbursementRepository.findByAgent_IdAndDeletedFalseOrderByReimbursementDateDesc(s.agentId);
+			s.ordonnances = ordonnanceRepository.findByAgent_IdAndDeletedFalseOrderByOrdDateDesc(s.agentId);
+			s.beneficiaries = beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(s.agentId);
 			List<MutualCard> cards = mutualCardRepository.findByAgent_IdOrderByCardLabelAscIdAsc(s.agentId);
 			s.cardsTotal = 1 + s.beneficiaries.size();
 			s.titulaireCardIssued = cards.stream().anyMatch(c -> c.getBeneficiary() == null && hasPdf(c));
@@ -435,8 +435,8 @@ public class ChatbotService {
 				}
 			}
 		} else if (user.getRole() != AppUserRole.ADHERENT) {
-			s.quotes = quoteRepository.findAll();
-			s.reimbursements = reimbursementRepository.findAll();
+			s.quotes = quoteRepository.findByDeletedFalseOrderByQuoteDateDesc();
+			s.reimbursements = reimbursementRepository.findByDeletedFalseOrderByReimbursementDateDesc();
 		}
 		s.quotesPending = s.quotes.stream()
 				.filter(q -> List.of("En attente", "Brouillon", "Soumis").contains(q.getEtat())

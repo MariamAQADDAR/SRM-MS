@@ -44,4 +44,7 @@ public class Medicine {
 
 	@Column(length = 500)
 	private String note;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
 }

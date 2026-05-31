@@ -7,7 +7,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface BeneficiaryRepository extends JpaRepository<Beneficiary, Long> {
 
-	List<Beneficiary> findByAgent_IdOrderById(Long agentId);
+	List<Beneficiary> findByDeletedFalseOrderById();
+	
+	List<Beneficiary> findByDeletedTrueOrderById();
 
-	Optional<Beneficiary> findByIdAndAgent_Id(Long id, Long agentId);
+	List<Beneficiary> findByAgent_IdAndDeletedFalseOrderById(Long agentId);
+
+	Optional<Beneficiary> findByIdAndDeletedFalse(Long id);
+
+	Optional<Beneficiary> findByIdAndAgent_IdAndDeletedFalse(Long id, Long agentId);
 }

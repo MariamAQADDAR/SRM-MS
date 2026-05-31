@@ -55,4 +55,16 @@ public class OrganizationalEntityController {
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		organizationalEntityService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<OrgEntityResponse> listArchived(Authentication authentication) {
+		return organizationalEntityService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		organizationalEntityService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
 }

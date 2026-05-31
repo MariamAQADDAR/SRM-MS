@@ -43,4 +43,16 @@ public class AuthController {
 		authService.changePassword(user, request);
 		return ResponseEntity.noContent().build();
 	}
+
+	@PostMapping("/forgot-password")
+	public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ma.srm.mutuelle.auth.dto.ForgotPasswordRequest request) {
+		authService.forgotPassword(request.email());
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/reset-password")
+	public ResponseEntity<Void> resetPassword(@Valid @RequestBody ma.srm.mutuelle.auth.dto.ResetPasswordRequest request) {
+		authService.resetPassword(request.token(), request.newPassword());
+		return ResponseEntity.noContent().build();
+	}
 }

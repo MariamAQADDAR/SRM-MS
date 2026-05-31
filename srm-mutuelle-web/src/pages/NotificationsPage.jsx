@@ -6,6 +6,7 @@ import TablePageShell from '../components/TablePageShell';
 import ListPageToolbar from '../components/ListPageToolbar';
 import { matchesSearch } from '../utils/filterSearch';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
+import { isAdherentRole } from '../authUtils';
 
 function formatTs(iso) {
   if (!iso) return '—';
@@ -16,7 +17,7 @@ function formatTs(iso) {
   }
 }
 
-export default function NotificationsPage({ setPageTitle, addToast, onUnreadChanged }) {
+export default function NotificationsPage({ setPageTitle, addToast, onUnreadChanged, onNavigate, user }) {
   setPageTitle('Notifications', 'Boîte de réception');
   const [rows, setRows] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,6 +55,26 @@ export default function NotificationsPage({ setPageTitle, addToast, onUnreadChan
       reload();
     } catch (e) {
       addToast('error', e.message || 'Erreur');
+    }
+  };
+
+  const handleRowClick = async (n) => {
+    const type = (n.notifType || '').toUpperCase();
+    const isAdh = isAdherentRole(user);
+    let target = 'notifications';
+    if (type.includes('DEVIS')) {
+      target = isAdh ? 'mes-devis' : 'devis';
+    } else if (type.includes('REMBOURSEMENT')) {
+      target = isAdh ? 'mes-remboursements' : 'remboursements';
+    } else if (type.includes('PEC')) {
+      target = isAdh ? 'mes-prises-en-charge' : 'prises-en-charge';
+    }
+
+    if (!n.read) {
+      await markRead(n.id);
+    }
+    if (onNavigate) {
+      onNavigate(target);
     }
   };
 
@@ -99,7 +120,7 @@ export default function NotificationsPage({ setPageTitle, addToast, onUnreadChan
           </thead>
           <tbody>
             {pageData.map((n) => (
-              <tr key={n.id}>
+              <tr key={n.id} onClick={() => handleRowClick(n)} style={{ cursor: 'pointer' }}>
                 <td>
                   <span className="badge badge-info">{n.notifType || 'INFO'}</span>
                 </td>
@@ -108,7 +129,14 @@ export default function NotificationsPage({ setPageTitle, addToast, onUnreadChan
                 <td>{n.read ? <span className="badge badge-success">Oui</span> : <span className="badge badge-warning">Non</span>}</td>
                 <td className="actions-cell">
                   {!n.read && (
-                    <button type="button" className="btn btn-outline btn-sm" onClick={() => markRead(n.id)}>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markRead(n.id);
+                      }}
+                    >
                       Marquer lu
                     </button>
                   )}

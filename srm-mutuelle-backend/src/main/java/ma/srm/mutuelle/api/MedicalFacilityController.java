@@ -55,4 +55,16 @@ public class MedicalFacilityController {
 	public void delete(@PathVariable Long id, Authentication authentication) {
 		medicalFacilityService.delete(id, AuthPrincipal.requireUser(authentication));
 	}
+
+	@GetMapping("/archived")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public List<MedicalFacilityResponse> listArchived(Authentication authentication) {
+		return medicalFacilityService.listArchived(AuthPrincipal.requireUser(authentication));
+	}
+
+	@PostMapping("/{id}/restore")
+	@PreAuthorize("hasRole('ADMINISTRATEUR')")
+	public void restore(@PathVariable Long id, Authentication authentication) {
+		medicalFacilityService.restore(id, AuthPrincipal.requireUser(authentication));
+	}
 }

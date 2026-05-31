@@ -53,4 +53,7 @@ public class Ordonnance {
 
 	@Column(nullable = false, length = 32)
 	private String status;
+
+	@Column(nullable = false)
+	private boolean deleted = false;
 }
