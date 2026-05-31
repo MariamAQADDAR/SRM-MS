@@ -154,3 +154,11 @@ export async function apiMarkNotificationRead(id) {
   if (!res.ok) return parseJsonOrThrow(res);
   return null;
 }
+
+export async function apiFetchBlob(path) {
+  const res = await apiFetch(path);
+  if (!res.ok) {
+    await parseJsonOrThrow(res);
+  }
+  return res;
+}

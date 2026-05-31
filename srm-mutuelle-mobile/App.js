@@ -18,6 +18,10 @@ import {
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import ChatbotScreen from './ChatbotScreen';
+import FeatureRouter, { FEATURE_SCREEN_IDS } from './FeatureRouter';
+import ToastOverlay, { useToast } from './components/Toast';
+import { prefetchTypeConfig } from './typeConfig';
+import { COLORS, TAB_BAR_EXTRA_BOTTOM } from './theme';
 import { API_BASE_URL } from './config';
 import {
   apiFetch,
@@ -33,34 +37,15 @@ import {
   getSession,
 } from './api';
 import { isAdherentRole, isStaffWriterRole } from './authUtils';
-import { routeById, PAGE_SIZE, verticalNavSections, bottomNavEssentials, DASHBOARD_PAGE_ID, PAGE_TOPBAR } from './menu';
+import { routeById, PAGE_SIZE, verticalNavSections, bottomNavEssentials, DASHBOARD_PAGE_ID, PAGE_TOPBAR, isFeatureScreen } from './menu';
 
 const { width } = Dimensions.get('window');
 /** Panneau latéral type « hamburger » (~80–82 % de l’écran, comme le mockup). */
 const DRAWER_WIDTH = Math.min(320, Math.round(width * 0.82));
 
 /** Incrémentez après une modif UI : si vous ne voyez pas ce numéro dans l’app, le cache Expo n’est pas rafraîchi. */
-const MOBILE_UI_BUILD = '2026-05-10 · tab bar + menu 1 section';
+const MOBILE_UI_BUILD = '2026-05-29 · parité web complète';
 /** Hauteur zone utile barre du bas + marge (évite que le contenu passe sous les onglets). */
-const TAB_BAR_EXTRA_BOTTOM = 76;
-
-/** Aligné sur srm-mutuelle-web/src/index.css (--primary-*, login-split-brand) */
-const COLORS = {
-  primary: '#0f6fb8',
-  primaryLight: '#1d8fd8',
-  loginBrandBg: '#0284c7',
-  secondary: '#0e5aa0',
-  accent: '#4aabf1',
-  background: '#f4f7fb',
-  surface: '#ffffff',
-  text: '#1e293b',
-  textLight: '#64748b',
-  border: '#e2e8f0',
-  success: '#22b56f',
-  warning: '#f29a4a',
-  danger: '#ef4444',
-  info: '#2ab4dd',
-};
 
 function initialsFromName(name) {
   if (!name || typeof name !== 'string') return '?';
@@ -98,6 +83,7 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState('dashboard');
+  const { toasts, addToast } = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -171,6 +157,7 @@ export default function App() {
           if (!cancelled) {
             setUser(merged);
             refreshUnread();
+            prefetchTypeConfig().catch(() => {});
           }
         } catch {
           await clearSession();
@@ -197,23 +184,27 @@ export default function App() {
     setHomeError('');
     try {
       if (isAdherentRole(user)) {
-        const [qRes, rRes, mRes] = await Promise.all([
+        const [qRes, rRes, mRes, medRes] = await Promise.all([
           apiFetch('/api/quotes'),
           apiFetch('/api/reimbursements'),
           apiFetch('/api/special-diseases'),
+          apiFetch('/api/medicines'),
         ]);
         const quotes = await parseJsonOrThrow(qRes);
         const remb = await parseJsonOrThrow(rRes);
         const mal = await parseJsonOrThrow(mRes);
+        const med = await parseJsonOrThrow(medRes);
         setHomeStats({
           devis: quotes.length,
           pending: remb.filter((x) => x.statut === 'En attente').length,
           maladies: mal.length,
+          medicaments: med.length,
         });
         setNavBadges({
           devis: quotes.length,
           rembPending: remb.filter((x) => x.statut === 'En attente').length,
           maladies: mal.length,
+          medicaments: med.length,
         });
         setHomeRecentRemb(
           [...remb].sort((a, b) => String(b.dateDemande || '').localeCompare(String(a.dateDemande || ''))).slice(0, 5),
@@ -228,6 +219,7 @@ export default function App() {
           apiFetch('/api/special-diseases'),
           apiFetch('/api/medical-facilities'),
           apiFetch('/api/organizational-entities'),
+          apiFetch('/api/medicines'),
         ];
         if (isStaffWriterRole(user)) {
           reqs.push(apiFetch('/api/admin/users'));
@@ -242,6 +234,7 @@ export default function App() {
         const mal = out[i++];
         const fac = out[i++];
         const ent = out[i++];
+        const med = out[i++];
         const users = isStaffWriterRole(user) ? out[i++] : [];
         setHomeStats({
           agents: agents.length,
@@ -252,6 +245,7 @@ export default function App() {
           pec: pec.length,
           maladies: mal.length,
           entites: ent.length,
+          medicaments: med.length,
           users: users.length,
         });
         setNavBadges({
@@ -263,6 +257,7 @@ export default function App() {
           maladies: mal.length,
           facilities: fac.length,
           entites: ent.length,
+          medicaments: med.length,
           users: isStaffWriterRole(user) ? users.length : 0,
         });
         setHomeRecentRemb(
@@ -358,6 +353,7 @@ export default function App() {
       loadNotifications({});
       return;
     }
+    if (isFeatureScreen(tab) || FEATURE_SCREEN_IDS.has(tab)) return;
     if (['dashboard', 'menu', 'profil'].includes(tab)) return;
     loadListForRoute(r, {});
   }, [tab, user, loadListForRoute, loadNotifications]);
@@ -373,6 +369,7 @@ export default function App() {
       setUser(payload);
       setTab('dashboard');
       refreshUnread();
+      prefetchTypeConfig().catch(() => {});
     } catch (e) {
       setLoginError(e.message || 'Connexion impossible');
     } finally {
@@ -912,6 +909,13 @@ export default function App() {
     if (tab === 'dashboard') return renderHome();
     if (tab === 'profil') return renderProfile();
     if (tab === 'notifications') return renderNotifications();
+    if (FEATURE_SCREEN_IDS.has(tab)) {
+      return (
+        <View style={[styles.page, styles.featurePage]}>
+          <FeatureRouter tab={tab} user={user} addToast={addToast} />
+        </View>
+      );
+    }
     if (routeById(tab)) return renderListScreen();
     return renderHome();
   };
@@ -1008,6 +1012,7 @@ export default function App() {
           <ChatbotScreen onBack={() => setChatOpen(false)} userName={user.name} />
         </View>
       ) : null}
+      <ToastOverlay toasts={toasts} />
     </SafeAreaView>
   );
 }
@@ -1097,6 +1102,7 @@ const styles = StyleSheet.create({
   drawerBuildTag: { fontSize: 10, color: COLORS.textLight, marginTop: 12, textAlign: 'center' },
   main: { flex: 1 },
   page: { flex: 1, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20 + TAB_BAR_EXTRA_BOTTOM },
+  featurePage: { paddingHorizontal: 16, paddingTop: 12 },
   bottomTabBarOuter: {
     backgroundColor: COLORS.surface,
     borderTopWidth: StyleSheet.hairlineWidth,

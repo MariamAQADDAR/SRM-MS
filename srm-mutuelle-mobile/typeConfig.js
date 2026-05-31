@@ -1,0 +1,81 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiFetch, parseJsonOrThrow } from './api';
+
+const STORAGE_KEY = 'mutuelle_type_config_v1';
+
+export const DEFAULT_TYPE_CONFIG = {
+  quoteTypes: ['Dentaire', 'Optique', 'Auditif', 'Hospitalisation', 'Autre'],
+  ordonnanceTypes: ['Médicament', 'Analyse', 'Radiologie'],
+  radioTypes: ['Radio standard', 'IRM', 'Scanner', 'Échographie'],
+  careTypes: ['Hospitalisation', 'Chirurgie', 'Maternité', 'Autre'],
+  facilityTypes: ['Hôpital', 'Clinique', 'Opticien', 'Laboratoire'],
+  entityTypes: ['Direction générale', 'Direction', 'Département', 'Division', 'Service'],
+  maladieTypes: ['Diabète', 'Hypertension', 'Cardiologie', 'Autre'],
+};
+
+let apiCache = null;
+
+function sanitizeList(values) {
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values.map((v) => String(v || '').trim()).filter(Boolean))];
+}
+
+export function mergeWithDefaultsForState(raw) {
+  const out = {};
+  Object.keys(DEFAULT_TYPE_CONFIG).forEach((k) => {
+    if (raw && Array.isArray(raw[k])) {
+      out[k] = sanitizeList(raw[k]);
+    } else {
+      out[k] = [...DEFAULT_TYPE_CONFIG[k]];
+    }
+  });
+  return out;
+}
+
+export async function prefetchTypeConfig() {
+  const res = await apiFetch('/api/settings/type-config');
+  const data = await parseJsonOrThrow(res);
+  apiCache = mergeWithDefaultsForState(data);
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(apiCache));
+  } catch {
+    /* ignore */
+  }
+  return apiCache;
+}
+
+export async function readTypeConfig() {
+  if (apiCache) return { ...apiCache };
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (!raw) return mergeWithDefaultsForState({});
+    return mergeWithDefaultsForState(JSON.parse(raw));
+  } catch {
+    return mergeWithDefaultsForState({});
+  }
+}
+
+export function getTypeOptions(key) {
+  const cfg = apiCache || mergeWithDefaultsForState({});
+  return cfg[key] && cfg[key].length > 0 ? cfg[key] : DEFAULT_TYPE_CONFIG[key] || [];
+}
+
+export async function getTypeOptionsAsync(key) {
+  const cfg = await readTypeConfig();
+  return cfg[key] && cfg[key].length > 0 ? cfg[key] : DEFAULT_TYPE_CONFIG[key] || [];
+}
+
+export async function saveTypeConfigKey(key, values) {
+  const res = await apiFetch(`/api/settings/type-config/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    body: { values: sanitizeList(values) },
+  });
+  const data = await parseJsonOrThrow(res);
+  apiCache = mergeWithDefaultsForState(data);
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(apiCache));
+  } catch {
+    /* ignore */
+  }
+  return apiCache;
+}

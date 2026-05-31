@@ -23,3 +23,11 @@ export function isStaffWriterRole(user) {
   const c = roleCode(user);
   return c === 'ADMINISTRATEUR' || c === 'OPERATEUR';
 }
+
+export function canStaffMutate(user) {
+  return isStaffWriterRole(user);
+}
+
+export function canAdminDelete(user) {
+  return isAdminRole(user);
+}

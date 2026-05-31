@@ -8,17 +8,21 @@ const THEME_PRIMARY = '#0f6fb8';
 /** Aligné sur `AppShell.jsx` (topbar titre + fil d’Ariane). */
 export const PAGE_TOPBAR = {
   dashboard: { title: 'Tableau de bord', breadcrumb: 'Accueil' },
+  agents: { title: 'Agents', breadcrumb: 'Gestion des agents' },
   beneficiaires: { title: 'Bénéficiaires', breadcrumb: 'Gestion des bénéficiaires' },
   ordonnances: { title: 'Ordonnances', breadcrumb: 'Gestion des ordonnances' },
   devis: { title: 'Devis', breadcrumb: 'Gestion des devis' },
   remboursements: { title: 'Remboursements', breadcrumb: 'Gestion des remboursements' },
+  'cartes-mutuelles': { title: 'Cartes mutuelles', breadcrumb: 'Affiliation famille' },
   'prises-en-charge': { title: 'Prises en charge', breadcrumb: 'Gestion des prises en charge' },
   maladies: { title: 'Maladies spéciales', breadcrumb: 'Gestion des maladies spéciales' },
   etablissements: { title: 'Établissements médicaux', breadcrumb: 'Référentiel' },
   entites: { title: 'Entités organisationnelles', breadcrumb: 'Référentiel' },
+  medicaments: { title: 'Médicaments', breadcrumb: 'Référentiel médicaments' },
   utilisateurs: { title: 'Utilisateurs', breadcrumb: 'Administration' },
   notifications: { title: 'Notifications', breadcrumb: 'Messages' },
   profil: { title: 'Mon profil', breadcrumb: 'Compte' },
+  historique: { title: 'Historique personnel', breadcrumb: 'Mon historique d’activités' },
   parametrage: { title: 'Paramétrage', breadcrumb: 'Administration' },
 };
 
@@ -28,19 +32,24 @@ export const PAGE_TOPBAR = {
  * - staff : admin, opérateur, consultateur (pas adhérent)
  * - admin : administrateur uniquement
  * - writer : admin ou opérateur (pas consultateur)
+ * - adherent : adhérent uniquement
  */
 export const MENU_ROUTES = [
-  { id: 'beneficiaires', title: 'Bénéficiaires', fa: 'users', color: '#3b82f6', endpoint: '/api/agents', vis: 'staff' },
-  { id: 'ordonnances', title: 'Ordonnances', fa: 'clipboard-list', color: '#8b5cf6', endpoint: '/api/ordonnances', vis: 'staff' },
-  { id: 'devis', title: 'Devis', fa: 'file-invoice', color: '#f59e0b', endpoint: '/api/quotes', vis: 'everyone' },
-  { id: 'remboursements', title: 'Remboursements', fa: 'money-bill-wave', color: '#10b981', endpoint: '/api/reimbursements', vis: 'everyone' },
-  { id: 'prises-en-charge', title: 'Prises en charge', fa: 'hospital', color: '#ec4899', endpoint: '/api/care-episodes', vis: 'everyone' },
-  { id: 'maladies', title: 'Maladies spéciales', fa: 'stethoscope', color: '#ef4444', endpoint: '/api/special-diseases', vis: 'everyone' },
-  { id: 'etablissements', title: 'Établissements', fa: 'building', color: '#6366f1', endpoint: '/api/medical-facilities', vis: 'staff' },
-  { id: 'entites', title: 'Entités org.', fa: 'landmark', color: '#1d8fd8', endpoint: '/api/organizational-entities', vis: 'staff' },
+  { id: 'agents', title: 'Agents', fa: 'user-tie', color: '#0f6fb8', endpoint: '/api/agents', vis: 'staff', feature: true },
+  { id: 'beneficiaires', title: 'Bénéficiaires', fa: 'users', color: '#3b82f6', endpoint: '/api/agents', vis: 'staff', feature: true },
+  { id: 'cartes-mutuelles', title: 'Cartes mutuelles', fa: 'id-card', color: '#14b8a6', endpoint: '/api/mutual-cards', vis: 'everyone', feature: true },
+  { id: 'ordonnances', title: 'Ordonnances', fa: 'clipboard-list', color: '#8b5cf6', endpoint: '/api/ordonnances', vis: 'staff', feature: true },
+  { id: 'devis', title: 'Devis', fa: 'file-invoice', color: '#f59e0b', endpoint: '/api/quotes', vis: 'everyone', feature: true },
+  { id: 'remboursements', title: 'Remboursements', fa: 'money-bill-wave', color: '#10b981', endpoint: '/api/reimbursements', vis: 'everyone', feature: true },
+  { id: 'prises-en-charge', title: 'Prises en charge', fa: 'hospital', color: '#ec4899', endpoint: '/api/care-episodes', vis: 'everyone', feature: true },
+  { id: 'maladies', title: 'Maladies spéciales', fa: 'stethoscope', color: '#ef4444', endpoint: '/api/special-diseases', vis: 'everyone', feature: true },
+  { id: 'medicaments', title: 'Médicaments', fa: 'pills', color: '#8b5cf6', endpoint: '/api/medicines', vis: 'everyone', feature: true },
+  { id: 'historique', title: 'Mon historique', fa: 'history', color: '#6366f1', endpoint: null, vis: 'adherent', feature: true },
+  { id: 'etablissements', title: 'Établissements', fa: 'building', color: '#6366f1', endpoint: '/api/medical-facilities', vis: 'staff', feature: true },
+  { id: 'entites', title: 'Entités org.', fa: 'landmark', color: '#1d8fd8', endpoint: '/api/organizational-entities', vis: 'staff', feature: true },
   { id: 'notifications', title: 'Notifications', fa: 'bell', color: '#0f6fb8', endpoint: '/api/notifications', vis: 'everyone', isNotifications: true },
-  { id: 'parametrage', title: 'Paramétrage', fa: 'sliders', color: '#475569', endpoint: '/api/settings/type-config', vis: 'writer', responseKind: 'map' },
-  { id: 'utilisateurs', title: 'Utilisateurs', fa: 'user-shield', color: '#0f6fb8', endpoint: '/api/admin/users', vis: 'writer' },
+  { id: 'parametrage', title: 'Paramétrage', fa: 'sliders', color: '#475569', endpoint: '/api/settings/type-config', vis: 'writer', feature: true },
+  { id: 'utilisateurs', title: 'Utilisateurs', fa: 'user-shield', color: '#0f6fb8', endpoint: '/api/admin/users', vis: 'writer', feature: true },
 ];
 
 /** Même id que le web (`Layout.jsx` / `AppShell.jsx`) : page d’accueil métier. */
@@ -48,12 +57,14 @@ export const DASHBOARD_PAGE_ID = 'dashboard';
 
 function badgeForItem(id, b) {
   const m = {
+    agents: b.agents,
     beneficiaires: b.agents,
     ordonnances: b.ordonnances,
     devis: b.devis,
     remboursements: b.rembPending,
     'prises-en-charge': b.pec,
     maladies: b.maladies,
+    medicaments: b.medicaments,
     etablissements: b.facilities,
     entites: b.entites,
     utilisateurs: b.users,
@@ -63,7 +74,7 @@ function badgeForItem(id, b) {
 }
 
 /**
- * Même contenu que la sidebar web (`Layout.jsx`) : pas d’entrée « Notifications » dans la liste (accès par la cloche comme sur le web).
+ * Même contenu que la sidebar web (`Layout.jsx`).
  */
 export function verticalNavSections(user, navBadges = {}) {
   const b = navBadges || {};
@@ -89,15 +100,23 @@ export function verticalNavSections(user, navBadges = {}) {
       },
       {
         section: 'Espace adhérent',
-        items: [meta('devis'), meta('prises-en-charge'), meta('remboursements'), { ...meta('maladies'), label: 'Maladies & médicaments' }].filter(Boolean),
+        items: [
+          meta('devis'),
+          meta('cartes-mutuelles'),
+          meta('remboursements'),
+          meta('prises-en-charge'),
+          meta('medicaments'),
+          meta('maladies'),
+          meta('historique'),
+        ].filter(Boolean),
       },
     ];
   }
 
   const writer = isStaffWriterRole(user);
 
-  const gestionIds = ['beneficiaires', 'ordonnances', 'devis', 'remboursements', 'prises-en-charge', 'maladies'];
-  const refIds = ['etablissements', 'entites'];
+  const gestionIds = ['agents', 'beneficiaires', 'cartes-mutuelles', 'ordonnances', 'devis', 'remboursements', 'prises-en-charge', 'maladies'];
+  const refIds = ['etablissements', 'entites', 'medicaments'];
 
   const sections = [
     {
@@ -108,12 +127,11 @@ export function verticalNavSections(user, navBadges = {}) {
       section: 'Gestion',
       items: gestionIds.map((id) => meta(id)).filter(Boolean),
     },
+    {
+      section: 'Référentiel',
+      items: refIds.map((id) => meta(id)).filter(Boolean),
+    },
   ];
-
-  sections.push({
-    section: 'Référentiel',
-    items: refIds.map((id) => meta(id)).filter(Boolean),
-  });
 
   const adminItems = [];
   if (writer) {
@@ -139,13 +157,13 @@ export function bottomNavEssentials(user) {
       { id: DASHBOARD_PAGE_ID, label: 'Accueil', fa: 'home' },
       { id: 'devis', label: 'Devis', fa: 'file-invoice' },
       { id: 'prises-en-charge', label: 'PEC', fa: 'hospital' },
-      { id: 'remboursements', label: 'Remboursements', fa: 'money-bill-wave' },
+      { id: 'cartes-mutuelles', label: 'Cartes', fa: 'id-card' },
       { id: 'profil', label: 'Profil', fa: 'user' },
     ];
   }
   return [
     { id: DASHBOARD_PAGE_ID, label: 'Accueil', fa: 'home' },
-    { id: 'beneficiaires', label: 'Bénéficiaires', fa: 'users' },
+    { id: 'agents', label: 'Agents', fa: 'user-tie' },
     { id: 'remboursements', label: 'Remboursements', fa: 'money-bill-wave' },
     { id: 'profil', label: 'Profil', fa: 'user' },
   ];
@@ -167,6 +185,8 @@ export function menuForUser(user) {
         return !adherent && admin;
       case 'writer':
         return !adherent && writer;
+      case 'adherent':
+        return adherent;
       default:
         return false;
     }
@@ -175,4 +195,9 @@ export function menuForUser(user) {
 
 export function routeById(id) {
   return MENU_ROUTES.find((r) => r.id === id) || null;
+}
+
+export function isFeatureScreen(id) {
+  const r = routeById(id);
+  return !!(r && r.feature);
 }
