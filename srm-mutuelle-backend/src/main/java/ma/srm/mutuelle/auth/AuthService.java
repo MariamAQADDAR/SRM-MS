@@ -64,15 +64,26 @@ public class AuthService {
 
 	@Transactional
 	public void forgotPassword(String email) {
-		AppUser user = appUserRepository.findByEmailIgnoreCaseAndDeletedFalse(email.trim())
-				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Aucun utilisateur trouvé avec cet email"));
-		
+		String normalized = email == null ? "" : email.trim();
+		if (normalized.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Adresse e-mail requise");
+		}
+		var userOpt = appUserRepository.findByEmailIgnoreCaseAndDeletedFalse(normalized);
+		if (userOpt.isEmpty()) {
+			// Ne pas révéler si l'e-mail existe (sécurité)
+			return;
+		}
+		AppUser user = userOpt.get();
 		String token = UUID.randomUUID().toString();
 		user.setResetToken(token);
 		user.setResetTokenExpiry(Instant.now().plus(1, ChronoUnit.HOURS));
 		appUserRepository.save(user);
 
-		emailService.sendPasswordResetEmail(user.getEmail(), token);
+		try {
+			emailService.sendPasswordResetEmail(user.getEmail(), token);
+		} catch (IllegalStateException e) {
+			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+		}
 	}
 
 	@Transactional

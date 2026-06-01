@@ -2,9 +2,12 @@ package ma.srm.mutuelle.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import lombok.Getter;
@@ -42,6 +45,10 @@ public class Agent {
 
 	@Column(name = "entite_name", nullable = false)
 	private String entiteName;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "organizational_entity_id")
+	private OrganizationalEntity organizationalEntity;
 
 	@Column(length = 32)
 	private String telephone;

@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, FlatList, RefreshControl } from 'react-native';
+import { View, FlatList, RefreshControl, Text } from 'react-native';
 import { apiFetch, parseJsonOrThrow } from '../api';
 import { canStaffMutate } from '../authUtils';
 import { matchesSearch } from '../utils/filterSearch';
 import { formatDate } from '../utils/format';
+import { defaultServiceEntityId, orgEntityPath, serviceEntityOptions } from '../utils/orgEntity';
+import { COLORS } from '../theme';
 import {
   SearchBar,
   ListCard,
@@ -33,6 +35,8 @@ function AgentWorkflowModal({ visible, agent, orgEntities, beneficiaries, onClos
   const [newBenef, setNewBenef] = useState({ nom: '', prenom: '', type: 'Enfant', dateNaissance: '', cin: '' });
   const [saving, setSaving] = useState(false);
 
+  const serviceOptions = useMemo(() => serviceEntityOptions(orgEntities), [orgEntities]);
+
   useEffect(() => {
     if (!visible) return;
     setStep(1);
@@ -44,7 +48,7 @@ function AgentWorkflowModal({ visible, agent, orgEntities, beneficiaries, onClos
       prenom: agent?.prenom || '',
       dateNaissance: agent?.dateNaissance || '',
       situation: agent?.situation || 'Célibataire',
-      entite: agent?.entite || orgEntities[0]?.nom || '',
+      entiteId: defaultServiceEntityId(orgEntities, agent),
       telephone: agent?.telephone || '',
       email: agent?.email || '',
       dateRecrutement: agent?.dateRecrutement || '',
@@ -60,7 +64,7 @@ function AgentWorkflowModal({ visible, agent, orgEntities, beneficiaries, onClos
     if (!agentData.matricule?.trim()) errs.matricule = 'Matricule requis';
     if (!agentData.nom?.trim()) errs.nom = 'Nom requis';
     if (!agentData.prenom?.trim()) errs.prenom = 'Prénom requis';
-    if (!agentData.entite?.trim()) errs.entite = 'Entité requise';
+    if (!agentData.entiteId) errs.entiteId = 'Service de rattachement requis';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -81,11 +85,13 @@ function AgentWorkflowModal({ visible, agent, orgEntities, beneficiaries, onClos
       const isEdit = !!agent;
       const url = isEdit ? `/api/agents/${agent.id}` : '/api/agents';
       const method = isEdit ? 'PUT' : 'POST';
+      const { entiteId, ...rest } = agentData;
       await parseJsonOrThrow(
         await apiFetch(url, {
           method,
           body: {
-            ...agentData,
+            ...rest,
+            entiteId: Number(entiteId),
             beneficiaries: benefs.map((b) => ({
               id: b.id,
               nom: b.nom,
@@ -107,7 +113,9 @@ function AgentWorkflowModal({ visible, agent, orgEntities, beneficiaries, onClos
     }
   };
 
-  const entiteOptions = orgEntities.map((e) => ({ label: e.nom, value: e.nom }));
+  const entiteOptions = serviceOptions;
+
+  const servicePath = orgEntityPath(orgEntities, agentData.entiteId);
 
   const footer = (
     <>
@@ -148,7 +156,8 @@ function AgentWorkflowModal({ visible, agent, orgEntities, beneficiaries, onClos
             <TextField value={agentData.dateNaissance} onChangeText={(v) => setField('dateNaissance', v)} placeholder="AAAA-MM-JJ" />
           </FormField>
           <SelectField label="Situation" value={agentData.situation} options={SITUATIONS.map((s) => ({ label: s, value: s }))} onChange={(v) => setField('situation', v)} />
-          <SelectField label="Entité" required value={agentData.entite} options={entiteOptions} onChange={(v) => setField('entite', v)} />
+          <SelectField label="Service de rattachement" required value={agentData.entiteId} options={entiteOptions} onChange={(v) => setField('entiteId', v)} />
+          {errors.entiteId ? <Text style={{ color: COLORS.danger, fontSize: 12, marginBottom: 8 }}>{errors.entiteId}</Text> : null}
           <FormField label="Téléphone">
             <TextField value={agentData.telephone} onChangeText={(v) => setField('telephone', v)} keyboardType="phone-pad" />
           </FormField>
@@ -186,7 +195,7 @@ function AgentWorkflowModal({ visible, agent, orgEntities, beneficiaries, onClos
         <>
           <DetailItem label="Matricule">{agentData.matricule}</DetailItem>
           <DetailItem label="Agent">{agentData.prenom} {agentData.nom}</DetailItem>
-          <DetailItem label="Entité">{agentData.entite}</DetailItem>
+          <DetailItem label="Service">{servicePath}</DetailItem>
           <DetailItem label="Statut">{agentData.statut}</DetailItem>
           <DetailItem label="Proches">{benefs.length} enregistré(s)</DetailItem>
         </>

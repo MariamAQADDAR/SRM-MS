@@ -128,7 +128,30 @@ export function sessionUserFromLoginResponse(data) {
     role: u.roleLabel || u.role,
     roleCode: u.role,
     agentId: u.agentId ?? null,
+    forcePasswordChange: !!(data.forcePasswordChange || u.forcePasswordChange),
   };
+}
+
+export async function apiChangePassword(currentPassword, newPassword) {
+  const res = await apiFetch('/api/auth/change-password', {
+    method: 'POST',
+    body: { currentPassword, newPassword },
+  });
+  if (res.ok) return null;
+  return parseJsonOrThrow(res);
+}
+
+export async function apiForgotPassword(email) {
+  const res = await apiFetch('/api/auth/forgot-password', {
+    method: 'POST',
+    body: { email: email.trim() },
+  });
+  if (res.status === 204 || res.status === 200) {
+    const text = await res.text();
+    if (!text) return {};
+    return JSON.parse(text);
+  }
+  return parseJsonOrThrow(res);
 }
 
 export async function apiLogin(email, password) {

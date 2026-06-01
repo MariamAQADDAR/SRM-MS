@@ -22,7 +22,8 @@ export default function ArchivesPage({ setPageTitle, addToast, user }) {
     medicalFacilities: [],
     contractedDoctors: [],
     orgEntities: [],
-    specialDiseases: []
+    specialDiseases: [],
+    cardRequests: []
   });
   
   const [loading, setLoading] = useState(true);
@@ -44,7 +45,8 @@ export default function ArchivesPage({ setPageTitle, addToast, user }) {
         medicalFacilities: '/api/medical-facilities/archived',
         contractedDoctors: '/api/contracted-doctors/archived',
         orgEntities: '/api/organizational-entities/archived',
-        specialDiseases: '/api/special-diseases/archived'
+        specialDiseases: '/api/special-diseases/archived',
+        cardRequests: '/api/mutual-card-requests/archived'
       };
 
       const keys = Object.keys(endpoints);
@@ -94,6 +96,7 @@ export default function ArchivesPage({ setPageTitle, addToast, user }) {
         case 'contractedDoctors': endpoint = `/api/contracted-doctors/${id}/restore`; break;
         case 'orgEntities': endpoint = `/api/organizational-entities/${id}/restore`; break;
         case 'specialDiseases': endpoint = `/api/special-diseases/${id}/restore`; break;
+        case 'cardRequests': endpoint = `/api/mutual-card-requests/${id}/restore`; break;
       }
       await apiFetch(endpoint, { method: 'POST' });
       addToast('success', 'Élément restauré avec succès');
@@ -108,7 +111,7 @@ export default function ArchivesPage({ setPageTitle, addToast, user }) {
     if (!searchQuery.trim()) return list;
     
     return list.filter((item) => {
-      return matchesSearch(searchQuery, item.nom, item.prenom, item.matricule, item.cin, item.email, item.numero, item.name, item.fullName, item.code);
+      return matchesSearch(searchQuery, item.nom, item.prenom, item.matricule, item.cin, item.email, item.numero, item.name, item.fullName, item.code, item.beneficiaire, item.typeDemande, item.statut);
     });
   }, [archives, searchQuery, activeTab]);
 
@@ -126,7 +129,8 @@ export default function ArchivesPage({ setPageTitle, addToast, user }) {
     { id: 'medicalFacilities', label: 'Établissements', icon: 'hospital', badge: archives.medicalFacilities.length },
     { id: 'contractedDoctors', label: 'Médecins', icon: 'user-doctor', badge: archives.contractedDoctors.length },
     { id: 'orgEntities', label: 'Entités', icon: 'sitemap', badge: archives.orgEntities.length },
-    { id: 'specialDiseases', label: 'ALD', icon: 'heart-pulse', badge: archives.specialDiseases.length }
+    { id: 'specialDiseases', label: 'ALD', icon: 'heart-pulse', badge: archives.specialDiseases.length },
+    { id: 'cardRequests', label: 'Cartes mutuelles', icon: 'id-card', badge: archives.cardRequests.length }
   ];
 
   const renderTableHeader = () => {
@@ -155,6 +159,8 @@ export default function ArchivesPage({ setPageTitle, addToast, user }) {
         return <thead><tr><th>Code</th><th>Nom</th><th>Type</th><th className="actions-cell">Actions</th></tr></thead>;
       case 'specialDiseases':
         return <thead><tr><th>Bénéficiaire</th><th>Code Maladie</th><th>Date déclaration</th><th>Statut</th><th className="actions-cell">Actions</th></tr></thead>;
+      case 'cardRequests':
+        return <thead><tr><th>Matricule</th><th>Bénéficiaire</th><th>Type</th><th>Date</th><th>Statut</th><th className="actions-cell">Actions</th></tr></thead>;
       default:
         return <thead><tr><th>Identifiant / Nom</th><th>Détails</th><th className="actions-cell">Actions</th></tr></thead>;
     }
@@ -285,6 +291,17 @@ export default function ArchivesPage({ setPageTitle, addToast, user }) {
             <td>{item.diseaseCode}</td>
             <td>{item.declarationDate}</td>
             <td><span className="badge badge-info">{item.status}</span></td>
+            <td className="actions-cell">{renderRestoreBtn(item.id)}</td>
+          </tr>
+        );
+      case 'cardRequests':
+        return (
+          <tr key={item.id}>
+            <td><strong>{item.matricule}</strong></td>
+            <td>{item.beneficiaire}</td>
+            <td>{item.typeDemande}</td>
+            <td>{item.dateDemande || '—'}</td>
+            <td><span className="badge badge-info">{item.statut}</span></td>
             <td className="actions-cell">{renderRestoreBtn(item.id)}</td>
           </tr>
         );

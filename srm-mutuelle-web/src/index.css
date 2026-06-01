@@ -2692,11 +2692,34 @@ textarea.form-control {
 /* ============================================
    ACTION DROPDOWN
    ============================================ */
-.actions-cell {
-  display: flex;
-  gap: 4px;
-  flex-wrap: nowrap;
+.data-table .table-filter-row th {
+  padding: 6px 8px;
+  background: var(--gray-50);
+  border-top: none;
 }
+
+.data-table .table-filter-row .form-control {
+  font-size: 12px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+.btn-icon-round {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.table-footer-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
 
 .data-table .actions-cell .btn-icon {
   width: 28px;

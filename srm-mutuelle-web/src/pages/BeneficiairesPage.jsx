@@ -13,6 +13,7 @@ import DetailItem from '../components/DetailItem';
 import DetailView from '../components/DetailView';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { adminDeleteRecord } from '../utils/adminDelete';
+import { defaultServiceEntityId, orgEntityPath, serviceEntityOptions } from '../utils/orgEntityHelpers';
 import WorkflowSteps from '../components/WorkflowSteps';
 import { resolveAgentWorkflow } from '../utils/workflowSteps';
 
@@ -69,7 +70,8 @@ function mapBenefToProche(b) {
 
 function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToast, reload }) {
   const [step, setStep] = useState(1);
-  
+  const serviceOptions = useMemo(() => serviceEntityOptions(orgEntities), [orgEntities]);
+
   const [agentData, setAgentData] = useState({
     matricule: agent?.matricule || '',
     cin: agent?.cin || '',
@@ -77,7 +79,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
     prenom: agent?.prenom || '',
     dateNaissance: agent?.dateNaissance || '',
     situation: agent?.situation || 'Célibataire',
-    entite: agent?.entite || (orgEntities[0]?.nom || ''),
+    entiteId: defaultServiceEntityId(orgEntities, agent),
     telephone: agent?.telephone || '',
     email: agent?.email || '',
     dateRecrutement: agent?.dateRecrutement || '',
@@ -100,7 +102,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
     if (!agentData.matricule.trim()) errs.matricule = 'Le matricule est requis';
     if (!agentData.nom.trim()) errs.nom = 'Le nom est requis';
     if (!agentData.prenom.trim()) errs.prenom = 'Le prénom est requis';
-    if (!agentData.entite.trim()) errs.entite = "L'entité est requise";
+    if (!agentData.entiteId) errs.entiteId = 'Le service de rattachement est obligatoire';
     
     if (agentData.email.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -151,8 +153,10 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
     const url = isEdit ? `/api/agents/${agent.id}` : '/api/agents';
     const method = isEdit ? 'PUT' : 'POST';
     
+    const { entiteId, ...rest } = agentData;
     const body = {
-      ...agentData,
+      ...rest,
+      entiteId: Number(entiteId),
       beneficiaries: benefs.map(b => ({
         id: b.id,
         nom: b.nom,
@@ -286,19 +290,24 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
                 </select>
               </div>
 
-              <div className="form-group">
-                <label>Entité rattachée <span className="required">*</span></label>
+              <div className={`form-group ${errors.entiteId ? 'has-error' : ''}`}>
+                <label>Service de rattachement (SRM-MS) <span className="required">*</span></label>
                 <select
                   className="form-control"
-                  value={agentData.entite}
-                  onChange={(e) => setAgentData({ ...agentData, entite: e.target.value })}
+                  value={String(agentData.entiteId || '')}
+                  onChange={(e) => setAgentData({ ...agentData, entiteId: e.target.value })}
                 >
-                  {orgEntities.map((e) => (
-                    <option key={e.id} value={e.nom}>
-                      {e.nom}
+                  <option value="">— Choisir un service —</option>
+                  {serviceOptions.map((e) => (
+                    <option key={e.id} value={String(e.id)}>
+                      {e.label}
                     </option>
                   ))}
                 </select>
+                {errors.entiteId && <span className="field-error">{errors.entiteId}</span>}
+                <p className="form-hint" style={{ fontSize: 12, marginTop: 6, color: 'var(--gray-500)' }}>
+                  Chaque agent est affecté à un <strong>Service</strong> (niveau 5 de l&apos;organigramme).
+                </p>
               </div>
 
               <div className={`form-group ${errors.telephone ? 'has-error' : ''}`}>
@@ -492,8 +501,8 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
                     <span className="recap-val">{formatDate(agentData.dateNaissance)}</span>
                   </div>
                   <div className="recap-item">
-                    <span className="recap-label">Entité :</span>
-                    <span className="recap-val">{agentData.entite}</span>
+                    <span className="recap-label">Service :</span>
+                    <span className="recap-val">{orgEntityPath(orgEntities, agentData.entiteId) || agentData.entiteId || '—'}</span>
                   </div>
                   <div className="recap-item">
                     <span className="recap-label">Téléphone :</span>

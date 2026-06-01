@@ -61,7 +61,7 @@ export default function ForgotPassword() {
             {success ? (
               <div className="login-split-alert" role="alert" style={{backgroundColor: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0'}}>
                 <FaIcon name="envelope-circle-check" className="fa-inline-icon" /> 
-                Un e-mail contenant les instructions pour réinitialiser votre mot de passe vous a été envoyé.
+                Si un compte existe pour cette adresse, un e-mail avec le lien de réinitialisation a été envoyé (vérifiez aussi les courriers indésirables). Le lien est valide 1 heure.
               </div>
             ) : (
               <>

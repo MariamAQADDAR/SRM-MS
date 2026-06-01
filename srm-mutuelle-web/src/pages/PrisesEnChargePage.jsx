@@ -117,6 +117,17 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
   const [loading, setLoading] = useState(true);
   const [pdfFile, setPdfFile] = useState(null);
   const [wizardStep, setWizardStep] = useState(1);
+  const [wizardDraft, setWizardDraft] = useState({
+    agentId: '',
+    beneficiaire: '',
+    typePrestation: '',
+    etablissement: '',
+    montantDemande: '',
+    taux: '70',
+    dateDebut: new Date().toISOString().split('T')[0],
+    dateFin: '',
+    observation: '',
+  });
   const [reviewMontant, setReviewMontant] = useState('');
   const [reviewTaux, setReviewTaux] = useState('');
   const [reviewObs, setReviewObs] = useState('');
@@ -195,10 +206,53 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
 
   const { pageData, page, setPage, totalPages } = usePagination(data, searchQuery);
 
-  const closeModal = () => {
-    setModal(null);
+  const resetWizard = () => {
     setWizardStep(1);
     setPdfFile(null);
+    setWizardDraft({
+      agentId: agents[0] ? String(agents[0].id) : '',
+      beneficiaire: beneficiaryOptions[0]?.value || '',
+      typePrestation: careTypes[0] || '',
+      etablissement: facilities[0]?.nom || '',
+      montantDemande: '',
+      taux: '70',
+      dateDebut: new Date().toISOString().split('T')[0],
+      dateFin: '',
+      observation: '',
+    });
+  };
+
+  const closeModal = () => {
+    setModal(null);
+    resetWizard();
+  };
+
+  const wizardGoNext = () => {
+    if (wizardStep === 1) {
+      if (!wizardDraft.beneficiaire) {
+        addToast('error', 'Choisissez un bénéficiaire');
+        return;
+      }
+      if (!wizardDraft.typePrestation) {
+        addToast('error', 'Choisissez un type de prestation');
+        return;
+      }
+      if (!wizardDraft.etablissement) {
+        addToast('error', 'Choisissez un établissement');
+        return;
+      }
+    }
+    if (wizardStep === 2) {
+      if (!wizardDraft.montantDemande || Number(wizardDraft.montantDemande) <= 0) {
+        addToast('error', 'Indiquez un montant valide');
+        return;
+      }
+      if (!pdfFile) {
+        addToast('error', 'Le justificatif PDF est obligatoire');
+        return;
+      }
+    }
+    setWizardStep((s) => s + 1);
   };
 
   const openPdf = async (id) => {
@@ -240,25 +294,30 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
   };
 
   const buildWizardForm = () => {
+    const patchDraft = (key, value) => setWizardDraft((d) => ({ ...d, [key]: value }));
+
     const submitWizard = async (e) => {
       e.preventDefault();
       if (!pdfFile) {
         addToast('error', 'Le justificatif PDF est obligatoire');
         return;
       }
-      const fd = new FormData(e.target);
+      if (!wizardDraft.montantDemande || Number(wizardDraft.montantDemande) <= 0) {
+        addToast('error', 'Indiquez un montant valide');
+        return;
+      }
       const body = new FormData();
       body.append('file', pdfFile);
-      body.append('beneficiaire', fd.get('beneficiaire'));
-      body.append('typePrestation', fd.get('typePrestation'));
-      body.append('etablissement', fd.get('etablissement'));
-      body.append('montantDemande', fd.get('montantDemande'));
-      body.append('taux', fd.get('taux') || '0');
-      if (fd.get('dateDebut')) body.append('dateDebut', fd.get('dateDebut'));
-      if (fd.get('dateFin')) body.append('dateFin', fd.get('dateFin'));
-      if (fd.get('observation')) body.append('observation', fd.get('observation'));
-      if (!isAdherent && fd.get('agentId')) {
-        body.append('agentId', fd.get('agentId'));
+      body.append('beneficiaire', wizardDraft.beneficiaire);
+      body.append('typePrestation', wizardDraft.typePrestation);
+      body.append('etablissement', wizardDraft.etablissement);
+      body.append('montantDemande', wizardDraft.montantDemande);
+      body.append('taux', wizardDraft.taux || '0');
+      if (wizardDraft.dateDebut) body.append('dateDebut', wizardDraft.dateDebut);
+      if (wizardDraft.dateFin) body.append('dateFin', wizardDraft.dateFin);
+      if (wizardDraft.observation) body.append('observation', wizardDraft.observation);
+      if (!isAdherent && wizardDraft.agentId) {
+        body.append('agentId', wizardDraft.agentId);
       } else if (isAdherent && user?.agentId != null) {
         body.append('agentId', String(user.agentId));
       }
@@ -283,7 +342,12 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             {!isAdherent && (
               <div className="form-group">
                 <label>Porteur</label>
-                <select name="agentId" className="form-control" required>
+                <select
+                  className="form-control"
+                  required
+                  value={wizardDraft.agentId}
+                  onChange={(e) => patchDraft('agentId', e.target.value)}
+                >
                   {agents.map((a) => (
                     <option key={a.id} value={String(a.id)}>
                       {a.matricule} — {a.prenom} {a.nom}
@@ -294,7 +358,12 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             )}
             <div className="form-group">
               <label>Bénéficiaire</label>
-              <select name="beneficiaire" className="form-control" required defaultValue={beneficiaryOptions[0]?.value}>
+              <select
+                className="form-control"
+                required
+                value={wizardDraft.beneficiaire}
+                onChange={(e) => patchDraft('beneficiaire', e.target.value)}
+              >
                 {beneficiaryOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -304,7 +373,12 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             </div>
             <div className="form-group">
               <label>Type de prestation</label>
-              <select name="typePrestation" className="form-control" required>
+              <select
+                className="form-control"
+                required
+                value={wizardDraft.typePrestation}
+                onChange={(e) => patchDraft('typePrestation', e.target.value)}
+              >
                 <option value="">— Choisir —</option>
                 {careTypes.map((t) => (
                   <option key={t} value={t}>
@@ -314,8 +388,13 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
               </select>
             </div>
             <div className="form-group">
-              <label>Établissement</label>
-              <select name="etablissement" className="form-control" required>
+              <label>Établissement / corps médical</label>
+              <select
+                className="form-control"
+                required
+                value={wizardDraft.etablissement}
+                onChange={(e) => patchDraft('etablissement', e.target.value)}
+              >
                 <option value="">— Choisir —</option>
                 {facilities.map((f) => (
                   <option key={f.id} value={f.nom}>
@@ -327,16 +406,21 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             <div className="form-group">
               <label>Date début soins</label>
               <input
-                name="dateDebut"
                 type="date"
                 className="form-control"
-                defaultValue={new Date().toISOString().split('T')[0]}
+                value={wizardDraft.dateDebut}
+                onChange={(e) => patchDraft('dateDebut', e.target.value)}
                 required
               />
             </div>
             <div className="form-group">
               <label>Date fin (optionnel)</label>
-              <input name="dateFin" type="date" className="form-control" />
+              <input
+                type="date"
+                className="form-control"
+                value={wizardDraft.dateFin}
+                onChange={(e) => patchDraft('dateFin', e.target.value)}
+              />
             </div>
           </div>
         )}
@@ -345,11 +429,26 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
           <div className="form-grid">
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Montant demandé (DH)</label>
-              <input name="montantDemande" type="number" step="0.01" min="0" className="form-control" required />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="form-control"
+                required
+                value={wizardDraft.montantDemande}
+                onChange={(e) => patchDraft('montantDemande', e.target.value)}
+              />
             </div>
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Taux souhaité (%)</label>
-              <input name="taux" type="number" min="0" max="100" className="form-control" defaultValue="70" />
+              <input
+                type="number"
+                min="0"
+                max="100"
+                className="form-control"
+                value={wizardDraft.taux}
+                onChange={(e) => patchDraft('taux', e.target.value)}
+              />
             </div>
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Justificatif PDF (devis, accord préalable…)</label>
@@ -364,18 +463,26 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             </div>
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Observation</label>
-              <textarea name="observation" className="form-control" rows={2} />
+              <textarea
+                className="form-control"
+                rows={2}
+                value={wizardDraft.observation}
+                onChange={(e) => patchDraft('observation', e.target.value)}
+              />
             </div>
           </div>
         )}
 
         {wizardStep === 3 && (
           <div className="card" style={{ padding: 16, marginBottom: 12 }}>
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--gray-700)' }}>
-              Après enregistrement, votre demande sera à l&apos;<strong>étape 1 — Dépôt</strong>. Utilisez{' '}
-              <strong>Envoyer à la mutuelle</strong> pour passer à l&apos;<strong>étape 2 — Instruction</strong>. La
-              mutuelle fixera le <strong>montant de prise en charge</strong> et le <strong>taux</strong> à l&apos;étape 3.
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--gray-700)', marginBottom: 12 }}>
+              Après enregistrement, utilisez <strong>Envoyer à la mutuelle</strong> pour lancer l&apos;instruction.
             </p>
+            <DetailItem label="Bénéficiaire">{wizardDraft.beneficiaire}</DetailItem>
+            <DetailItem label="Type">{wizardDraft.typePrestation}</DetailItem>
+            <DetailItem label="Établissement">{wizardDraft.etablissement}</DetailItem>
+            <DetailItem label="Montant">{Number(wizardDraft.montantDemande || 0).toLocaleString('fr-FR')} DH</DetailItem>
+            <DetailItem label="PDF">{pdfFile?.name || '—'}</DetailItem>
           </div>
         )}
 
@@ -389,17 +496,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             </button>
           )}
           {wizardStep < 3 ? (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                if (wizardStep === 2 && !pdfFile) {
-                  addToast('error', 'PDF obligatoire');
-                  return;
-                }
-                setWizardStep((s) => s + 1);
-              }}
-            >
+            <button type="button" className="btn btn-primary" onClick={wizardGoNext}>
               Suivant
             </button>
           ) : (
@@ -597,7 +694,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
     <>
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
-          {modal.content}
+          {modal.mode === 'wizard' ? buildWizardForm() : modal.content}
         </Modal>
       )}
       {!isAdherent && (
@@ -651,9 +748,8 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
               </button>
             }
             onNew={() => {
-              setWizardStep(1);
-              setPdfFile(null);
-              setModal({ title: 'Demande de prise en charge — 3 étapes', content: buildWizardForm() });
+              resetWizard();
+              setModal({ title: 'Demande de prise en charge — 3 étapes', mode: 'wizard' });
             }}
           />
         }

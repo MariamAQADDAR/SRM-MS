@@ -27,6 +27,8 @@ import {
   apiFetch,
   apiLogin,
   apiMe,
+  apiChangePassword,
+  apiForgotPassword,
   apiMarkNotificationRead,
   apiUnreadCount,
   clearSession,
@@ -38,6 +40,7 @@ import {
 } from './api';
 import { isAdherentRole, isStaffWriterRole } from './authUtils';
 import { routeById, PAGE_SIZE, verticalNavSections, bottomNavEssentials, DASHBOARD_PAGE_ID, PAGE_TOPBAR, isFeatureScreen } from './menu';
+import { canAccessTab, defaultHomeTab } from './navigationAccess';
 
 const { width } = Dimensions.get('window');
 /** Panneau latéral type « hamburger » (~80–82 % de l’écran, comme le mockup). */
@@ -90,6 +93,16 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [authMode, setAuthMode] = useState('login');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwdCurrent, setPwdCurrent] = useState('');
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [showPwdNew, setShowPwdNew] = useState(false);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -152,12 +165,20 @@ export default function App() {
             role: me.roleLabel || me.role,
             roleCode: me.role,
             agentId: me.agentId ?? null,
+            forcePasswordChange: !!me.forcePasswordChange,
           };
           await saveSession(merged);
           if (!cancelled) {
-            setUser(merged);
-            refreshUnread();
-            prefetchTypeConfig().catch(() => {});
+            if (merged.forcePasswordChange) {
+              setEmail(merged.email || '');
+              setAuthMode('forcePassword');
+              setUser(null);
+            } else {
+              setUser(merged);
+              if (isAdherentRole(merged)) setTab(defaultHomeTab(merged));
+              refreshUnread();
+              prefetchTypeConfig().catch(() => {});
+            }
           }
         } catch {
           await clearSession();
@@ -363,17 +384,105 @@ export default function App() {
     setLoginLoading(true);
     try {
       const data = await apiLogin(email, password);
+      if (data.forcePasswordChange) {
+        setAuthMode('forcePassword');
+        setNewPassword('');
+        setConfirmPassword('');
+        return;
+      }
       const payload = sessionUserFromLoginResponse(data);
       if (!payload.token) throw new Error('Réponse serveur invalide');
       await saveSession(payload);
       setUser(payload);
-      setTab('dashboard');
+      setAuthMode('login');
+      setTab(defaultHomeTab(payload));
       refreshUnread();
       prefetchTypeConfig().catch(() => {});
     } catch (e) {
       setLoginError(e.message || 'Connexion impossible');
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setLoginError('');
+    setLoginLoading(true);
+    try {
+      await apiForgotPassword(forgotEmail || email);
+      setForgotSuccess(true);
+    } catch (e) {
+      setLoginError(e.message || 'Demande impossible');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleForcePasswordChange = async () => {
+    setLoginError('');
+    if (newPassword !== confirmPassword) {
+      setLoginError('Les mots de passe ne correspondent pas');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setLoginError('Mot de passe trop court (6 caractères minimum)');
+      return;
+    }
+    setLoginLoading(true);
+    try {
+      const data = await apiLogin(email, password);
+      const payload = sessionUserFromLoginResponse(data);
+      if (!payload.token) throw new Error('Connexion impossible');
+      await saveSession(payload);
+      await apiChangePassword(password, newPassword);
+      const me = await apiMe();
+      const merged = {
+        ...payload,
+        id: me.id ?? payload.id,
+        email: me.email,
+        name: me.fullName,
+        role: me.roleLabel || me.role,
+        roleCode: me.role,
+        agentId: me.agentId ?? null,
+        forcePasswordChange: false,
+      };
+      await saveSession(merged);
+      setUser(merged);
+      setAuthMode('login');
+      setPassword(newPassword);
+      setNewPassword('');
+      setConfirmPassword('');
+      setTab(defaultHomeTab(merged));
+      addToast('success', 'Mot de passe modifié avec succès');
+      refreshUnread();
+      prefetchTypeConfig().catch(() => {});
+    } catch (e) {
+      setLoginError(e.message || 'Changement de mot de passe impossible');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleProfilePasswordChange = async () => {
+    if (pwdNew !== pwdConfirm) {
+      addToast('error', 'Les mots de passe ne correspondent pas');
+      return;
+    }
+    if (pwdNew.length < 6) {
+      addToast('error', 'Mot de passe trop court (6 caractères minimum)');
+      return;
+    }
+    setPwdLoading(true);
+    try {
+      await apiChangePassword(pwdCurrent, pwdNew);
+      setPwdCurrent('');
+      setPwdNew('');
+      setPwdConfirm('');
+      addToast('success', 'Mot de passe mis à jour');
+    } catch (e) {
+      addToast('error', e.message || 'Échec du changement');
+    } finally {
+      setPwdLoading(false);
     }
   };
 
@@ -384,6 +493,8 @@ export default function App() {
     setTab('dashboard');
     setEmail('');
     setPassword('');
+    setAuthMode('login');
+    setForgotSuccess(false);
   };
 
   const navSections = useMemo(() => verticalNavSections(user, navBadges), [user, navBadges]);
@@ -432,45 +543,132 @@ export default function App() {
         </View>
 
         <View style={styles.loginCard}>
-          <Text style={styles.loginHeading}>Se connecter</Text>
-          <Text style={styles.loginLead}>Accédez à votre compte avec les mêmes identifiants que sur le web.</Text>
-          {loginError ? (
-            <View style={styles.loginAlert} accessibilityRole="alert">
-              <Text style={styles.loginAlertText}>{loginError}</Text>
-            </View>
-          ) : null}
-          <Text style={styles.label}>
-            Adresse email <Text style={styles.req}>*</Text>
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="vous@exemple.com"
-            placeholderTextColor={COLORS.textLight}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <Text style={styles.label}>
-            Mot de passe <Text style={styles.req}>*</Text>
-          </Text>
-          <View style={styles.passwordRow}>
-            <TextInput
-              style={[styles.input, styles.inputFlex]}
-              placeholder="••••••••"
-              placeholderTextColor={COLORS.textLight}
-              secureTextEntry={!showPassword}
-              value={password}
-              onChangeText={setPassword}
-            />
-            <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword((v) => !v)} accessibilityLabel={showPassword ? 'Masquer' : 'Afficher'}>
-              <FontAwesome5 name={showPassword ? 'eye-slash' : 'eye'} size={18} color={COLORS.textLight} solid />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.apiHint}>API : {API_BASE_URL}</Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} disabled={loginLoading}>
-            {loginLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Se connecter</Text>}
-          </TouchableOpacity>
+          {authMode === 'forgot' ? (
+            <>
+              <Text style={styles.loginHeading}>Mot de passe oublié</Text>
+              <Text style={styles.loginLead}>Entrez votre adresse e-mail pour recevoir un lien de réinitialisation.</Text>
+              {forgotSuccess ? (
+                <View style={[styles.loginAlert, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
+                  <Text style={[styles.loginAlertText, { color: '#065f46' }]}>
+                    Si un compte existe pour cette adresse, un e-mail avec le lien de réinitialisation a été envoyé (vérifiez les courriers indésirables). Le lien est valide 1 heure.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {loginError ? (
+                    <View style={styles.loginAlert} accessibilityRole="alert">
+                      <Text style={styles.loginAlertText}>{loginError}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={styles.label}>Adresse email <Text style={styles.req}>*</Text></Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="vous@exemple.com"
+                    placeholderTextColor={COLORS.textLight}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={forgotEmail}
+                    onChangeText={setForgotEmail}
+                  />
+                  <TouchableOpacity style={styles.primaryButton} onPress={handleForgotPassword} disabled={loginLoading}>
+                    {loginLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Envoyer le lien</Text>}
+                  </TouchableOpacity>
+                </>
+              )}
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() => { setAuthMode('login'); setLoginError(''); setForgotSuccess(false); }}
+              >
+                <Text style={styles.linkBtnText}>← Retour à la connexion</Text>
+              </TouchableOpacity>
+            </>
+          ) : authMode === 'forcePassword' ? (
+            <>
+              <Text style={styles.loginHeading}>Changement obligatoire</Text>
+              <Text style={styles.loginLead}>
+                Pour des raisons de sécurité, modifiez votre mot de passe lors de votre première connexion.
+              </Text>
+              {loginError ? (
+                <View style={styles.loginAlert} accessibilityRole="alert">
+                  <Text style={styles.loginAlertText}>{loginError}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.label}>Nouveau mot de passe <Text style={styles.req}>*</Text></Text>
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, styles.inputFlex]}
+                  placeholder="••••••••"
+                  placeholderTextColor={COLORS.textLight}
+                  secureTextEntry={!showPwdNew}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPwdNew((v) => !v)}>
+                  <FontAwesome5 name={showPwdNew ? 'eye-slash' : 'eye'} size={18} color={COLORS.textLight} solid />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.label}>Confirmer <Text style={styles.req}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor={COLORS.textLight}
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+              <TouchableOpacity style={styles.primaryButton} onPress={handleForcePasswordChange} disabled={loginLoading}>
+                {loginLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Mettre à jour le mot de passe</Text>}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.loginHeading}>Se connecter</Text>
+              <Text style={styles.loginLead}>Accédez à votre compte avec les mêmes identifiants que sur le web.</Text>
+              {loginError ? (
+                <View style={styles.loginAlert} accessibilityRole="alert">
+                  <Text style={styles.loginAlertText}>{loginError}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.label}>
+                Adresse email <Text style={styles.req}>*</Text>
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="vous@exemple.com"
+                placeholderTextColor={COLORS.textLight}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+              <Text style={styles.label}>
+                Mot de passe <Text style={styles.req}>*</Text>
+              </Text>
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, styles.inputFlex]}
+                  placeholder="••••••••"
+                  placeholderTextColor={COLORS.textLight}
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword((v) => !v)} accessibilityLabel={showPassword ? 'Masquer' : 'Afficher'}>
+                  <FontAwesome5 name={showPassword ? 'eye-slash' : 'eye'} size={18} color={COLORS.textLight} solid />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={styles.forgotLink}
+                onPress={() => { setAuthMode('forgot'); setForgotEmail(email); setLoginError(''); setForgotSuccess(false); }}
+              >
+                <Text style={styles.forgotLinkText}>Mot de passe oublié ?</Text>
+              </TouchableOpacity>
+              <Text style={styles.apiHint}>API : {API_BASE_URL}</Text>
+              <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} disabled={loginLoading}>
+                {loginLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Se connecter</Text>}
+              </TouchableOpacity>
+            </>
+          )}
           <Text style={styles.loginBuildTag}>{MOBILE_UI_BUILD}</Text>
           <Text style={styles.loginCopy}>© {new Date().getFullYear()} SRM-MS — Direction SI et transformation digitale</Text>
         </View>
@@ -593,13 +791,24 @@ export default function App() {
     </ScrollView>
   );
 
+  const safeNavigate = useCallback(
+    (targetTab) => {
+      if (!canAccessTab(user, targetTab)) {
+        addToast('warning', 'Accès non autorisé à cette section');
+        return;
+      }
+      setSidebarOpen(false);
+      setTab(targetTab);
+    },
+    [user, addToast],
+  );
+
   const onNavItemPress = (item) => {
-    setSidebarOpen(false);
     if (item.id === DASHBOARD_PAGE_ID) {
-      setTab('dashboard');
+      safeNavigate('dashboard');
       return;
     }
-    setTab(item.id);
+    safeNavigate(item.id);
   };
 
   const pageBar = useMemo(() => PAGE_TOPBAR[tab] || { title: 'SRM-MS', breadcrumb: '—' }, [tab]);
@@ -848,8 +1057,41 @@ export default function App() {
         <Text style={styles.profileRole}>{user.role}</Text>
         <Text style={styles.profileEmail}>{user.email}</Text>
       </View>
+      <View style={styles.profileSection}>
+        <Text style={styles.profileSectionTitle}>Changer le mot de passe</Text>
+        <Text style={styles.label}>Mot de passe actuel</Text>
+        <TextInput
+          style={styles.input}
+          secureTextEntry
+          value={pwdCurrent}
+          onChangeText={setPwdCurrent}
+          placeholder="••••••••"
+          placeholderTextColor={COLORS.textLight}
+        />
+        <Text style={styles.label}>Nouveau mot de passe</Text>
+        <TextInput
+          style={styles.input}
+          secureTextEntry
+          value={pwdNew}
+          onChangeText={setPwdNew}
+          placeholder="••••••••"
+          placeholderTextColor={COLORS.textLight}
+        />
+        <Text style={styles.label}>Confirmer</Text>
+        <TextInput
+          style={styles.input}
+          secureTextEntry
+          value={pwdConfirm}
+          onChangeText={setPwdConfirm}
+          placeholder="••••••••"
+          placeholderTextColor={COLORS.textLight}
+        />
+        <TouchableOpacity style={styles.primaryButton} onPress={handleProfilePasswordChange} disabled={pwdLoading}>
+          {pwdLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Mettre à jour le mot de passe</Text>}
+        </TouchableOpacity>
+      </View>
       <View style={styles.profileOptions}>
-        <TouchableOpacity style={styles.optionItem} onPress={() => setTab('notifications')}>
+        <TouchableOpacity style={styles.optionItem} onPress={() => safeNavigate('notifications')}>
           <FontAwesome5 name="bell" size={18} color={COLORS.text} solid style={styles.optionFa} />
           <Text style={styles.optionText}>Notifications</Text>
           {unreadCount > 0 ? (
@@ -868,12 +1110,11 @@ export default function App() {
   );
 
   const onBottomTabPress = (itemId) => {
-    setSidebarOpen(false);
     if (itemId === DASHBOARD_PAGE_ID) {
-      setTab('dashboard');
+      safeNavigate(isAdherentRole(user) ? 'mes-devis' : 'dashboard');
       return;
     }
-    setTab(itemId);
+    safeNavigate(itemId);
   };
 
   const renderBottomNav = () => (
@@ -908,11 +1149,16 @@ export default function App() {
   const renderContent = () => {
     if (tab === 'dashboard') return renderHome();
     if (tab === 'profil') return renderProfile();
-    if (tab === 'notifications') return renderNotifications();
-    if (FEATURE_SCREEN_IDS.has(tab)) {
+    if (FEATURE_SCREEN_IDS.has(tab) || tab === 'notifications') {
       return (
         <View style={[styles.page, styles.featurePage]}>
-          <FeatureRouter tab={tab} user={user} addToast={addToast} />
+          <FeatureRouter
+            tab={tab}
+            user={user}
+            addToast={addToast}
+            onNavigate={safeNavigate}
+            onUnreadChanged={setUnreadCount}
+          />
         </View>
       );
     }
@@ -959,7 +1205,7 @@ export default function App() {
             style={styles.headerIconPress}
             onPress={() => {
               setSidebarOpen(false);
-              setTab('notifications');
+              safeNavigate('notifications');
             }}
             accessibilityLabel="Notifications"
             hitSlop={10}
@@ -1315,7 +1561,21 @@ const styles = StyleSheet.create({
   profileName: { fontSize: 22, fontWeight: 'bold', color: COLORS.text, marginBottom: 4 },
   profileRole: { fontSize: 15, color: COLORS.textLight },
   profileEmail: { fontSize: 13, color: COLORS.textLight, marginTop: 8 },
-  profileOptions: { backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' },
+  profileSection: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  profileSectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
+  forgotLink: { alignSelf: 'flex-end', marginBottom: 12, marginTop: -8 },
+  forgotLinkText: { color: COLORS.primary, fontSize: 14, fontWeight: '600' },
+  linkBtn: { marginTop: 16, paddingVertical: 12, alignItems: 'center' },
+  linkBtnText: { color: COLORS.primary, fontSize: 15, fontWeight: '600' },
+  profileOptions: { backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', marginHorizontal: 16 },
   optionItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   optionFa: { width: 28, marginRight: 12 },
   optionText: { fontSize: 16, color: COLORS.text, fontWeight: '500', flex: 1 },

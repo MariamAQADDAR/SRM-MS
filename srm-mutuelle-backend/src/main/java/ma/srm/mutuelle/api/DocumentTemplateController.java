@@ -44,6 +44,9 @@ public class DocumentTemplateController {
 			case "care-episode-request" -> new Template(
 					"modele-prise-en-charge.docx",
 					"modele-prise-en-charge.docx");
+			case "reimbursement-request" -> new Template(
+					"bulletin-adhesion-remboursement.docx",
+					"bulletin-adhesion-remboursement.docx");
 			default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Modèle introuvable");
 		};
 	}

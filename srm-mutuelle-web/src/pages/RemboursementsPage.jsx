@@ -106,6 +106,15 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   const [loading, setLoading] = useState(true);
   const [pdfFile, setPdfFile] = useState(null);
   const [wizardStep, setWizardStep] = useState(1);
+  const [wizardDraft, setWizardDraft] = useState({
+    agentId: '',
+    beneficiaire: '',
+    careType: '',
+    establishmentName: '',
+    depositDate: new Date().toISOString().split('T')[0],
+    montantDemande: '',
+    observation: '',
+  });
   const [medicineName, setMedicineName] = useState('');
   const [reviewMontant, setReviewMontant] = useState('');
   const [reviewTaux, setReviewTaux] = useState('');
@@ -185,11 +194,48 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   }, [rowsView, searchQuery]);
 
   const { pageData, page, setPage, totalPages } = usePagination(data, searchQuery);
-  const closeModal = () => {
-    setModal(null);
+  const resetWizard = () => {
     setWizardStep(1);
     setPdfFile(null);
     setMedicineName('');
+    setWizardDraft({
+      agentId: agents[0] ? String(agents[0].id) : '',
+      beneficiaire: beneficiaryOptions[0]?.value || '',
+      careType: careTypes[0] || '',
+      establishmentName: '',
+      depositDate: new Date().toISOString().split('T')[0],
+      montantDemande: '',
+      observation: '',
+    });
+  };
+
+  const closeModal = () => {
+    setModal(null);
+    resetWizard();
+  };
+
+  const wizardGoNext = () => {
+    if (wizardStep === 1) {
+      if (!wizardDraft.beneficiaire) {
+        addToast('error', 'Choisissez un bénéficiaire');
+        return;
+      }
+      if (!wizardDraft.careType) {
+        addToast('error', 'Choisissez un type de soin');
+        return;
+      }
+    }
+    if (wizardStep === 2) {
+      if (!wizardDraft.montantDemande || Number(wizardDraft.montantDemande) <= 0) {
+        addToast('error', 'Indiquez un montant valide');
+        return;
+      }
+      if (!pdfFile) {
+        addToast('error', 'Le justificatif PDF est obligatoire');
+        return;
+      }
+    }
+    setWizardStep((s) => s + 1);
   };
 
   const openPdf = async (id) => {
@@ -200,6 +246,22 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) {
       addToast('error', e.message || 'PDF introuvable');
+    }
+  };
+
+  const downloadReimbursementTemplate = async () => {
+    try {
+      const blob = await apiFetchBlob('/api/document-templates/reimbursement-request');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'bulletin-adhesion-remboursement.docx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      addToast('error', e.message || 'Modèle remboursement indisponible');
     }
   };
 
@@ -216,6 +278,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
 
   const buildWizardForm = () => {
     const isMed = (type) => type && (type.includes('Médicament') || type.includes('Medicament'));
+    const patchDraft = (key, value) => setWizardDraft((d) => ({ ...d, [key]: value }));
 
     const submitWizard = async (e) => {
       e.preventDefault();
@@ -223,18 +286,21 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
         addToast('error', 'Le justificatif PDF est obligatoire');
         return;
       }
-      const fd = new FormData(e.target);
+      if (!wizardDraft.montantDemande || Number(wizardDraft.montantDemande) <= 0) {
+        addToast('error', 'Indiquez un montant valide');
+        return;
+      }
       const body = new FormData();
       body.append('file', pdfFile);
-      body.append('beneficiaire', fd.get('beneficiaire'));
-      body.append('montantDemande', fd.get('montantDemande'));
-      if (fd.get('establishmentName')) body.append('establishmentName', fd.get('establishmentName'));
-      if (fd.get('careType')) body.append('careType', fd.get('careType'));
-      if (fd.get('depositDate')) body.append('depositDate', fd.get('depositDate'));
+      body.append('beneficiaire', wizardDraft.beneficiaire);
+      body.append('montantDemande', wizardDraft.montantDemande);
+      if (wizardDraft.establishmentName) body.append('establishmentName', wizardDraft.establishmentName);
+      if (wizardDraft.careType) body.append('careType', wizardDraft.careType);
+      if (wizardDraft.depositDate) body.append('depositDate', wizardDraft.depositDate);
       if (medicineName) body.append('medicineName', medicineName);
-      if (fd.get('observation')) body.append('observation', fd.get('observation'));
-      if (!isAdherent && fd.get('agentId')) {
-        body.append('agentId', fd.get('agentId'));
+      if (wizardDraft.observation) body.append('observation', wizardDraft.observation);
+      if (!isAdherent && wizardDraft.agentId) {
+        body.append('agentId', wizardDraft.agentId);
       } else if (isAdherent && user?.agentId != null) {
         body.append('agentId', String(user.agentId));
       }
@@ -259,7 +325,12 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             {!isAdherent && (
               <div className="form-group">
                 <label>Porteur</label>
-                <select name="agentId" className="form-control" required>
+                <select
+                  className="form-control"
+                  required
+                  value={wizardDraft.agentId}
+                  onChange={(e) => patchDraft('agentId', e.target.value)}
+                >
                   {agents.map((a) => (
                     <option key={a.id} value={String(a.id)}>
                       {a.matricule} — {a.prenom} {a.nom}
@@ -270,7 +341,12 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             )}
             <div className="form-group">
               <label>Bénéficiaire</label>
-              <select name="beneficiaire" className="form-control" required defaultValue={beneficiaryOptions[0]?.value}>
+              <select
+                className="form-control"
+                required
+                value={wizardDraft.beneficiaire}
+                onChange={(e) => patchDraft('beneficiaire', e.target.value)}
+              >
                 {beneficiaryOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -280,7 +356,12 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             </div>
             <div className="form-group">
               <label>Type de soin</label>
-              <select name="careType" className="form-control" required id="careTypeSelect">
+              <select
+                className="form-control"
+                required
+                value={wizardDraft.careType}
+                onChange={(e) => patchDraft('careType', e.target.value)}
+              >
                 <option value="">— Choisir —</option>
                 {careTypes.map((t) => (
                   <option key={t} value={t}>
@@ -291,15 +372,20 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             </div>
             <div className="form-group">
               <label>Établissement / pharmacie</label>
-              <input name="establishmentName" className="form-control" placeholder="Nom de l'établissement" />
+              <input
+                className="form-control"
+                placeholder="Nom de l'établissement"
+                value={wizardDraft.establishmentName}
+                onChange={(e) => patchDraft('establishmentName', e.target.value)}
+              />
             </div>
             <div className="form-group">
               <label>Date de dépôt</label>
               <input
-                name="depositDate"
                 type="date"
                 className="form-control"
-                defaultValue={new Date().toISOString().split('T')[0]}
+                value={wizardDraft.depositDate}
+                onChange={(e) => patchDraft('depositDate', e.target.value)}
                 required
               />
             </div>
@@ -310,11 +396,21 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
           <div className="form-grid">
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Montant demandé (DH)</label>
-              <input name="montantDemande" type="number" step="0.01" min="0" className="form-control" required />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="form-control"
+                required
+                value={wizardDraft.montantDemande}
+                onChange={(e) => patchDraft('montantDemande', e.target.value)}
+              />
             </div>
-            <div className="form-group" style={{ gridColumn: '1 / -1' }} id="medicineBlock">
-              <MedicineSearchField value={medicineName} onChange={setMedicineName} required={false} />
-            </div>
+            {isMed(wizardDraft.careType) && (
+              <div className="form-group" style={{ gridColumn: '1 / -1' }} id="medicineBlock">
+                <MedicineSearchField value={medicineName} onChange={setMedicineName} required={false} />
+              </div>
+            )}
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Justificatif PDF (facture, ordonnance…)</label>
               <input
@@ -328,18 +424,27 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             </div>
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Observation</label>
-              <textarea name="observation" className="form-control" rows={2} />
+              <textarea
+                className="form-control"
+                rows={2}
+                value={wizardDraft.observation}
+                onChange={(e) => patchDraft('observation', e.target.value)}
+              />
             </div>
           </div>
         )}
 
         {wizardStep === 3 && (
           <div className="card" style={{ padding: 16, marginBottom: 12 }}>
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--gray-700)' }}>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--gray-700)', marginBottom: 12 }}>
               Après enregistrement, votre demande sera à l&apos;<strong>étape 1 — Dépôt</strong>. Utilisez{' '}
-              <strong>Envoyer à la mutuelle</strong> pour passer à l&apos;<strong>étape 2 — Instruction</strong>. La mutuelle
-              vous notifiera du <strong>montant remboursé</strong> et du <strong>taux</strong> à l&apos;étape 3.
+              <strong>Envoyer à la mutuelle</strong> pour passer à l&apos;<strong>étape 2 — Instruction</strong>.
             </p>
+            <DetailItem label="Bénéficiaire">{wizardDraft.beneficiaire}</DetailItem>
+            <DetailItem label="Type">{wizardDraft.careType}</DetailItem>
+            <DetailItem label="Montant">{Number(wizardDraft.montantDemande || 0).toLocaleString('fr-FR')} DH</DetailItem>
+            {medicineName ? <DetailItem label="Médicament">{medicineName}</DetailItem> : null}
+            <DetailItem label="PDF">{pdfFile?.name || '—'}</DetailItem>
           </div>
         )}
 
@@ -353,17 +458,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             </button>
           )}
           {wizardStep < 3 ? (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                if (wizardStep === 2 && !pdfFile) {
-                  addToast('error', 'PDF obligatoire');
-                  return;
-                }
-                setWizardStep((s) => s + 1);
-              }}
-            >
+            <button type="button" className="btn btn-primary" onClick={wizardGoNext}>
               Suivant
             </button>
           ) : (
@@ -539,7 +634,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
     <>
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
-          {modal.content}
+          {modal.mode === 'wizard' ? buildWizardForm() : modal.content}
         </Modal>
       )}
       {!isAdherent && (
@@ -583,10 +678,14 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             exportFilename="remboursements"
             showNew={canCreate}
             newLabel={isAdherent ? 'Nouvelle demande (3 étapes)' : 'Nouvelle demande'}
+            trailing={
+              <button type="button" className="btn btn-outline" onClick={downloadReimbursementTemplate}>
+                <FaIcon name="file-word" className="fa-inline-icon" /> Bulletin adhésion
+              </button>
+            }
             onNew={() => {
-              setWizardStep(1);
-              setPdfFile(null);
-              setModal({ title: 'Demande de remboursement — 3 étapes', content: buildWizardForm() });
+              resetWizard();
+              setModal({ title: 'Demande de remboursement — 3 étapes', mode: 'wizard' });
             }}
           />
         }

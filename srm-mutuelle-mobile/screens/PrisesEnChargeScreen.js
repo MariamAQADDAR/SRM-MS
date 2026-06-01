@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, FlatList, RefreshControl, Text } from 'react-native';
 import { apiFetch, parseJsonOrThrow } from '../api';
-import { isAdherentRole, isStaffWriterRole, canAdminDelete } from '../authUtils';
+import { isAdherentRole, isStaffWriterRole } from '../authUtils';
 import { getTypeOptionsAsync } from '../typeConfig';
 import { matchesSearch } from '../utils/filterSearch';
 import { formatDate, formatMoney } from '../utils/format';
+import { PEC_WORKFLOW_STEPS, pecWorkflowSummary, resolvePecWorkflow } from '../utils/workflowSteps';
 import { downloadAndShare, pickPdfFile, uploadMultipart } from '../fileHelpers';
+import WorkflowSteps from '../components/WorkflowSteps';
 import {
   SearchBar,
   ListCard,
@@ -24,8 +26,8 @@ import {
   TAB_BAR_EXTRA_BOTTOM,
 } from '../components/ui';
 
-export default function PrisesEnChargeScreen({ user, addToast }) {
-  const isAdherent = isAdherentRole(user);
+export default function PrisesEnChargeScreen({ user, addToast, personalMode = false }) {
+  const isAdherent = personalMode || isAdherentRole(user);
   const canMutate = isStaffWriterRole(user);
   const canCreate = isAdherent || canMutate;
   const myAgent = isAdherent && user?.agentId != null ? Number(user.agentId) : null;
@@ -46,8 +48,8 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
     typePrestation: '',
     etablissement: '',
     montantDemande: '',
-    taux: '0',
-    dateDebut: '',
+    taux: '70',
+    dateDebut: new Date().toISOString().split('T')[0],
     dateFin: '',
     observation: '',
   });
@@ -96,6 +98,7 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
+      if (personalMode && myAgent != null && Number(r.agentId) !== myAgent) return false;
       const agent = agentById[r.agentId];
       return matchesSearch(
         search,
@@ -108,7 +111,7 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
         r.statut,
       );
     });
-  }, [rows, search, agentById]);
+  }, [rows, search, agentById, personalMode, myAgent]);
 
   const closeModal = () => {
     setModal(null);
@@ -120,10 +123,10 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
     setForm({
       beneficiaire: beneficiaryOptions[0]?.value || '',
       typePrestation: careTypes[0] || '',
-      etablissement: facilities[0]?.name || '',
+      etablissement: facilities[0]?.name || facilities[0]?.nom || '',
       montantDemande: '',
-      taux: '0',
-      dateDebut: '',
+      taux: '70',
+      dateDebut: new Date().toISOString().split('T')[0],
       dateFin: '',
       observation: '',
     });
@@ -139,7 +142,7 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
     }
     try {
       await uploadMultipart('/api/care-episodes/request', form, pdfFile);
-      addToast('success', 'Demande PEC enregistrée');
+      addToast('success', 'Demande PEC enregistrée — envoyez-la à la mutuelle (étape 2)');
       closeModal();
       reload();
     } catch (e) {
@@ -159,10 +162,40 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
   };
 
   const openDetail = (item) => {
-    setReviewMontant(item.montantPrisEnCharge != null ? String(item.montantPrisEnCharge) : '');
-    setReviewTaux(item.taux != null ? String(item.taux) : '');
+    const defaultMontant =
+      item.montantPrisEnCharge != null && Number(item.montantPrisEnCharge) > 0 ? item.montantPrisEnCharge : item.montantDemande;
+    setReviewMontant(defaultMontant != null ? String(defaultMontant) : '');
+    setReviewTaux(item.taux != null ? String(item.taux) : '70');
     setReviewObs(item.observation || '');
     setModal({ mode: 'detail', item });
+  };
+
+  const wizardNext = () => {
+    if (wizardStep === 1) {
+      if (!form.beneficiaire) {
+        addToast('error', 'Choisissez un bénéficiaire');
+        return;
+      }
+      if (!form.typePrestation) {
+        addToast('error', 'Choisissez un type de prestation');
+        return;
+      }
+      if (!form.etablissement) {
+        addToast('error', 'Choisissez un établissement');
+        return;
+      }
+    }
+    if (wizardStep === 2) {
+      if (!form.montantDemande || Number(form.montantDemande) <= 0) {
+        addToast('error', 'Indiquez un montant valide');
+        return;
+      }
+      if (!pdfFile) {
+        addToast('error', 'PDF obligatoire');
+        return;
+      }
+    }
+    setWizardStep((s) => s + 1);
   };
 
   return (
@@ -170,7 +203,14 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
       <SearchBar value={search} onChangeText={setSearch} placeholder="N°, bénéficiaire, établissement…" />
       <ScreenToolbar>
         {canCreate ? <PrimaryButton title="+ Demande PEC" onPress={openCreate} /> : null}
-        <OutlineButton title="Modèle PEC" onPress={() => downloadAndShare('/api/document-templates/care-episode-request', 'modele-prise-en-charge.docx').catch((e) => addToast('error', e.message))} />
+        <OutlineButton
+          title="Modèle PEC"
+          onPress={() =>
+            downloadAndShare('/api/document-templates/care-episode-request', 'modele-prise-en-charge.docx').catch((e) =>
+              addToast('error', e.message),
+            )
+          }
+        />
       </ScreenToolbar>
 
       {loading ? (
@@ -183,53 +223,80 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
           renderItem={({ item }) => (
             <ListCard
               title={item.numero}
-              subtitle={`${item.beneficiaire} · ${item.typePrestation}`}
+              subtitle={`${item.beneficiaire} · ${item.typePrestation} · ${pecWorkflowSummary(item)}`}
               badge={item.statut}
               onPress={() => openDetail(item)}
             />
           )}
-          ListEmptyComponent={<EmptyState />}
+          ListEmptyComponent={<EmptyState text="Aucune demande PEC. Créez une demande en 3 étapes avec justificatif PDF." />}
           contentContainerStyle={{ paddingBottom: TAB_BAR_EXTRA_BOTTOM + 16 }}
         />
       )}
 
       <AppModal
         visible={modal?.mode === 'create'}
-        title="Nouvelle prise en charge"
+        title="Demande de prise en charge — 3 étapes"
         onClose={closeModal}
         footer={
           <>
             {wizardStep > 1 ? <OutlineButton title="Précédent" onPress={() => setWizardStep((s) => s - 1)} style={{ flex: 1 }} /> : null}
             {wizardStep < 3 ? (
-              <PrimaryButton title="Suivant" onPress={() => setWizardStep((s) => s + 1)} style={{ flex: 1 }} />
+              <PrimaryButton title="Suivant" onPress={wizardNext} style={{ flex: 1 }} />
             ) : (
-              <PrimaryButton title="Envoyer" onPress={submitWizard} style={{ flex: 1 }} />
+              <PrimaryButton title="Enregistrer" onPress={submitWizard} style={{ flex: 1 }} />
             )}
           </>
         }
       >
         <Stepper step={wizardStep} labels={['Informations', 'Montant & PDF', 'Confirmation']} />
+        <WorkflowSteps steps={PEC_WORKFLOW_STEPS} activeStep={1} terminal={false} />
         {wizardStep === 1 && (
           <>
-            <SelectField label="Bénéficiaire" value={form.beneficiaire} options={beneficiaryOptions} onChange={(v) => setForm((f) => ({ ...f, beneficiaire: v }))} required />
-            <SelectField label="Type prestation" value={form.typePrestation} options={careTypes.map((t) => ({ label: t, value: t }))} onChange={(v) => setForm((f) => ({ ...f, typePrestation: v }))} />
-            <SelectField label="Établissement" value={form.etablissement} options={facilities.map((f) => ({ label: f.name, value: f.name }))} onChange={(v) => setForm((f) => ({ ...f, etablissement: v }))} />
-            <FormField label="Date début"><TextField value={form.dateDebut} onChangeText={(v) => setForm((f) => ({ ...f, dateDebut: v }))} placeholder="AAAA-MM-JJ" /></FormField>
-            <FormField label="Date fin"><TextField value={form.dateFin} onChangeText={(v) => setForm((f) => ({ ...f, dateFin: v }))} placeholder="AAAA-MM-JJ" /></FormField>
+            <SelectField inline label="Bénéficiaire" value={form.beneficiaire} options={beneficiaryOptions} onChange={(v) => setForm((f) => ({ ...f, beneficiaire: v }))} />
+            <SelectField inline label="Type prestation" value={form.typePrestation} options={careTypes.map((t) => ({ label: t, value: t }))} onChange={(v) => setForm((f) => ({ ...f, typePrestation: v }))} />
+            <SelectField
+              inline
+              label="Établissement / corps médical"
+              value={form.etablissement}
+              options={facilities.map((f) => ({ label: f.name || f.nom, value: f.name || f.nom }))}
+              onChange={(v) => setForm((f) => ({ ...f, etablissement: v }))}
+            />
+            <FormField label="Date début soins">
+              <TextField value={form.dateDebut} onChangeText={(v) => setForm((f) => ({ ...f, dateDebut: v }))} placeholder="AAAA-MM-JJ" />
+            </FormField>
+            <FormField label="Date fin (optionnel)">
+              <TextField value={form.dateFin} onChangeText={(v) => setForm((f) => ({ ...f, dateFin: v }))} placeholder="AAAA-MM-JJ" />
+            </FormField>
           </>
         )}
         {wizardStep === 2 && (
           <>
-            <FormField label="Montant demandé (DH)"><TextField value={form.montantDemande} onChangeText={(v) => setForm((f) => ({ ...f, montantDemande: v }))} keyboardType="decimal-pad" /></FormField>
-            <FormField label="Taux (%)"><TextField value={form.taux} onChangeText={(v) => setForm((f) => ({ ...f, taux: v }))} keyboardType="number-pad" /></FormField>
-            <FormField label="Observation"><TextField value={form.observation} onChangeText={(v) => setForm((f) => ({ ...f, observation: v }))} multiline /></FormField>
+            <FormField label="Montant demandé (DH) *">
+              <TextField
+                value={form.montantDemande}
+                onChangeText={(v) => setForm((f) => ({ ...f, montantDemande: v.replace(',', '.') }))}
+                keyboardType="decimal-pad"
+                placeholder="Ex. 15000"
+                selectTextOnFocus
+              />
+            </FormField>
+            <FormField label="Taux souhaité (%)">
+              <TextField value={form.taux} onChangeText={(v) => setForm((f) => ({ ...f, taux: v }))} keyboardType="number-pad" />
+            </FormField>
             <OutlineButton title={pdfFile ? `PDF : ${pdfFile.name}` : 'Choisir PDF *'} onPress={async () => { const f = await pickPdfFile(); if (f) setPdfFile(f); }} style={{ marginTop: 8 }} />
+            <FormField label="Observation">
+              <TextField value={form.observation} onChangeText={(v) => setForm((f) => ({ ...f, observation: v }))} multiline />
+            </FormField>
           </>
         )}
         {wizardStep === 3 && (
           <>
+            <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 12, lineHeight: 20 }}>
+              Après enregistrement, utilisez « Envoyer à la mutuelle » pour lancer l&apos;instruction (étape 2).
+            </Text>
             <DetailItem label="Bénéficiaire">{form.beneficiaire}</DetailItem>
             <DetailItem label="Type">{form.typePrestation}</DetailItem>
+            <DetailItem label="Établissement">{form.etablissement}</DetailItem>
             <DetailItem label="Montant">{formatMoney(form.montantDemande)}</DetailItem>
             <DetailItem label="PDF">{pdfFile ? pdfFile.name : '—'}</DetailItem>
           </>
@@ -240,10 +307,23 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
         visible={modal?.mode === 'detail'}
         title={modal?.item ? `PEC ${modal.item.numero}` : ''}
         onClose={closeModal}
-        footer={<OutlineButton title="Fermer" onPress={closeModal} style={{ flex: 1 }} />}
+        footer={
+          <>
+            {isAdherent && modal?.item?.statut === 'En attente' ? (
+              <PrimaryButton
+                title="Envoyer à la mutuelle"
+                onPress={() => doAction(`/api/care-episodes/${modal.item.id}/submit`, 'Demande transmise à la mutuelle')}
+                disabled={!modal?.item?.hasPdf}
+                style={{ flex: 1 }}
+              />
+            ) : null}
+            <OutlineButton title="Fermer" onPress={closeModal} style={{ flex: 1 }} />
+          </>
+        }
       >
         {modal?.item && (
           <>
+            <WorkflowSteps {...resolvePecWorkflow(modal.item.statut)} />
             <DetailSection title="Informations" icon="info-circle">
               <DetailItem label="Bénéficiaire">{modal.item.beneficiaire}</DetailItem>
               <DetailItem label="Type">{modal.item.typePrestation}</DetailItem>
@@ -251,26 +331,52 @@ export default function PrisesEnChargeScreen({ user, addToast }) {
               <DetailItem label="Statut">{modal.item.statut}</DetailItem>
               <DetailItem label="Début">{formatDate(modal.item.dateDebut)}</DetailItem>
               <DetailItem label="Fin">{formatDate(modal.item.dateFin)}</DetailItem>
+              <DetailItem label="Date dépôt">{formatDate(modal.item.depositDate || modal.item.dateDebut)}</DetailItem>
+              <DetailItem label="Date envoi">{formatDate(modal.item.sentDate)}</DetailItem>
             </DetailSection>
             <DetailSection title="Détails financiers" icon="coins">
               <DetailItem label="Montant demandé">{formatMoney(modal.item.montantDemande)}</DetailItem>
               <DetailItem label="Montant PEC">{formatMoney(modal.item.montantPrisEnCharge)}</DetailItem>
               <DetailItem label="Taux">{modal.item.taux != null ? `${modal.item.taux} %` : '—'}</DetailItem>
-            </DetailSection>
-            <DetailSection title="Document & observation" icon="file-alt">
               <DetailItem label="Observation">{modal.item.observation || '—'}</DetailItem>
-              {modal.item.hasPdf ? (
-                <OutlineButton title="Voir PDF" onPress={() => downloadAndShare(`/api/care-episodes/${modal.item.id}/document`, `pec-${modal.item.numero}.pdf`).catch((e) => addToast('error', e.message))} />
-              ) : null}
             </DetailSection>
-            {canMutate && (
+            {modal.item.hasPdf ? (
+              <OutlineButton
+                title="Voir PDF"
+                onPress={() =>
+                  downloadAndShare(`/api/care-episodes/${modal.item.id}/document`, `pec-${modal.item.numero}.pdf`).catch((e) =>
+                    addToast('error', e.message),
+                  )
+                }
+              />
+            ) : null}
+            {canMutate && (modal.item.statut === 'En cours' || modal.item.statut === 'En attente') && (
               <View style={{ marginTop: 12, gap: 8 }}>
-                <Text style={{ fontWeight: '700', marginBottom: 4 }}>Validation mutuelle</Text>
-                <FormField label="Montant PEC"><TextField value={reviewMontant} onChangeText={setReviewMontant} keyboardType="decimal-pad" /></FormField>
-                <FormField label="Taux"><TextField value={reviewTaux} onChangeText={setReviewTaux} keyboardType="number-pad" /></FormField>
-                <FormField label="Observation"><TextField value={reviewObs} onChangeText={setReviewObs} multiline /></FormField>
-                <OutlineButton title="Approuver" onPress={() => doAction(`/api/care-episodes/${modal.item.id}/validate`, 'PEC approuvée', { montantPrisEnCharge: reviewMontant ? Number(reviewMontant) : null, taux: reviewTaux ? Number(reviewTaux) : null, observation: reviewObs || null })} />
-                <OutlineButton title="Rejeter" danger onPress={() => doAction(`/api/care-episodes/${modal.item.id}/reject`, 'PEC rejetée', { observation: reviewObs || null })} />
+                <Text style={{ fontWeight: '700', marginBottom: 4 }}>Validation mutuelle (étape 3)</Text>
+                <FormField label="Montant PEC">
+                  <TextField value={reviewMontant} onChangeText={setReviewMontant} keyboardType="decimal-pad" />
+                </FormField>
+                <FormField label="Taux">
+                  <TextField value={reviewTaux} onChangeText={setReviewTaux} keyboardType="number-pad" />
+                </FormField>
+                <FormField label="Observation">
+                  <TextField value={reviewObs} onChangeText={setReviewObs} multiline />
+                </FormField>
+                <PrimaryButton
+                  title="Approuver"
+                  onPress={() =>
+                    doAction(`/api/care-episodes/${modal.item.id}/validate`, 'PEC approuvée', {
+                      montantPrisEnCharge: reviewMontant ? Number(reviewMontant) : null,
+                      taux: reviewTaux ? Number(reviewTaux) : null,
+                      observation: reviewObs || null,
+                    })
+                  }
+                />
+                <OutlineButton
+                  title="Rejeter"
+                  danger
+                  onPress={() => doAction(`/api/care-episodes/${modal.item.id}/reject`, 'PEC rejetée', { observation: reviewObs || null })}
+                />
               </View>
             )}
           </>

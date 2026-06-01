@@ -1,16 +1,24 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { COLORS } from '../theme';
-import BeneficiairesScreen from './BeneficiairesScreen';
-import PrisesEnChargeScreen from './PrisesEnChargeScreen';
-import RemboursementsScreen from './RemboursementsScreen';
-import DevisScreen from './DevisScreen';
-import MedicamentsScreen from './MedicamentsScreen';
-import CartesMutuellesScreen from './CartesMutuellesScreen';
-import HistoriqueScreen from './HistoriqueScreen';
-import GenericCrudScreen from './GenericCrudScreen';
-import ParametrageScreen from './ParametrageScreen';
-import { DEFAULT_TYPE_CONFIG } from '../typeConfig';
+import { isAdminRole } from './authUtils';
+import { canAccessTab, resolveTabRoute } from './navigationAccess';
+import AccessDeniedScreen from './components/AccessDeniedScreen';
+import BeneficiairesScreen from './screens/BeneficiairesScreen';
+import PrisesEnChargeScreen from './screens/PrisesEnChargeScreen';
+import RemboursementsScreen from './screens/RemboursementsScreen';
+import DevisScreen from './screens/DevisScreen';
+import MedicamentsScreen from './screens/MedicamentsScreen';
+import CartesMutuellesScreen from './screens/CartesMutuellesScreen';
+import HistoriqueScreen from './screens/HistoriqueScreen';
+import ParametrageScreen from './screens/ParametrageScreen';
+import EntitesScreen from './screens/EntitesScreen';
+import ArchivesScreen from './screens/ArchivesScreen';
+import UtilisateursScreen from './screens/UtilisateursScreen';
+import EtablissementsScreen from './screens/EtablissementsScreen';
+import MaladiesScreen from './screens/MaladiesScreen';
+import OrdonnancesScreen from './screens/OrdonnancesScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
 
 export const FEATURE_SCREEN_IDS = new Set([
   'agents',
@@ -27,129 +35,72 @@ export const FEATURE_SCREEN_IDS = new Set([
   'historique',
   'utilisateurs',
   'parametrage',
+  'archives',
+  'mes-devis',
+  'mes-cartes',
+  'mes-remboursements',
+  'mes-prises-en-charge',
+  'mon-historique',
+  'notifications',
 ]);
 
-const CRUD_CONFIGS = {
-  entites: {
-    endpoint: '/api/organizational-entities',
-    titleField: 'nom',
-    subtitleField: 'type',
-    badgeField: 'type',
-    searchFields: ['nom', 'type', 'code'],
-    searchPlaceholder: 'Nom, type, code…',
-    createLabel: '+ Entité',
-    fields: [
-      { key: 'nom', label: 'Nom', required: true },
-      { key: 'code', label: 'Code' },
-      { key: 'type', label: 'Type', type: 'select', required: true, options: () => (DEFAULT_TYPE_CONFIG.entityTypes || []).map((t) => ({ label: t, value: t })) },
-      { key: 'parentNom', label: 'Entité parente' },
-    ],
-  },
-  etablissements: {
-    endpoint: '/api/medical-facilities',
-    titleField: 'name',
-    subtitleField: 'type',
-    badgeField: 'type',
-    searchFields: ['name', 'type', 'city', 'phone'],
-    createLabel: '+ Établissement',
-    fields: [
-      { key: 'name', label: 'Nom', required: true },
-      { key: 'type', label: 'Type', type: 'select', options: () => (DEFAULT_TYPE_CONFIG.facilityTypes || []).map((t) => ({ label: t, value: t })) },
-      { key: 'city', label: 'Ville' },
-      { key: 'phone', label: 'Téléphone', keyboardType: 'phone-pad' },
-      { key: 'address', label: 'Adresse', multiline: true },
-    ],
-  },
-  maladies: {
-    endpoint: '/api/special-diseases',
-    titleField: 'nom',
-    subtitleField: 'type',
-    badgeField: 'statut',
-    searchFields: ['nom', 'type', 'agentLabel'],
-    extraLoads: [{ path: '/api/agents', key: 'agents' }],
-    createLabel: '+ Maladie',
-    fields: [
-      { key: 'nom', label: 'Maladie', required: true },
-      { key: 'type', label: 'Type', type: 'select', options: () => (DEFAULT_TYPE_CONFIG.maladieTypes || []).map((t) => ({ label: t, value: t })) },
-      { key: 'agentId', label: 'Agent (ID)', required: true, keyboardType: 'number-pad' },
-      { key: 'dateDiagnostic', label: 'Date diagnostic', placeholder: 'AAAA-MM-JJ' },
-      { key: 'observation', label: 'Observation', multiline: true },
-    ],
-    buildBody: (form) => ({
-      nom: form.nom,
-      type: form.type,
-      agentId: Number(form.agentId),
-      dateDiagnostic: form.dateDiagnostic || null,
-      observation: form.observation || '',
-    }),
-  },
-  ordonnances: {
-    endpoint: '/api/ordonnances',
-    titleField: 'numero',
-    subtitleField: 'beneficiaire',
-    badgeField: 'statut',
-    searchFields: ['numero', 'beneficiaire', 'type'],
-    createLabel: '+ Ordonnance',
-    fields: [
-      { key: 'beneficiaire', label: 'Bénéficiaire', required: true },
-      { key: 'type', label: 'Type', type: 'select', options: () => (DEFAULT_TYPE_CONFIG.ordonnanceTypes || []).map((t) => ({ label: t, value: t })) },
-      { key: 'date', label: 'Date', required: true },
-      { key: 'medecin', label: 'Médecin' },
-      { key: 'observation', label: 'Observation', multiline: true },
-    ],
-  },
-  utilisateurs: {
-    endpoint: '/api/admin/users',
-    titleField: 'fullName',
-    subtitleField: 'email',
-    badgeField: 'roleLabel',
-    searchFields: ['fullName', 'email', 'roleLabel'],
-    createLabel: '+ Utilisateur',
-    fields: [
-      { key: 'fullName', label: 'Nom complet', required: true },
-      { key: 'email', label: 'E-mail', required: true },
-      { key: 'password', label: 'Mot de passe' },
-      { key: 'role', label: 'Rôle (code)', required: true },
-      { key: 'agentId', label: 'Agent ID (adhérent)', keyboardType: 'number-pad' },
-    ],
-    buildBody: (form) => ({
-      fullName: form.fullName,
-      email: form.email,
-      password: form.password || undefined,
-      role: form.role,
-      agentId: form.agentId ? Number(form.agentId) : null,
-    }),
-  },
-};
+function deniedMessage(tab, user) {
+  if (tab === 'agents' || tab === 'archives') return 'Réservé aux administrateurs.';
+  if (tab === 'utilisateurs' || tab === 'parametrage') return 'Réservé aux administrateurs et opérateurs.';
+  if (user && tab !== 'notifications') return 'Cette section est réservée aux équipes SRM-MS.';
+  return undefined;
+}
 
-export default function FeatureRouter({ tab, user, addToast }) {
+export default function FeatureRouter({ tab, user, addToast, onNavigate, onUnreadChanged }) {
   const props = { user, addToast };
 
-  switch (tab) {
+  if (!canAccessTab(user, tab)) {
+    return <AccessDeniedScreen message={deniedMessage(tab, user)} />;
+  }
+
+  const { screen, personalMode } = resolveTabRoute(tab);
+  const pm = { personalMode };
+
+  switch (screen) {
     case 'agents':
+      if (!isAdminRole(user)) return <AccessDeniedScreen message="Réservé aux administrateurs." />;
       return <BeneficiairesScreen {...props} forcedTab="agents" />;
     case 'beneficiaires':
       return <BeneficiairesScreen {...props} />;
     case 'prises-en-charge':
-      return <PrisesEnChargeScreen {...props} />;
+      return <PrisesEnChargeScreen {...props} {...pm} />;
     case 'remboursements':
-      return <RemboursementsScreen {...props} />;
+      return <RemboursementsScreen {...props} {...pm} />;
     case 'devis':
-      return <DevisScreen {...props} />;
+      return <DevisScreen {...props} {...pm} />;
     case 'medicaments':
       return <MedicamentsScreen {...props} />;
     case 'cartes-mutuelles':
-      return <CartesMutuellesScreen {...props} />;
+      return <CartesMutuellesScreen {...props} {...pm} />;
     case 'historique':
-      return <HistoriqueScreen {...props} />;
+      return <HistoriqueScreen {...props} {...pm} />;
     case 'parametrage':
       return <ParametrageScreen addToast={addToast} />;
     case 'entites':
-    case 'etablissements':
-    case 'maladies':
-    case 'ordonnances':
+      return <EntitesScreen {...props} />;
+    case 'archives':
+      return <ArchivesScreen {...props} />;
     case 'utilisateurs':
-      return <GenericCrudScreen config={CRUD_CONFIGS[tab]} {...props} />;
+      return <UtilisateursScreen {...props} />;
+    case 'etablissements':
+      return <EtablissementsScreen {...props} />;
+    case 'maladies':
+      return <MaladiesScreen {...props} />;
+    case 'ordonnances':
+      return <OrdonnancesScreen {...props} />;
+    case 'notifications':
+      return (
+        <NotificationsScreen
+          {...props}
+          onNavigate={onNavigate}
+          onUnreadChanged={onUnreadChanged}
+        />
+      );
     default:
       return <View style={styles.fallback} />;
   }

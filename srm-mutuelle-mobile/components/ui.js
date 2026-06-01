@@ -9,6 +9,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { COLORS, TAB_BAR_EXTRA_BOTTOM } from '../theme';
@@ -68,7 +70,7 @@ export function FormField({ label, required, error, children }) {
   );
 }
 
-export function TextField({ value, onChangeText, placeholder, keyboardType, multiline, editable = true }) {
+export function TextField({ value, onChangeText, placeholder, keyboardType, multiline, editable = true, autoFocus, selectTextOnFocus }) {
   return (
     <TextInput
       style={[ui.input, multiline && ui.inputMultiline, !editable && ui.inputReadonly]}
@@ -79,13 +81,43 @@ export function TextField({ value, onChangeText, placeholder, keyboardType, mult
       keyboardType={keyboardType}
       multiline={multiline}
       editable={editable}
+      autoFocus={autoFocus}
+      selectTextOnFocus={selectTextOnFocus}
     />
   );
 }
 
-export function SelectField({ label, value, options, onChange, required }) {
+export function SelectField({ label, value, options, onChange, required, inline = false }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
+
+  if (inline) {
+    return (
+      <FormField label={label} required={required}>
+        <TouchableOpacity style={ui.selectBtn} onPress={() => setOpen((v) => !v)} activeOpacity={0.8}>
+          <Text style={ui.selectBtnText}>{selected?.label || '— Choisir —'}</Text>
+          <FontAwesome5 name={open ? 'chevron-up' : 'chevron-down'} size={12} color={COLORS.textLight} />
+        </TouchableOpacity>
+        {open ? (
+          <View style={ui.inlineSelectList}>
+            {options.map((o) => (
+              <TouchableOpacity
+                key={String(o.value)}
+                style={[ui.selectOption, o.value === value && ui.selectOptionActive]}
+                onPress={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+              >
+                <Text style={ui.selectOptionText}>{o.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
+      </FormField>
+    );
+  }
+
   return (
     <FormField label={label} required={required}>
       <TouchableOpacity style={ui.selectBtn} onPress={() => setOpen(true)}>
@@ -182,18 +214,25 @@ export function SearchBar({ value, onChangeText, placeholder }) {
 export function AppModal({ visible, title, onClose, children, footer }) {
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={ui.modalScreen}>
-        <View style={ui.modalHeader}>
-          <Text style={ui.modalTitle}>{title}</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={12}>
-            <FontAwesome5 name="times" size={20} color={COLORS.text} />
-          </TouchableOpacity>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={ui.modalScreen}>
+          <View style={ui.modalHeader}>
+            <Text style={ui.modalTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={12}>
+              <FontAwesome5 name="times" size={20} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            style={ui.modalBody}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+          >
+            {children}
+          </ScrollView>
+          {footer ? <View style={ui.modalFooter}>{footer}</View> : null}
         </View>
-        <ScrollView style={ui.modalBody} contentContainerStyle={{ paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
-          {children}
-        </ScrollView>
-        {footer ? <View style={ui.modalFooter}>{footer}</View> : null}
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -279,6 +318,14 @@ export const ui = StyleSheet.create({
   selectOption: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   selectOptionActive: { backgroundColor: `${COLORS.primary}10` },
   selectOptionText: { fontSize: 15, color: COLORS.text },
+  inlineSelectList: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    overflow: 'hidden',
+    maxHeight: 220,
+  },
   stepper: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   stepItem: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
   stepCircle: {

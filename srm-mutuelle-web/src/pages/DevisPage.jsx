@@ -457,11 +457,11 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
             <label>Montant devis (DH)</label>
             <input
               name="montant"
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
               className="form-control"
               defaultValue={q ? q.montant : ''}
+              placeholder="Ex. 3500"
               required
             />
           </div>

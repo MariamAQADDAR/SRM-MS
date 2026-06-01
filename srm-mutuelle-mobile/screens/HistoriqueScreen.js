@@ -25,8 +25,8 @@ const TABS = [
   { id: 'cards', label: 'Cartes', fa: 'id-card' },
 ];
 
-export default function HistoriqueScreen({ user, addToast }) {
-  const isAdherent = isAdherentRole(user);
+export default function HistoriqueScreen({ user, addToast, personalMode = false }) {
+  const isAdherent = personalMode || isAdherentRole(user);
   const agentId = user?.agentId;
   const [activeTab, setActiveTab] = useState('pec');
   const [loading, setLoading] = useState(true);

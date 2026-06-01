@@ -10,8 +10,10 @@ import ma.srm.mutuelle.domain.Agent;
 import ma.srm.mutuelle.domain.AppUser;
 import ma.srm.mutuelle.domain.AppUserRole;
 import ma.srm.mutuelle.domain.Beneficiary;
+import ma.srm.mutuelle.domain.OrganizationalEntity;
 import ma.srm.mutuelle.domain.repo.AgentRepository;
 import ma.srm.mutuelle.domain.repo.BeneficiaryRepository;
+import ma.srm.mutuelle.domain.repo.OrganizationalEntityRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ public class AgentService {
 
 	private final AgentRepository agentRepository;
 	private final BeneficiaryRepository beneficiaryRepository;
+	private final OrganizationalEntityRepository organizationalEntityRepository;
 
 	public List<AgentResponse> list(AppUser user) {
 		if (user.getRole() == AppUserRole.ADHERENT) {
@@ -142,14 +145,29 @@ public class AgentService {
 		a.setCin(req.cin());
 		a.setDateNaissance(req.dateNaissance());
 		a.setSituation(req.situation());
-		a.setEntiteName(req.entite());
+		OrganizationalEntity service = resolveServiceEntity(req.entiteId());
+		a.setOrganizationalEntity(service);
+		a.setEntiteName(service.getName());
 		a.setTelephone(req.telephone());
 		a.setEmail(req.email());
 		a.setDateRecrutement(req.dateRecrutement());
 		a.setStatut(req.statut() != null ? req.statut() : "Actif");
 	}
 
+	private OrganizationalEntity resolveServiceEntity(Long entiteId) {
+		if (entiteId == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le service de rattachement est obligatoire");
+		}
+		OrganizationalEntity oe = organizationalEntityRepository.findByIdAndDeletedFalse(entiteId)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service introuvable"));
+		if (!"Service".equals(oe.getEntityType())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "L'agent doit être rattaché à un Service (niveau 5)");
+		}
+		return oe;
+	}
+
 	private AgentResponse toDto(Agent a) {
+		OrganizationalEntity oe = a.getOrganizationalEntity();
 		return new AgentResponse(
 				a.getId(),
 				a.getMatricule(),
@@ -159,6 +177,7 @@ public class AgentService {
 				a.getDateNaissance(),
 				a.getSituation(),
 				a.getEntiteName(),
+				oe != null ? oe.getId() : null,
 				a.getTelephone(),
 				a.getEmail(),
 				a.getDateRecrutement(),

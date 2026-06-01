@@ -25,7 +25,7 @@ export function isStaffWriterRole(user) {
 }
 
 export function canStaffMutate(user) {
-  return isStaffWriterRole(user);
+  return !isAdherentRole(user) && !isConsultateurRole(user);
 }
 
 export function canAdminDelete(user) {

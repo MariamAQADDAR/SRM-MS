@@ -16,14 +16,18 @@ import ma.srm.mutuelle.domain.Agent;
 import ma.srm.mutuelle.domain.AppUser;
 import ma.srm.mutuelle.domain.AppUserRole;
 import ma.srm.mutuelle.domain.Beneficiary;
+import ma.srm.mutuelle.domain.CareEpisode;
 import ma.srm.mutuelle.domain.MutualCard;
+import ma.srm.mutuelle.domain.MutualCardRequest;
 import ma.srm.mutuelle.domain.Notification;
 import ma.srm.mutuelle.domain.Ordonnance;
 import ma.srm.mutuelle.domain.Quote;
 import ma.srm.mutuelle.domain.Reimbursement;
 import ma.srm.mutuelle.domain.repo.AgentRepository;
 import ma.srm.mutuelle.domain.repo.BeneficiaryRepository;
+import ma.srm.mutuelle.domain.repo.CareEpisodeRepository;
 import ma.srm.mutuelle.domain.repo.MutualCardRepository;
+import ma.srm.mutuelle.domain.repo.MutualCardRequestRepository;
 import ma.srm.mutuelle.domain.repo.NotificationRepository;
 import ma.srm.mutuelle.domain.repo.OrdonnanceRepository;
 import ma.srm.mutuelle.domain.repo.QuoteRepository;
@@ -43,6 +47,8 @@ public class ChatbotService {
 	private final OrdonnanceRepository ordonnanceRepository;
 	private final BeneficiaryRepository beneficiaryRepository;
 	private final MutualCardRepository mutualCardRepository;
+	private final MutualCardRequestRepository mutualCardRequestRepository;
+	private final CareEpisodeRepository careEpisodeRepository;
 	private final NotificationRepository notificationRepository;
 	private final AgentRepository agentRepository;
 	private final StatsService statsService;
@@ -84,8 +90,17 @@ public class ChatbotService {
 		if (matches(t, "notification", "alerte", "message", "non lu", "non lus")) {
 			return notificationsMessage(snap);
 		}
-		if (matches(t, "carte", "cartes", "affiliation", "pdf carte")) {
+		if (matches(t, "demande carte", "demandes carte", "nouvelle carte", "adhésion carte")) {
+			return mutualCardRequestsMessage(snap);
+		}
+		if (matches(t, "carte", "cartes", "affiliation", "pdf carte", "carte mutuelle")) {
 			return mutualCardsMessage(snap);
+		}
+		if (matches(t, "prise en charge", "pec", "hospitalisation")) {
+			return careEpisodesMessage(snap, t);
+		}
+		if (matches(t, "mot de passe", "password", "oublié", "oublie", "réinitialiser", "reinitialiser", "mot de passe oublié")) {
+			return passwordHelpMessage(user);
 		}
 		if (matches(t, "bénéficiaire", "beneficiaire", "conjoint", "enfant", "proche", "famille", "ayant")) {
 			return beneficiariesMessage(snap);
@@ -137,6 +152,8 @@ public class ChatbotService {
 				.append(snap.cardsTotal)
 				.append("**\n");
 		sb.append("• Notifications non lues : **").append(snap.unreadNotifications).append("**\n");
+		sb.append("• Demandes de cartes : **").append(snap.cardRequests.size()).append("**\n");
+		sb.append("• Prises en charge : **").append(snap.careEpisodes.size()).append("**\n");
 
 		if (!snap.quotes.isEmpty()) {
 			Quote last = snap.quotes.get(0);
@@ -240,7 +257,7 @@ public class ChatbotService {
 		if (snap.agentId == null) {
 			return "Compte non rattaché à un porteur : impossible de gérer les cartes.";
 		}
-		StringBuilder sb = new StringBuilder("**Cartes mutuelles du foyer** :\n");
+		StringBuilder sb = new StringBuilder("**Cartes mutuelles — émission PDF**\n");
 		sb.append("• Titulaire : ").append(snap.titulaireCardIssued ? "carte **émise**" : "**à générer**").append("\n");
 		for (Beneficiary b : snap.beneficiaries) {
 			boolean issued = snap.issuedBeneficiaryIds.contains(b.getId());
@@ -254,8 +271,81 @@ public class ChatbotService {
 					.append(issued ? "carte émise" : "non générée")
 					.append("\n");
 		}
-		sb.append("\nGénérez ou téléchargez les PDF dans **Cartes mutuelles** (logo SRM-MS inclus).");
+		sb.append("\nMenu **Cartes mutuelles** → onglet **Émission PDF** : générer / télécharger.\n");
+		if (!snap.cardRequests.isEmpty()) {
+			sb.append("\n**Dernières demandes de carte** :\n");
+			snap.cardRequests.stream().limit(4).forEach(r -> sb.append("• **")
+					.append(r.getBeneficiaryName())
+					.append("** — ")
+					.append(r.getRequestType())
+					.append(" — **")
+					.append(r.getStatus())
+					.append("**\n"));
+		} else {
+			sb.append("\nAucune **demande de carte** enregistrée. Onglet **Demandes** → bouton **+** pour une adhésion ou duplicata.");
+		}
 		return sb.toString();
+	}
+
+	private String mutualCardRequestsMessage(UserSnapshot snap) {
+		if (snap.agentId == null) {
+			return "Compte non rattaché à un porteur.";
+		}
+		if (snap.cardRequests.isEmpty()) {
+			return "**Demandes de carte mutuelle**\n\nAucune demande pour le moment.\n\n1. Menu **Cartes mutuelles** → **Demandes**\n2. **+** Nouvelle demande (adhésion, duplicata, changement)\n3. Après accord (**Accordée**), générez le PDF dans **Émission PDF**.";
+		}
+		StringBuilder sb = new StringBuilder("**Vos demandes de carte** (").append(snap.cardRequests.size()).append(") :\n");
+		snap.cardRequests.stream().limit(8).forEach(r -> {
+			sb.append("• **").append(r.getBeneficiaryName()).append("** — ").append(r.getRequestType());
+			if (r.getRequestDate() != null) {
+				sb.append(" — ").append(DATE_FMT.format(r.getRequestDate()));
+			}
+			sb.append(" — **").append(r.getStatus()).append("**\n");
+		});
+		sb.append("\nStatuts : **En attente** → instruction mutuelle → **Accordée** ou **Refusée**.");
+		return sb.toString();
+	}
+
+	private String careEpisodesMessage(UserSnapshot snap, String t) {
+		if (snap.careEpisodes.isEmpty()) {
+			return "Aucune **prise en charge (PEC)**. Créez une demande dans le menu **Prises en charge** (3 étapes + PDF).";
+		}
+		if (t.contains("attente") || t.contains("cours")) {
+			var open = snap.careEpisodes.stream()
+					.filter(c -> "En attente".equals(c.getStatus()) || "En cours".equals(c.getStatus()))
+					.toList();
+			if (open.isEmpty()) {
+				return "Aucune PEC **en attente** ou **en cours**.";
+			}
+			StringBuilder sb = new StringBuilder("**PEC à suivre** :\n");
+			open.forEach(c -> sb.append("• **")
+					.append(c.getNumero())
+					.append("** — ")
+					.append(c.getStatus())
+					.append(" — ")
+					.append(c.getBeneficiaire())
+					.append("\n"));
+			return sb.toString();
+		}
+		StringBuilder sb = new StringBuilder("**Vos prises en charge** :\n");
+		snap.careEpisodes.stream().limit(6).forEach(c -> sb.append("• **")
+				.append(c.getNumero())
+				.append("** — ")
+				.append(c.getTypePrestation())
+				.append(" — ")
+				.append(c.getStatus())
+				.append("\n"));
+		return sb.toString();
+	}
+
+	private String passwordHelpMessage(AppUser user) {
+		return "**Mot de passe & connexion**\n\n"
+				+ "• **Mot de passe oublié** : écran de connexion → « Mot de passe oublié ? » → saisissez votre **e-mail professionnel** → lien reçu par mail (1 h).\n"
+				+ "• **Première connexion** : changez le mot de passe temporaire si demandé.\n"
+				+ "• **Profil** : menu utilisateur → changer le mot de passe.\n\n"
+				+ "Votre compte : **"
+				+ user.getEmail()
+				+ "**. Ne communiquez jamais votre mot de passe dans ce chat.";
 	}
 
 	private String beneficiariesMessage(UserSnapshot snap) {
@@ -399,7 +489,9 @@ public class ChatbotService {
 		list.add(new QuickPrompt("resume", "Mon résumé", "Donne-moi un résumé de ma situation"));
 		list.add(new QuickPrompt("devis", "Mes devis", "Où en sont mes devis ?"));
 		list.add(new QuickPrompt("remb", "Remboursements", "Mes remboursements en attente"));
-		list.add(new QuickPrompt("carte", "Cartes mutuelles", "État de mes cartes mutuelles"));
+		list.add(new QuickPrompt("carte", "Cartes mutuelles", "État de mes cartes mutuelles et demandes"));
+		list.add(new QuickPrompt("pec", "Prises en charge", "Mes prises en charge en cours"));
+		list.add(new QuickPrompt("mdp", "Mot de passe", "Comment réinitialiser mon mot de passe ?"));
 		if (snap.unreadNotifications > 0) {
 			list.add(new QuickPrompt("notif", "Notifications", "Mes notifications non lues"));
 		}
@@ -421,8 +513,10 @@ public class ChatbotService {
 			});
 			s.quotes = quoteRepository.findByAgent_IdAndDeletedFalseOrderByQuoteDateDesc(s.agentId);
 			s.reimbursements = reimbursementRepository.findByAgent_IdAndDeletedFalseOrderByReimbursementDateDesc(s.agentId);
+			s.careEpisodes = careEpisodeRepository.findByAgent_IdAndDeletedFalseOrderByDateDebutDesc(s.agentId);
 			s.ordonnances = ordonnanceRepository.findByAgent_IdAndDeletedFalseOrderByOrdDateDesc(s.agentId);
 			s.beneficiaries = beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(s.agentId);
+			s.cardRequests = mutualCardRequestRepository.findByAgent_IdAndDeletedFalseOrderByRequestDateDescIdDesc(s.agentId);
 			List<MutualCard> cards = mutualCardRepository.findByAgent_IdOrderByCardLabelAscIdAsc(s.agentId);
 			s.cardsTotal = 1 + s.beneficiaries.size();
 			s.titulaireCardIssued = cards.stream().anyMatch(c -> c.getBeneficiary() == null && hasPdf(c));
@@ -437,6 +531,8 @@ public class ChatbotService {
 		} else if (user.getRole() != AppUserRole.ADHERENT) {
 			s.quotes = quoteRepository.findByDeletedFalseOrderByQuoteDateDesc();
 			s.reimbursements = reimbursementRepository.findByDeletedFalseOrderByReimbursementDateDesc();
+			s.careEpisodes = careEpisodeRepository.findByDeletedFalseOrderByDateDebutDesc();
+			s.cardRequests = mutualCardRequestRepository.findByDeletedFalseOrderByRequestDateDescIdDesc();
 		}
 		s.quotesPending = s.quotes.stream()
 				.filter(q -> List.of("En attente", "Brouillon", "Soumis").contains(q.getEtat())
@@ -486,6 +582,8 @@ public class ChatbotService {
 		String agentMatricule;
 		List<Quote> quotes = List.of();
 		List<Reimbursement> reimbursements = List.of();
+		List<CareEpisode> careEpisodes = List.of();
+		List<MutualCardRequest> cardRequests = List.of();
 		List<Ordonnance> ordonnances = List.of();
 		List<Beneficiary> beneficiaries = List.of();
 		List<Notification> recentNotifications = List.of();

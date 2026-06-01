@@ -28,7 +28,7 @@ export async function createAgent(agent) {
     statut: agent.statut,
     email: agent.email,
     situation: agent.situationFamiliale,
-    entite: agent.entite || 'SRM-MS',
+    entiteId: agent.entiteId != null ? Number(agent.entiteId) : undefined,
     cin: agent.cin || '',
     beneficiaries,
   };

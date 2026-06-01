@@ -4,7 +4,9 @@ Monorepo : **API Spring Boot** (PostgreSQL, JWT, Flyway), **application web** (R
 
 Ce dépôt regroupe le travail suivant : **API REST complète**, **contrôle d’accès par rôles (RBAC)**, **notifications** (publications + boîte de réception), **intégration web dynamique** (remplacement des données statiques par l’API), **écrans alignés sur l’ancien système** (devis dentaire, remboursements, ordonnances analyse / ordonnance / radio), **page Paramétrage** pour les listes de « types » (plus de valeurs en dur dans le code), et **confirmations SweetAlert2** sur les actions sensibles.
 
-Pour un guide pas à pas en français, voir aussi **[`GUIDE_UTILISATION.txt`](GUIDE_UTILISATION.txt)**. La matrice des rôles et endpoints : **[`srm-mutuelle-backend/docs/RBAC_MATRIX.md`](srm-mutuelle-backend/docs/RBAC_MATRIX.md)**.
+Pour installer et lancer le projet sur un **PC Windows** (PostgreSQL, API, web, mobile), voir **[`INSTALLATION_PC.md`](INSTALLATION_PC.md)**.
+
+Pour un guide utilisateur détaillé, voir aussi **[`GUIDE_UTILISATION.txt`](GUIDE_UTILISATION.txt)**. La matrice des rôles et endpoints : **[`srm-mutuelle-backend/docs/RBAC_MATRIX.md`](srm-mutuelle-backend/docs/RBAC_MATRIX.md)**.
 
 ### Remarques pour l’équipe (après un `git pull`)
 

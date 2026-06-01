@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { chatbotBootstrap, chatbotSendMessage } from './api/chatbot';
+import ChatFormattedMessage from './components/ChatFormattedMessage';
 
 const COLORS = {
   primary: '#0f6fb8',
@@ -24,39 +26,15 @@ const COLORS = {
   userBubble: '#0f6fb8',
 };
 
-const QUICK_PROMPTS = [
-  { id: 'remb', label: 'Suivi remboursement', text: 'Comment suivre le statut de mon remboursement ?' },
-  { id: 'devis', label: 'Devis', text: 'Quelle est la procédure pour un devis optique ou dentaire ?' },
-  { id: 'pec', label: 'Prise en charge', text: 'Comment demander une prise en charge hospitalière ?' },
-];
-
 function formatTime(d) {
   return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function mockAssistantReply(userText) {
-  const t = userText.toLowerCase();
-  if (t.includes('remboursement') || t.includes('statut')) {
-    return 'Pour le suivi : ouvrez Remboursements dans le menu et filtrez par statut. Vous pouvez aussi fournir votre numéro de dossier à l’assistance.';
-  }
-  if (t.includes('devis')) {
-    return 'Les devis optiques et dentaires sont validés après dépôt des pièces. Un opérateur traite la demande sous quelques jours ouvrés.';
-  }
-  if (t.includes('prise en charge')) {
-    return 'La prise en charge hospitalière nécessite le type de soin, les dates et l’établissement. Le statut apparaît dans l’écran dédié.';
-  }
-  return 'Assistant SRM (démo). Posez une question sur remboursements, devis ou prises en charge. Connexion backend prévue ensuite.';
-}
-
 export default function ChatbotScreen({ onBack, userName }) {
-  const [messages, setMessages] = useState(() => [
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: `Bonjour${userName ? `, ${userName}` : ''}. Je peux vous orienter sur remboursements, devis et prises en charge. Comment puis-je vous aider ?`,
-      time: formatTime(new Date()),
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [statusLabel, setStatusLabel] = useState('Connexion…');
+  const [ready, setReady] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
@@ -66,31 +44,91 @@ export default function ChatbotScreen({ onBack, userName }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await chatbotBootstrap();
+        if (cancelled) return;
+        setMessages([
+          {
+            id: 'welcome',
+            role: 'assistant',
+            text: data.welcomeMessage,
+            time: formatTime(new Date()),
+          },
+        ]);
+        setSuggestions(data.suggestions || []);
+        setStatusLabel(data.statusLabel || 'Données SRM-MS');
+      } catch (e) {
+        if (cancelled) return;
+        setMessages([
+          {
+            id: 'welcome',
+            role: 'assistant',
+            text: `Bonjour${userName ? `, ${userName}` : ''}. Je n’ai pas pu charger vos données (${e.message || 'vérifiez le backend'}). Réessayez après connexion.`,
+            time: formatTime(new Date()),
+          },
+        ]);
+        setStatusLabel('Hors ligne');
+        setSuggestions([
+          { id: 'aide', label: 'Aide', message: 'Que peux-tu faire ?' },
+          { id: 'mdp', label: 'Mot de passe', message: 'Comment réinitialiser mon mot de passe ?' },
+        ]);
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userName]);
+
+  useEffect(() => {
     scrollEnd();
   }, [messages, sending, scrollEnd]);
 
-  const send = async (raw) => {
-    const text = (raw ?? input).trim();
-    if (!text || sending) return;
+  const send = useCallback(
+    async (raw) => {
+      const text = (raw ?? input).trim();
+      if (!text || sending) return;
 
-    setMessages((prev) => [
-      ...prev,
-      { id: `u-${Date.now()}`, role: 'user', text, time: formatTime(new Date()) },
-    ]);
-    setInput('');
-    setSending(true);
-    await new Promise((r) => setTimeout(r, 500));
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `a-${Date.now()}`,
-        role: 'assistant',
-        text: mockAssistantReply(text),
-        time: formatTime(new Date()),
-      },
-    ]);
-    setSending(false);
-  };
+      setMessages((prev) => [
+        ...prev,
+        { id: `u-${Date.now()}`, role: 'user', text, time: formatTime(new Date()) },
+      ]);
+      setInput('');
+      setSending(true);
+
+      try {
+        const data = await chatbotSendMessage(text);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `a-${Date.now()}`,
+            role: 'assistant',
+            text: data.reply,
+            time: formatTime(new Date()),
+          },
+        ]);
+        if (data.suggestions?.length) {
+          setSuggestions(data.suggestions);
+        }
+      } catch (e) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `err-${Date.now()}`,
+            role: 'assistant',
+            text: e.message || 'Erreur lors de l’échange avec l’assistant.',
+            time: formatTime(new Date()),
+          },
+        ]);
+      } finally {
+        setSending(false);
+      }
+    },
+    [input, sending],
+  );
 
   return (
     <KeyboardAvoidingView
@@ -105,7 +143,7 @@ export default function ChatbotScreen({ onBack, userName }) {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Assistant SRM</Text>
-          <Text style={styles.headerSub}>Mode démo · réponses locales</Text>
+          <Text style={styles.headerSub}>{statusLabel}</Text>
         </View>
         <View style={styles.headerIcon}>
           <FontAwesome5 name="robot" size={18} color={COLORS.primary} solid />
@@ -118,49 +156,29 @@ export default function ChatbotScreen({ onBack, userName }) {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.chipsRow}>
-          {QUICK_PROMPTS.map((q) => (
-            <TouchableOpacity
-              key={q.id}
-              style={[styles.chip, sending && styles.chipDisabled]}
-              onPress={() => send(q.text)}
-              disabled={sending}
-            >
-              <Text style={styles.chipText}>{q.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {suggestions.length > 0 ? (
+          <View style={styles.chipsRow}>
+            {suggestions.map((q) => (
+              <TouchableOpacity
+                key={q.id}
+                style={[styles.chip, sending && styles.chipDisabled]}
+                onPress={() => send(q.message)}
+                disabled={sending || !ready}
+              >
+                <Text style={styles.chipText}>{q.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
 
         {messages.map((m) => (
           <View
             key={m.id}
-            style={[
-              styles.msgRow,
-              m.role === 'user' ? styles.msgRowUser : styles.msgRowBot,
-            ]}
+            style={[styles.msgRow, m.role === 'user' ? styles.msgRowUser : styles.msgRowBot]}
           >
-            <View
-              style={[
-                styles.bubble,
-                m.role === 'user' ? styles.bubbleUser : styles.bubbleBot,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.bubbleText,
-                  m.role === 'user' && styles.bubbleTextUser,
-                ]}
-              >
-                {m.text}
-              </Text>
-              <Text
-                style={[
-                  styles.msgTime,
-                  m.role === 'user' && styles.msgTimeUser,
-                ]}
-              >
-                {m.time}
-              </Text>
+            <View style={[styles.bubble, m.role === 'user' ? styles.bubbleUser : styles.bubbleBot]}>
+              <ChatFormattedMessage text={m.text} isUser={m.role === 'user'} />
+              <Text style={[styles.msgTime, m.role === 'user' && styles.msgTimeUser]}>{m.time}</Text>
             </View>
           </View>
         ))}
@@ -177,18 +195,18 @@ export default function ChatbotScreen({ onBack, userName }) {
       <View style={styles.composer}>
         <TextInput
           style={styles.input}
-          placeholder="Votre message…"
+          placeholder="Posez votre question…"
           placeholderTextColor={COLORS.textLight}
           value={input}
           onChangeText={setInput}
-          editable={!sending}
+          editable={!sending && ready}
           multiline
           maxLength={2000}
         />
         <TouchableOpacity
-          style={[styles.sendBtn, (!input.trim() || sending) && styles.sendBtnOff]}
+          style={[styles.sendBtn, (!input.trim() || sending || !ready) && styles.sendBtnOff]}
           onPress={() => send()}
-          disabled={!input.trim() || sending}
+          disabled={!input.trim() || sending || !ready}
           accessibilityLabel="Envoyer le message"
         >
           <FontAwesome5 name="paper-plane" size={18} color="#fff" solid />
@@ -251,8 +269,6 @@ const styles = StyleSheet.create({
   },
   bubbleUser: { backgroundColor: COLORS.userBubble },
   bubbleBot: { backgroundColor: COLORS.botBubble, borderWidth: 1, borderColor: COLORS.border },
-  bubbleText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
-  bubbleTextUser: { color: '#fff' },
   msgTime: { fontSize: 11, color: COLORS.textLight, marginTop: 6 },
   msgTimeUser: { color: 'rgba(255,255,255,0.85)' },
   typingBubble: { minWidth: 60, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },

@@ -6,7 +6,7 @@ export const DEFAULT_TYPE_CONFIG = {
   quoteTypes: ['Dentaire', 'Optique', 'Auditif', 'Hospitalisation', 'Autre'],
   ordonnanceTypes: ['Médicament', 'Analyse', 'Radiologie'],
   radioTypes: ['Radio standard', 'IRM', 'Scanner', 'Échographie'],
-  careTypes: ['Hospitalisation', 'Chirurgie', 'Maternité', 'Autre'],
+  careTypes: ['Hospitalisation', 'Chirurgie', 'Maternité', 'Médicament', 'Consultation', 'Autre'],
   facilityTypes: ['Hôpital', 'Clinique', 'Opticien', 'Laboratoire'],
   entityTypes: ['Direction générale', 'Direction', 'Département', 'Division', 'Service'],
   maladieTypes: ['Diabète', 'Hypertension', 'Cardiologie', 'Autre'],

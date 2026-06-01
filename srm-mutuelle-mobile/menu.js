@@ -1,4 +1,5 @@
 import { isAdminRole, isAdherentRole, isStaffWriterRole } from './authUtils';
+import { PERSONAL_SPACE_ROUTES } from './navigationAccess';
 
 /** Taille des pages « Charger plus » sur les listes. */
 export const PAGE_SIZE = 15;
@@ -24,6 +25,12 @@ export const PAGE_TOPBAR = {
   profil: { title: 'Mon profil', breadcrumb: 'Compte' },
   historique: { title: 'Historique personnel', breadcrumb: 'Mon historique d’activités' },
   parametrage: { title: 'Paramétrage', breadcrumb: 'Administration' },
+  archives: { title: 'Archives', breadcrumb: 'Administration' },
+  'mes-devis': { title: 'Mes devis', breadcrumb: 'Mon espace — Mes devis' },
+  'mes-cartes': { title: 'Mes cartes mutuelles', breadcrumb: 'Mon espace — Cartes' },
+  'mes-remboursements': { title: 'Mes remboursements', breadcrumb: 'Mon espace — Remboursements' },
+  'mes-prises-en-charge': { title: 'Mes prises en charge', breadcrumb: 'Mon espace — PEC' },
+  'mon-historique': { title: 'Mon historique', breadcrumb: 'Mon espace — Historique' },
 };
 
 /**
@@ -35,7 +42,7 @@ export const PAGE_TOPBAR = {
  * - adherent : adhérent uniquement
  */
 export const MENU_ROUTES = [
-  { id: 'agents', title: 'Agents', fa: 'user-tie', color: '#0f6fb8', endpoint: '/api/agents', vis: 'staff', feature: true },
+  { id: 'agents', title: 'Agents', fa: 'user-tie', color: '#0f6fb8', endpoint: '/api/agents', vis: 'admin', feature: true },
   { id: 'beneficiaires', title: 'Bénéficiaires', fa: 'users', color: '#3b82f6', endpoint: '/api/agents', vis: 'staff', feature: true },
   { id: 'cartes-mutuelles', title: 'Cartes mutuelles', fa: 'id-card', color: '#14b8a6', endpoint: '/api/mutual-cards', vis: 'everyone', feature: true },
   { id: 'ordonnances', title: 'Ordonnances', fa: 'clipboard-list', color: '#8b5cf6', endpoint: '/api/ordonnances', vis: 'staff', feature: true },
@@ -50,6 +57,7 @@ export const MENU_ROUTES = [
   { id: 'notifications', title: 'Notifications', fa: 'bell', color: '#0f6fb8', endpoint: '/api/notifications', vis: 'everyone', isNotifications: true },
   { id: 'parametrage', title: 'Paramétrage', fa: 'sliders', color: '#475569', endpoint: '/api/settings/type-config', vis: 'writer', feature: true },
   { id: 'utilisateurs', title: 'Utilisateurs', fa: 'user-shield', color: '#0f6fb8', endpoint: '/api/admin/users', vis: 'writer', feature: true },
+  { id: 'archives', title: 'Archives', fa: 'box-archive', color: '#64748b', endpoint: null, vis: 'admin', feature: true },
 ];
 
 /** Même id que le web (`Layout.jsx` / `AppShell.jsx`) : page d’accueil métier. */
@@ -61,8 +69,11 @@ function badgeForItem(id, b) {
     beneficiaires: b.agents,
     ordonnances: b.ordonnances,
     devis: b.devis,
+    'mes-devis': b['mes-devis'] ?? b.devis,
     remboursements: b.rembPending,
+    'mes-remboursements': b['mes-rembPending'] ?? b.rembPending,
     'prises-en-charge': b.pec,
+    'mes-prises-en-charge': b['mes-pec'] ?? b.pec,
     maladies: b.maladies,
     medicaments: b.medicaments,
     etablissements: b.facilities,
@@ -71,6 +82,16 @@ function badgeForItem(id, b) {
   };
   const v = m[id];
   return v != null && v > 0 ? v : null;
+}
+
+function monEspaceItems(b) {
+  return PERSONAL_SPACE_ROUTES.map((r) => ({
+    id: r.id,
+    fa: r.fa,
+    label: r.label,
+    color: '#0f6fb8',
+    badge: r.badgeKey ? badgeForItem(r.badgeKey, b) ?? badgeForItem(r.screen, b) : badgeForItem(r.id, b),
+  }));
 }
 
 /**
@@ -95,41 +116,40 @@ export function verticalNavSections(user, navBadges = {}) {
   if (isAdherentRole(user)) {
     return [
       {
-        section: 'Principal',
-        items: [{ id: DASHBOARD_PAGE_ID, fa: 'chart-line', label: 'Tableau de bord', color: THEME_PRIMARY }],
-      },
-      {
-        section: 'Espace adhérent',
-        items: [
-          meta('devis'),
-          meta('cartes-mutuelles'),
-          meta('remboursements'),
-          meta('prises-en-charge'),
-          meta('medicaments'),
-          meta('maladies'),
-          meta('historique'),
-        ].filter(Boolean),
+        section: 'Mon espace',
+        items: monEspaceItems(b),
       },
     ];
   }
 
   const writer = isStaffWriterRole(user);
-
-  const gestionIds = ['agents', 'beneficiaires', 'cartes-mutuelles', 'ordonnances', 'devis', 'remboursements', 'prises-en-charge', 'maladies'];
-  const refIds = ['etablissements', 'entites', 'medicaments'];
+  const admin = isAdminRole(user);
 
   const sections = [
+    {
+      section: 'Mon espace',
+      items: monEspaceItems(b),
+    },
     {
       section: 'Principal',
       items: [{ id: DASHBOARD_PAGE_ID, fa: 'chart-line', label: 'Tableau de bord', color: THEME_PRIMARY }],
     },
     {
       section: 'Gestion',
-      items: gestionIds.map((id) => meta(id)).filter(Boolean),
+      items: [
+        ...(admin ? [meta('agents')] : []),
+        meta('beneficiaires'),
+        meta('cartes-mutuelles'),
+        meta('ordonnances'),
+        meta('devis'),
+        meta('remboursements'),
+        meta('prises-en-charge'),
+        meta('maladies'),
+      ].filter(Boolean),
     },
     {
       section: 'Référentiel',
-      items: refIds.map((id) => meta(id)).filter(Boolean),
+      items: [meta('etablissements'), meta('entites'), meta('medicaments')].filter(Boolean),
     },
   ];
 
@@ -139,6 +159,10 @@ export function verticalNavSections(user, navBadges = {}) {
     if (u) adminItems.push({ ...u, label: 'Utilisateurs' });
     const p = meta('parametrage');
     if (p) adminItems.push(p);
+  }
+  if (admin) {
+    const ar = meta('archives');
+    if (ar) adminItems.push(ar);
   }
   if (adminItems.length > 0) {
     sections.push({ section: 'Administration', items: adminItems });
@@ -154,16 +178,18 @@ export function bottomNavEssentials(user) {
   if (!user) return [];
   if (isAdherentRole(user)) {
     return [
-      { id: DASHBOARD_PAGE_ID, label: 'Accueil', fa: 'home' },
-      { id: 'devis', label: 'Devis', fa: 'file-invoice' },
-      { id: 'prises-en-charge', label: 'PEC', fa: 'hospital' },
-      { id: 'cartes-mutuelles', label: 'Cartes', fa: 'id-card' },
+      { id: 'mes-devis', label: 'Devis', fa: 'file-invoice' },
+      { id: 'mes-prises-en-charge', label: 'PEC', fa: 'hospital' },
+      { id: 'mes-cartes', label: 'Cartes', fa: 'id-card' },
+      { id: 'notifications', label: 'Notifs', fa: 'bell' },
       { id: 'profil', label: 'Profil', fa: 'user' },
     ];
   }
   return [
     { id: DASHBOARD_PAGE_ID, label: 'Accueil', fa: 'home' },
-    { id: 'agents', label: 'Agents', fa: 'user-tie' },
+    ...(isAdminRole(user)
+      ? [{ id: 'agents', label: 'Agents', fa: 'user-tie' }]
+      : [{ id: 'beneficiaires', label: 'Bénéficiaires', fa: 'users' }]),
     { id: 'remboursements', label: 'Remboursements', fa: 'money-bill-wave' },
     { id: 'profil', label: 'Profil', fa: 'user' },
   ];
