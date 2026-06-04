@@ -20,6 +20,7 @@ public class StaffNotifierService {
 
 	private final AppUserRepository appUserRepository;
 	private final NotificationRepository notificationRepository;
+	private final EmailService emailService;
 
 	@Transactional
 	public void notifyStaffWriters(String notifType, String body) {
@@ -35,6 +36,28 @@ public class StaffNotifierService {
 				n.setReadFlag(false);
 				n.setCreatedAt(Instant.now());
 				notificationRepository.save(n);
+			}
+		}
+	}
+
+	@Transactional
+	public void notifyStaffWritersWithEmail(String notifType, String body, String requestType, String requestNumber, String agentName) {
+		if (body == null || body.isBlank()) {
+			return;
+		}
+		for (AppUserRole role : STAFF_ROLES) {
+			for (AppUser u : appUserRepository.findByRoleAndActiveTrueAndDeletedFalse(role)) {
+				Notification n = new Notification();
+				n.setAppUser(u);
+				n.setNotifType(notifType);
+				n.setBody(body);
+				n.setReadFlag(false);
+				n.setCreatedAt(Instant.now());
+				notificationRepository.save(n);
+
+				if (u.getEmail() != null && !u.getEmail().isBlank()) {
+					emailService.sendPendingRequestAlert(u.getEmail(), requestType, requestNumber, agentName);
+				}
 			}
 		}
 	}

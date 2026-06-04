@@ -216,7 +216,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
           { key: 'dateDebut', label: 'Date Début' },
           { key: 'montantDemande', label: 'Montant Demandé (DH)' },
           { key: 'montantPrisEnCharge', label: 'Montant PEC (DH)' },
-          { key: 'taux', label: 'Taux (%)' },
           { key: 'statut', label: 'Statut' },
         ],
         rows: filteredPec.map((p) => ({
@@ -235,7 +234,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
           { key: 'providerName', label: 'Prestataire' },
           { key: 'depositDate', label: 'Date Dépôt' },
           { key: 'montant', label: 'Montant (DH)' },
-          { key: 'taux', label: 'Taux (%)' },
           { key: 'etat', label: 'État' },
         ],
         rows: filteredQuotes.map((q) => ({
@@ -320,7 +318,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
               <DetailItem label="Montant PEC">
                 {item.montantPrisEnCharge != null ? `${Number(item.montantPrisEnCharge).toLocaleString('fr-FR')} DH` : '—'}
               </DetailItem>
-              <DetailItem label="Taux">{item.taux != null ? `${item.taux} %` : '—'}</DetailItem>
               <DetailItem label="Observation">{item.observation || '—'}</DetailItem>
             </DetailView>
           </>
@@ -355,7 +352,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
               <DetailItem label="État">{statusBadge(item.etat)}</DetailItem>
               <DetailItem label="Montant total">{Number(item.montant).toLocaleString('fr-FR')} DH</DetailItem>
               <DetailItem label="Montant remboursable">{Number(pec).toLocaleString('fr-FR')} DH</DetailItem>
-              <DetailItem label="Taux de couverture">{item.taux} %</DetailItem>
               <DetailItem label="Observation">{item.observation || '—'}</DetailItem>
             </DetailView>
           </>
@@ -389,7 +385,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
               <DetailItem label="Montant remboursé">
                 {item.montantValide != null ? `${Number(item.montantValide).toLocaleString('fr-FR')} DH` : '—'}
               </DetailItem>
-              <DetailItem label="Taux">{item.taux != null ? `${item.taux} %` : '—'}</DetailItem>
               <DetailItem label="Observation">{item.observation || '—'}</DetailItem>
             </DetailView>
           </>
@@ -592,7 +587,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
                     <th>Prestataire</th>
                     <th>Date dépôt</th>
                     <th>Montant Total</th>
-                    <th>Couverture</th>
                     <th>État</th>
                     <th>Fichier</th>
                     <th style={{ width: '80px', textAlign: 'center' }}>Détails</th>
@@ -601,7 +595,7 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
                 <tbody>
                   {filteredQuotes.length === 0 ? (
                     <tr>
-                      <td colSpan={10} style={{ textAlign: 'center', padding: '32px', color: 'var(--gray-500)' }}>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--gray-500)' }}>
                         Aucun devis trouvé dans votre historique.
                       </td>
                     </tr>
@@ -614,7 +608,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
                         <td>{q.providerName || q.dentistName || '—'}</td>
                         <td>{formatDate(q.depositDate || q.date)}</td>
                         <td>{Number(q.montant).toLocaleString('fr-FR')} DH</td>
-                        <td>{q.taux}%</td>
                         <td>{statusBadge(q.etat)}</td>
                         <td>
                           {q.hasPdf ? (
@@ -646,7 +639,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
                     <th>Date dépôt</th>
                     <th>Montant Demandé</th>
                     <th>Montant Remboursé</th>
-                    <th>Couverture</th>
                     <th>Statut</th>
                     <th>Fichier</th>
                     <th style={{ width: '80px', textAlign: 'center' }}>Détails</th>
@@ -655,7 +647,7 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
                 <tbody>
                   {filteredRemb.length === 0 ? (
                     <tr>
-                      <td colSpan={11} style={{ textAlign: 'center', padding: '32px', color: 'var(--gray-500)' }}>
+                      <td colSpan={10} style={{ textAlign: 'center', padding: '32px', color: 'var(--gray-500)' }}>
                         Aucune demande de remboursement trouvée dans votre historique.
                       </td>
                     </tr>
@@ -669,7 +661,6 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
                         <td>{formatDate(r.depositDate || r.date)}</td>
                         <td>{Number(r.montantDemande).toLocaleString('fr-FR')} DH</td>
                         <td>{r.montantValide != null && Number(r.montantValide) > 0 ? `${Number(r.montantValide).toLocaleString('fr-FR')} DH` : '—'}</td>
-                        <td>{r.taux != null ? `${r.taux}%` : '—'}</td>
                         <td>{statusBadge(r.statut)}</td>
                         <td>
                           {r.hasPdf ? (

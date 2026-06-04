@@ -52,6 +52,7 @@ public class UserAdminService {
 		u.setFullName(req.fullName());
 		u.setRole(role);
 		u.setActive(true);
+		u.setForcePasswordChange(role != AppUserRole.ADHERENT);
 		if (role == AppUserRole.ADHERENT) {
 			if (req.agentId() == null) {
 				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "agentId obligatoire pour ADHERENT");
@@ -65,7 +66,9 @@ public class UserAdminService {
 		AppUser saved = appUserRepository.save(u);
 		
 		// Envoyer le mot de passe par email
-		emailService.sendWelcomeEmail(saved.getEmail(), req.password());
+		if (saved.getRole() != AppUserRole.ADHERENT && saved.getEmail().contains("@")) {
+			emailService.sendWelcomeEmail(saved.getEmail(), req.password());
+		}
 		
 		return toDto(saved);
 	}

@@ -145,7 +145,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
   const [reviewMontant, setReviewMontant] = useState('');
   const [reviewObs, setReviewObs] = useState('');
 
-  const effectiveAgentId = isRealAdherent ? user?.agentId : (personalMode ? simulatedAgentId : null);
+  const effectiveAgentId = personalMode ? (simulatedAgentId || user?.agentId) : (isRealAdherent ? user?.agentId : null);
   const myAgent = effectiveAgentId ? Number(effectiveAgentId) : null;
 
   const reload = async () => {
@@ -522,7 +522,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
   };
 
   const staffReviewPanel = (p) => {
-    const canValidate = p.statut === 'En cours' || p.statut === 'En attente';
+    const canValidate = p.statut !== 'Clôturé';
     return (
       <div className="staff-review-panel">
         <h4 className="staff-review-title">Validation prise en charge</h4>
@@ -671,15 +671,15 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
 
   const myAgentObj = isAdherent && effectiveAgentId != null ? agents.find((a) => a.id === Number(effectiveAgentId)) : null;
 
-  const showWarning = isAdherent && (isRealAdherent ? (!user?.agentId || !myAgentObj) : (!simulatedAgentId || !myAgentObj));
+  const showWarning = isAdherent && !myAgentObj;
 
   if (showWarning) {
     return (
       <>
-        {personalMode && !isRealAdherent && (
+        {personalMode && !isRealAdherent && !user?.agentId && (
           <AdherentSimulationBanner
             agents={agents}
-            selectedAgentId={simulatedAgentId}
+            selectedAgentId={simulatedAgentId || user?.agentId}
             onChangeAgent={handleSimulatedAgentChange}
           />
         )}
@@ -712,10 +712,10 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
 
   return (
     <>
-      {personalMode && !isRealAdherent && (
+      {personalMode && !isRealAdherent && !user?.agentId && (
         <AdherentSimulationBanner
           agents={agents}
-          selectedAgentId={simulatedAgentId}
+          selectedAgentId={simulatedAgentId || user?.agentId}
           onChangeAgent={handleSimulatedAgentChange}
         />
       )}

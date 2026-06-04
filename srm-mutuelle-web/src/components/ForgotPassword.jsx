@@ -8,22 +8,32 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [resetType, setResetType] = useState('email'); // email | contact
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    const inputVal = email.trim();
+
+    if (!inputVal.includes('@')) {
+      setSuccess(true);
+      setResetType('contact');
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await apiFetch('/api/auth/forgot-password', {
         method: 'POST',
-        body: { email }
+        body: { email: inputVal }
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.message || 'Erreur lors de la demande de réinitialisation');
       }
       setSuccess(true);
+      setResetType('email');
     } catch (err) {
       setError(err.message || 'Demande impossible');
     } finally {
@@ -59,14 +69,21 @@ export default function ForgotPassword() {
           
           <div className="login-split-card">
             {success ? (
-              <div className="login-split-alert" role="alert" style={{backgroundColor: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0'}}>
-                <FaIcon name="envelope-circle-check" className="fa-inline-icon" /> 
-                Si un compte existe pour cette adresse, un e-mail avec le lien de réinitialisation a été envoyé (vérifiez aussi les courriers indésirables). Le lien est valide 1 heure.
-              </div>
+              resetType === 'contact' ? (
+                <div className="login-split-alert" role="alert" style={{backgroundColor: '#eff6ff', color: '#1e40af', borderColor: '#bfdbfe'}}>
+                  <FaIcon name="circle-info" className="fa-inline-icon" /> 
+                  Veuillez contacter l'administration pour réinitialiser votre mot de passe.
+                </div>
+              ) : (
+                <div className="login-split-alert" role="alert" style={{backgroundColor: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0'}}>
+                  <FaIcon name="envelope-circle-check" className="fa-inline-icon" /> 
+                  Si un compte existe pour cette adresse, un e-mail avec le lien de réinitialisation a été envoyé (vérifiez aussi les courriers indésirables). Le lien est valide 1 heure.
+                </div>
+              )
             ) : (
               <>
                 <p className="login-split-lead" style={{marginBottom: '20px', fontSize: '0.95rem'}}>
-                  Entrez votre adresse e-mail pour recevoir un lien de récupération.
+                  Entrez votre adresse e-mail ou matricule pour réinitialiser votre mot de passe.
                 </p>
                 {error && (
                   <div className="login-split-alert" role="alert">
@@ -76,13 +93,13 @@ export default function ForgotPassword() {
                 <form className="login-split-form" onSubmit={handleSubmit} autoComplete="off">
                   <div className="login-split-field">
                     <label htmlFor="resetEmail">
-                      Adresse email <span className="login-split-required">*</span>
+                      Adresse email ou matricule <span className="login-split-required">*</span>
                     </label>
                     <input
-                      type="email"
+                      type="text"
                       id="resetEmail"
                       className="login-split-input"
-                      placeholder="vous@exemple.com"
+                      placeholder="vous@exemple.com ou AGT-XXX"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required

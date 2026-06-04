@@ -33,6 +33,7 @@ public class ReimbursementService {
 	private final AgentRepository agentRepository;
 	private final AdherentNotifierService adherentNotifierService;
 	private final ReimbursementPdfStorageService reimbursementPdfStorageService;
+	private final StaffNotifierService staffNotifierService;
 
 	public List<ReimbursementResponse> list(AppUser user) {
 		if (user.getRole() == AppUserRole.ADHERENT) {
@@ -118,7 +119,7 @@ public class ReimbursementService {
 		r.setMedicineName(medicineName);
 		r.setDepositDate(depositDate != null ? depositDate : LocalDate.now());
 		r.setObservation(observation);
-		r.setTaux(defaultTauxForCareType(careType));
+		r.setTaux(null);
 		r = reimbursementRepository.save(r);
 		attachPdf(r, pdf);
 		r = reimbursementRepository.save(r);
@@ -137,6 +138,12 @@ public class ReimbursementService {
 		r.setSentDate(LocalDate.now());
 		r = reimbursementRepository.save(r);
 		notify(r, "Étape 2/3 — Instruction : votre demande n° " + r.getNumero() + " est transmise à la mutuelle pour analyse.");
+		staffNotifierService.notifyStaffWritersWithEmail(
+				"REIMBURSEMENT_A_TRAITER",
+				"Remboursement à traiter — n° " + r.getNumero() + " (" + r.getBeneficiaire() + ").",
+				"remboursement",
+				r.getNumero(),
+				r.getBeneficiaire());
 		return toDto(r);
 	}
 
@@ -202,37 +209,27 @@ public class ReimbursementService {
 		Reimbursement r = reimbursementRepository
 				.findByIdAndDeletedFalse(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
-		if (!"En cours".equals(r.getStatus()) && !"En attente".equals(r.getStatus())) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande déjà traitée ou clôturée");
+		if ("Clôturé".equals(r.getStatus())) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande clôturée, modification impossible");
 		}
 		if (!r.isScanned()) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Marquez la demande comme instructée (scan) avant validation");
 		}
 		r.setMontantValide(req.montantValide());
-		if (req.taux() != null) {
-			r.setTaux(req.taux());
-		} else if (r.getTaux() == null && r.getMontantDemande().signum() > 0) {
-			r.setTaux(req.montantValide()
-					.multiply(BigDecimal.valueOf(100))
-					.divide(r.getMontantDemande(), 0, RoundingMode.HALF_UP)
-					.intValue());
-		}
+		r.setTaux(null);
 		if (req.observation() != null) {
 			r.setObservation(req.observation());
 		}
 		r.setStatus("Traité");
 		r.setResponseDate(LocalDate.now());
 		r = reimbursementRepository.save(r);
-		String tauxTxt = r.getTaux() != null ? r.getTaux() + " %" : "—";
 		notify(
 				r,
 				"Étape 3/3 — Validé : remboursement n° "
 						+ r.getNumero()
 						+ ". Montant remboursé : "
 						+ r.getMontantValide().toPlainString()
-						+ " DH (taux "
-						+ tauxTxt
-						+ ").");
+						+ " DH.");
 		return toDto(r);
 	}
 
@@ -242,8 +239,8 @@ public class ReimbursementService {
 		Reimbursement r = reimbursementRepository
 				.findByIdAndDeletedFalse(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
-		if ("Traité".equals(r.getStatus()) || "Clôturé".equals(r.getStatus())) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande déjà finalisée");
+		if ("Clôturé".equals(r.getStatus())) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande clôturée, modification impossible");
 		}
 		if (req != null && req.observation() != null) {
 			r.setObservation(req.observation());

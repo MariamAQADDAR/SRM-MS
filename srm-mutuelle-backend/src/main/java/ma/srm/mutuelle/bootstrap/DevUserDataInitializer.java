@@ -32,24 +32,54 @@ public class DevUserDataInitializer implements ApplicationRunner {
 				.findById(1L)
 				.orElseThrow(() -> new IllegalStateException("Seed agent id=1 introuvable (Flyway V2 exécuté ?)"));
 
+		Agent adminAgent = new Agent();
+		adminAgent.setMatricule("AGT-ADMIN");
+		adminAgent.setNom("AQADDAR");
+		adminAgent.setPrenom("Marieme");
+		adminAgent.setCin("BK000001");
+		adminAgent.setSituation("Mariée");
+		adminAgent.setEntiteName("Direction SI & Transformation Digitale");
+		adminAgent.setEmail("admin@srm-ms.ma");
+		adminAgent = agentRepository.save(adminAgent);
+
+		Agent operAgent = new Agent();
+		operAgent.setMatricule("AGT-OPER");
+		operAgent.setNom("Benali");
+		operAgent.setPrenom("Youssef");
+		operAgent.setCin("BK000002");
+		operAgent.setSituation("Célibataire");
+		operAgent.setEntiteName("Direction SI & Transformation Digitale");
+		operAgent.setEmail("operateur@srm-ms.ma");
+		operAgent = agentRepository.save(operAgent);
+
+		Agent consAgent = new Agent();
+		consAgent.setMatricule("AGT-CONS");
+		consAgent.setNom("Zahrae");
+		consAgent.setPrenom("Fatima");
+		consAgent.setCin("BK000003");
+		consAgent.setSituation("Célibataire");
+		consAgent.setEntiteName("Direction SI & Transformation Digitale");
+		consAgent.setEmail("consult@srm-ms.ma");
+		consAgent = agentRepository.save(consAgent);
+
 		appUserRepository.save(staff(
 				"admin@srm-ms.ma",
 				passwordEncoder.encode("admin123"),
 				"AQADDAR Marieme",
 				AppUserRole.ADMINISTRATEUR,
-				null));
+				adminAgent));
 		appUserRepository.save(staff(
 				"operateur@srm-ms.ma",
 				passwordEncoder.encode("oper123"),
 				"Youssef Benali",
 				AppUserRole.OPERATEUR,
-				null));
+				operAgent));
 		appUserRepository.save(staff(
 				"consult@srm-ms.ma",
 				passwordEncoder.encode("cons123"),
 				"Fatima Zahrae",
 				AppUserRole.CONSULTATEUR,
-				null));
+				consAgent));
 		AppUser inactive = staff(
 				"h.moussaoui@srm-ms.ma",
 				passwordEncoder.encode("oper123"),

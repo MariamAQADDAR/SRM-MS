@@ -3,7 +3,7 @@ import { isAdherentRole, isStaffWriterRole, canAdminDelete } from '../authUtils'
 import FaIcon from '../components/FaIcon';
 import Modal from '../components/Modal';
 import TablePageShell from '../components/TablePageShell';
-import ListPageToolbar from '../components/ListPageToolbar';
+import ExportExcelButton from '../components/ExportExcelButton';
 import TablePagination from '../components/TablePagination';
 import DetailItem from '../components/DetailItem';
 import DetailModalFooter from '../components/DetailModalFooter';
@@ -257,17 +257,12 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
   const [activeTab, setActiveTab] = useState('demandes');
   const [requests, setRequests] = useState([]);
   const [agents, setAgents] = useState([]);
-  const [modalBeneficiaries, setModalBeneficiaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(emptyForm(isAdherent, user?.agentId));
-  const [colFilters, setColFilters] = useState({
-    matricule: '',
-    beneficiaire: '',
-    typeDemande: '',
-    dateDemande: '',
-    statut: '',
-  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [family, setFamily] = useState([]);
@@ -341,52 +336,22 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
     }
   }, [activeTab, isAdherent, loadFamily, loadAllCards]);
 
-  const loadBeneficiariesForAgent = useCallback(async (agentId) => {
-    if (!agentId) {
-      setModalBeneficiaries([]);
-      return;
-    }
-    try {
-      const list = await parseJsonOrThrow(await apiFetch(`/api/beneficiaries?agentId=${agentId}`));
-      setModalBeneficiaries(list);
-    } catch {
-      setModalBeneficiaries([]);
-    }
-  }, []);
-
-  const beneficiaryOptions = useMemo(() => {
-    const agentId = form.agentId;
-    const agent = agents.find((a) => String(a.id) === String(agentId));
-    const opts = [];
-    if (agent) {
-      opts.push({
-        id: '',
-        label: `${agent.prenom} ${agent.nom} (Titulaire)`,
-        name: `${agent.prenom} ${agent.nom}`,
-      });
-    }
-    modalBeneficiaries.forEach((b) => {
-      opts.push({
-        id: String(b.id),
-        label: `${b.prenom} ${b.nom} (${b.type || b.linkType || 'Ayant droit'})`,
-        name: `${b.prenom} ${b.nom}`,
-      });
-    });
-    return opts;
-  }, [agents, form.agentId, modalBeneficiaries]);
-
   const filteredRequests = useMemo(() => {
     return requests.filter((r) => {
-      if (colFilters.matricule && !matchesSearch(colFilters.matricule, r.matricule)) return false;
-      if (colFilters.beneficiaire && !matchesSearch(colFilters.beneficiaire, r.beneficiaire)) return false;
-      if (colFilters.typeDemande && !matchesSearch(colFilters.typeDemande, r.typeDemande)) return false;
-      if (colFilters.dateDemande && !matchesSearch(colFilters.dateDemande, r.dateDemande)) return false;
-      if (colFilters.statut && !matchesSearch(colFilters.statut, r.statut)) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesMatricule = r.matricule && r.matricule.toLowerCase().includes(q);
+        const matchesBeneficiaire = r.beneficiaire && r.beneficiaire.toLowerCase().includes(q);
+        const matchesDate = r.dateDemande && r.dateDemande.toLowerCase().includes(q);
+        if (!matchesMatricule && !matchesBeneficiaire && !matchesDate) return false;
+      }
+      if (typeFilter && r.typeDemande !== typeFilter) return false;
+      if (statusFilter && r.statut !== statusFilter) return false;
       return true;
     });
-  }, [requests, colFilters]);
+  }, [requests, searchQuery, typeFilter, statusFilter]);
 
-  const { pageData, page, setPage, totalPages } = usePagination(filteredRequests, JSON.stringify(colFilters));
+  const { pageData, page, setPage, totalPages } = usePagination(filteredRequests, `${searchQuery}_${typeFilter}_${statusFilter}`);
 
   const closeModal = () => setModal(null);
 
@@ -394,19 +359,17 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
     const f = emptyForm(isAdherent, user?.agentId);
     if (!isAdherent && agents.length) f.agentId = String(agents[0].id);
     setForm(f);
-    loadBeneficiariesForAgent(f.agentId);
     setModal({ mode: 'create' });
   };
 
   const openEdit = (row) => {
     setForm({
       agentId: String(row.agentId),
-      beneficiaryId: row.beneficiaryId != null ? String(row.beneficiaryId) : '',
+      beneficiaryId: '',
       typeDemande: row.typeDemande,
       statut: row.statut,
       raison: row.raison || '',
     });
-    loadBeneficiariesForAgent(row.agentId);
     setModal({ mode: 'edit', row });
   };
 
@@ -414,25 +377,14 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
 
   const onAgentChange = (agentId) => {
     setForm((prev) => ({ ...prev, agentId, beneficiaryId: '' }));
-    loadBeneficiariesForAgent(agentId);
-  };
-
-  const onBeneficiaryChange = (beneficiaryId) => {
-    const opt = beneficiaryOptions.find((o) => String(o.id) === String(beneficiaryId));
-    setForm((prev) => ({
-      ...prev,
-      beneficiaryId,
-      beneficiaireName: opt?.name,
-    }));
   };
 
   const buildPayload = () => {
     const agent = agents.find((a) => String(a.id) === String(form.agentId));
-    const opt = beneficiaryOptions.find((o) => String(o.id) === String(form.beneficiaryId));
-    const beneficiaire = opt?.name || (agent ? `${agent.prenom} ${agent.nom}` : '');
+    const beneficiaire = agent ? `${agent.prenom} ${agent.nom}` : '';
     return {
       agentId: Number(form.agentId),
-      beneficiaryId: form.beneficiaryId ? Number(form.beneficiaryId) : null,
+      beneficiaryId: null,
       beneficiaire,
       typeDemande: form.typeDemande,
       dateDemande: modal?.row?.dateDemande || null,
@@ -527,46 +479,60 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
     }
   };
 
-  const setColFilter = (key, value) => setColFilters((prev) => ({ ...prev, [key]: value }));
-
   return (
     <>
       <TablePageShell
         title={isAdherent ? 'Mes cartes mutuelles' : 'Gestion Cartes Mutuelle'}
         icon="id-card"
-        toolbar={
-          activeTab === 'demandes' ? (
-            <ListPageToolbar
-              exportColumns={EXPORT_COLS}
-              exportRows={filteredRequests}
-              exportFilename="demandes-cartes-mutuelle"
-              exportSheetName="Demandes"
-              trailing={
-                canCreate ? (
-                  <button type="button" className="btn btn-primary btn-icon-round" onClick={openCreate} title="Nouvelle demande">
-                    <FaIcon name="plus" />
-                  </button>
-                ) : null
-              }
-            />
-          ) : null
-        }
+        toolbar={false}
       >
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className={`btn ${activeTab === 'demandes' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setActiveTab('demandes')}
-          >
-            <FaIcon name="clipboard-list" className="fa-inline-icon" /> Demandes
-          </button>
-          <button
-            type="button"
-            className={`btn ${activeTab === 'emission' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setActiveTab('emission')}
-          >
-            <FaIcon name="file-pdf" className="fa-inline-icon" /> Émission PDF
-          </button>
+        <div className="table-page-toolbar-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap', background: '#fff', padding: '12px 20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray-200)', boxShadow: 'var(--shadow-sm)' }}>
+          {/* Tabs on Left */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className={`btn ${activeTab === 'demandes' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setActiveTab('demandes')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+            >
+              <FaIcon name="clipboard-list" />
+              <span>Demandes</span>
+            </button>
+            <button
+              type="button"
+              className={`btn ${activeTab === 'emission' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setActiveTab('emission')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+            >
+              <FaIcon name="file-pdf" />
+              <span>Émission PDF</span>
+            </button>
+          </div>
+
+          {/* Actions on Right */}
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginLeft: 'auto' }}>
+            {activeTab === 'demandes' && (
+              <>
+                <ExportExcelButton
+                  columns={EXPORT_COLS}
+                  rows={filteredRequests}
+                  filename="demandes-cartes-mutuelle"
+                  sheetName="Demandes"
+                />
+                {canCreate && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={openCreate}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: '40px', padding: '0 16px', borderRadius: 'var(--radius-md)', fontWeight: '600' }}
+                  >
+                    <FaIcon name="plus" />
+                    <span>Nouvelle demande</span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {activeTab === 'demandes' ? (
@@ -576,97 +542,151 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
             </div>
           ) : (
             <>
-              <div className="table-responsive">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {!isAdherent && <th>Matricule Agent</th>}
-                      <th>Bénéficiaire</th>
-                      <th>Type Demande</th>
-                      <th>Date Demande</th>
-                      <th>Statut</th>
-                      <th>Actions</th>
-                    </tr>
-                    <tr className="table-filter-row">
-                      {!isAdherent && (
-                        <th>
-                          <input
-                            className="form-control form-control-sm"
-                            placeholder="Filtre Matricule Agent…"
-                            value={colFilters.matricule}
-                            onChange={(e) => setColFilter('matricule', e.target.value)}
-                          />
-                        </th>
-                      )}
-                      <th>
-                        <input
-                          className="form-control form-control-sm"
-                          placeholder="Filtre Bénéficiaire…"
-                          value={colFilters.beneficiaire}
-                          onChange={(e) => setColFilter('beneficiaire', e.target.value)}
-                        />
-                      </th>
-                      <th>
-                        <input
-                          className="form-control form-control-sm"
-                          placeholder="Filtre Type Demande…"
-                          value={colFilters.typeDemande}
-                          onChange={(e) => setColFilter('typeDemande', e.target.value)}
-                        />
-                      </th>
-                      <th>
-                        <input
-                          className="form-control form-control-sm"
-                          placeholder="Filtre Date Demande…"
-                          value={colFilters.dateDemande}
-                          onChange={(e) => setColFilter('dateDemande', e.target.value)}
-                        />
-                      </th>
-                      <th>
-                        <input
-                          className="form-control form-control-sm"
-                          placeholder="Filtre Statut…"
-                          value={colFilters.statut}
-                          onChange={(e) => setColFilter('statut', e.target.value)}
-                        />
-                      </th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageData.length === 0 ? (
-                      <tr>
-                        <td colSpan={isAdherent ? 5 : 6} style={{ textAlign: 'center', padding: 24 }}>
-                          Aucune demande de carte.
-                        </td>
-                      </tr>
-                    ) : (
-                      pageData.map((r) => (
-                        <tr key={r.id}>
-                          {!isAdherent && <td>{r.matricule}</td>}
-                          <td>{r.beneficiaire}</td>
-                          <td>{r.typeDemande}</td>
-                          <td>{r.dateDemande || '—'}</td>
-                          <td>{statusBadge(r.statut)}</td>
-                          <td className="actions-cell">
-                            <button className="btn btn-icon btn-view" type="button" title="Voir" onClick={() => openView(r)}>
-                              <FaIcon name="eye" />
-                            </button>
-                            {canMutate && (
-                              <button className="btn btn-icon btn-edit" type="button" title="Modifier" onClick={() => openEdit(r)}>
-                                <FaIcon name="pen" />
-                              </button>
-                            )}
-                            {canDelete && (
-                              <AdminDeleteButton onClick={() => handleDelete(r)} />
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+              <div className="filters-card" style={{ padding: '16px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {/* Unified Search Input */}
+                  <div style={{ flex: '2 1 300px', position: 'relative' }}>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--gray-500)', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Recherche rapide
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        className="form-control"
+                        placeholder="Rechercher par matricule, nom, date..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{ paddingLeft: '36px', height: '40px' }}
+                      />
+                      <FaIcon
+                        name="magnifying-glass"
+                        style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Type Filter */}
+                  <div style={{ flex: '1 1 180px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--gray-500)', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Type de demande
+                    </label>
+                    <select
+                      className="form-control"
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      style={{ height: '40px' }}
+                    >
+                      <option value="">Tous les types</option>
+                      {REQUEST_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div style={{ flex: '1 1 180px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--gray-500)', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Statut
+                    </label>
+                    <select
+                      className="form-control"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      style={{ height: '40px' }}
+                    >
+                      <option value="">Tous les statuts</option>
+                      {REQUEST_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
+
+              {pageData.length === 0 ? (
+                <div className="card" style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
+                  <FaIcon name="inbox" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block', color: 'var(--gray-300)' }} />
+                  <p>Aucune demande de carte ne correspond à votre recherche.</p>
+                </div>
+              ) : (
+                <div className="card-requests-grid">
+                  {pageData.map((r) => (
+                    <div className="request-card" key={r.id}>
+                      <div className="request-card-header" style={{
+                        background: r.statut === 'Accordée' ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' :
+                                    r.statut === 'Refusée' ? 'linear-gradient(135deg, #fef2f2, #fee2e2)' :
+                                    'linear-gradient(135deg, #fffbeb, #fef3c7)',
+                        borderBottom: '1px solid var(--gray-200)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <FaIcon name="id-card-clip" style={{ color: 'var(--primary-500)', fontSize: '1.2rem' }} />
+                          <span style={{ fontWeight: '700', color: 'var(--gray-800)', fontSize: '14px' }}>
+                            {r.matricule || 'Agent'}
+                          </span>
+                        </div>
+                        {statusBadge(r.statut)}
+                      </div>
+                      
+                      <div className="request-card-body">
+                        <div>
+                          <div className="request-card-title">
+                            {r.beneficiaire}
+                          </div>
+                          
+                          <div className="request-card-meta">
+                            <div className="request-card-meta-row">
+                              <span className="request-card-meta-label">Type de demande :</span>
+                              <span className="request-card-meta-value">{r.typeDemande}</span>
+                            </div>
+                            <div className="request-card-meta-row">
+                              <span className="request-card-meta-label">Date de demande :</span>
+                              <span className="request-card-meta-value">
+                                {r.dateDemande ? String(r.dateDemande).split('-').reverse().join('/') : '—'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {r.raison && (
+                          <div className="request-card-reason">
+                            <div className="request-card-reason-title">Raison / Motif</div>
+                            <div className="request-card-reason-text">{r.raison}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="request-card-footer">
+                        <button
+                          className="btn btn-icon btn-view"
+                          type="button"
+                          title="Voir"
+                          onClick={() => openView(r)}
+                          style={{ background: '#fff', border: '1px solid var(--gray-200)', width: '36px', height: '36px' }}
+                        >
+                          <FaIcon name="eye" />
+                        </button>
+                        {canMutate && (
+                          <button
+                            className="btn btn-icon btn-edit"
+                            type="button"
+                            title="Modifier"
+                            onClick={() => openEdit(r)}
+                            style={{ background: '#fff', border: '1px solid var(--gray-200)', width: '36px', height: '36px' }}
+                          >
+                            <FaIcon name="pen" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <AdminDeleteButton onClick={() => handleDelete(r)} />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
               <p className="table-footer-hint">
                 Affichage de {pageData.length} entrée(s) sur {filteredRequests.length} au total
@@ -708,25 +728,7 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
                 </select>
               </label>
             )}
-            <label className="form-group">
-              <span>Bénéficiaire</span>
-              <select
-                className="form-control"
-                value={form.beneficiaryId}
-                onChange={(e) => onBeneficiaryChange(e.target.value)}
-                disabled={!form.agentId}
-              >
-                {!form.agentId ? (
-                  <option value="">Sélectionnez d&apos;abord un agent</option>
-                ) : (
-                  beneficiaryOptions.map((o) => (
-                    <option key={o.id || 'titulaire'} value={o.id}>
-                      {o.label}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
+
             <label className="form-group">
               <span>Type de Demande</span>
               <select
@@ -781,7 +783,7 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
       {modal?.mode === 'view' && (
         <Modal title="Détail de la demande" onClose={closeModal} variant="detail">
           <DetailItem label="Matricule" value={modal.row.matricule} />
-          <DetailItem label="Bénéficiaire" value={modal.row.beneficiaire} />
+          <DetailItem label="Agent / Adhérent" value={modal.row.beneficiaire} />
           <DetailItem label="Type de demande" value={modal.row.typeDemande} />
           <DetailItem label="Date demande" value={modal.row.dateDemande || '—'} />
           <DetailItem label="Statut" value={modal.row.statut} />

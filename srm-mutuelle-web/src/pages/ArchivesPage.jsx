@@ -150,7 +150,7 @@ export default function ArchivesPage({ setPageTitle, addToast, user }) {
       case 'careEpisodes':
         return <thead><tr><th>Numéro</th><th>Type</th><th>État</th><th className="actions-cell">Actions</th></tr></thead>;
       case 'medicines':
-        return <thead><tr><th>Code</th><th>Nom</th><th>Prix réf.</th><th>Remboursement</th><th className="actions-cell">Actions</th></tr></thead>;
+        return <thead><tr><th>Code</th><th>Nom</th><th>Prix réf.</th><th className="actions-cell">Actions</th></tr></thead>;
       case 'medicalFacilities':
         return <thead><tr><th>Nom</th><th>Type</th><th>Ville</th><th className="actions-cell">Actions</th></tr></thead>;
       case 'contractedDoctors':
@@ -252,7 +252,6 @@ export default function ArchivesPage({ setPageTitle, addToast, user }) {
             <td><strong>{item.code}</strong></td>
             <td>{item.nom}</td>
             <td>{item.prixReference} DH</td>
-            <td>{item.tauxRemboursement}%</td>
             <td className="actions-cell">{renderRestoreBtn(item.id)}</td>
           </tr>
         );

@@ -34,6 +34,7 @@ public class CareEpisodeService {
 	private final AgentRepository agentRepository;
 	private final AdherentNotifierService adherentNotifierService;
 	private final CareEpisodePdfStorageService careEpisodePdfStorageService;
+	private final StaffNotifierService staffNotifierService;
 
 	public List<CareEpisodeResponse> list(AppUser user) {
 		if (user.getRole() == AppUserRole.ADHERENT) {
@@ -114,7 +115,7 @@ public class CareEpisodeService {
 		e.setStatus("En attente");
 		e.setMontantDemande(montantDemande);
 		e.setMontantPrisEnCharge(BigDecimal.ZERO);
-		e.setTaux(taux > 0 ? taux : defaultTauxForType(typePrestation));
+		e.setTaux(null);
 		e.setDepositDate(debut);
 		e.setObservation(observation);
 		e = careEpisodeRepository.save(e);
@@ -135,6 +136,12 @@ public class CareEpisodeService {
 		e.setSentDate(LocalDate.now());
 		e = careEpisodeRepository.save(e);
 		notify(e, "Étape 2/3 — Instruction : votre demande n° " + e.getNumero() + " est transmise à la mutuelle.");
+		staffNotifierService.notifyStaffWritersWithEmail(
+				"CARE_EPISODE_A_TRAITER",
+				"Prise en charge à traiter — n° " + e.getNumero() + " (" + e.getBeneficiaire() + ").",
+				"prise en charge",
+				e.getNumero(),
+				e.getBeneficiaire());
 		return toDto(e);
 	}
 
@@ -160,18 +167,11 @@ public class CareEpisodeService {
 	public CareEpisodeResponse validate(Long id, ValidateCareEpisodeRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		CareEpisode e = load(id);
-		if (!"En cours".equals(e.getStatus()) && !"En attente".equals(e.getStatus())) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande déjà traitée");
+		if ("Clôturé".equals(e.getStatus())) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande clôturée, modification impossible");
 		}
 		e.setMontantPrisEnCharge(req.montantPrisEnCharge());
-		if (req.taux() != null) {
-			e.setTaux(req.taux());
-		} else if (e.getTaux() == null && e.getMontantDemande() != null && e.getMontantDemande().signum() > 0) {
-			e.setTaux(req.montantPrisEnCharge()
-					.multiply(BigDecimal.valueOf(100))
-					.divide(e.getMontantDemande(), 0, RoundingMode.HALF_UP)
-					.intValue());
-		}
+		e.setTaux(null);
 		if (req.observation() != null) {
 			e.setObservation(req.observation());
 		}
@@ -181,16 +181,13 @@ public class CareEpisodeService {
 		e.setStatus("Approuvé");
 		e.setResponseDate(LocalDate.now());
 		e = careEpisodeRepository.save(e);
-		String tauxTxt = e.getTaux() != null ? e.getTaux() + " %" : "—";
 		notify(
 				e,
 				"Étape 3/3 — Approuvé : prise en charge n° "
 						+ e.getNumero()
 						+ ". Montant PEC : "
 						+ e.getMontantPrisEnCharge().toPlainString()
-						+ " DH (taux "
-						+ tauxTxt
-						+ ").");
+						+ " DH.");
 		return toDto(e);
 	}
 
@@ -198,8 +195,8 @@ public class CareEpisodeService {
 	public CareEpisodeResponse reject(Long id, RejectCareEpisodeRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		CareEpisode e = load(id);
-		if ("Approuvé".equals(e.getStatus()) || "Clôturé".equals(e.getStatus())) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande déjà finalisée");
+		if ("Clôturé".equals(e.getStatus())) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande clôturée, modification impossible");
 		}
 		if (req != null && req.observation() != null) {
 			e.setObservation(req.observation());

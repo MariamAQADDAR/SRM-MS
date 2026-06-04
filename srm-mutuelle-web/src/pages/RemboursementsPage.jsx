@@ -30,7 +30,6 @@ const EXPORT_COLS = [
   { key: 'etatReponse', label: 'État' },
   { key: 'montantDemande', label: 'Montant demandé' },
   { key: 'montantValide', label: 'Montant remboursé' },
-  { key: 'tauxDisplay', label: 'Taux %' },
 ];
 
 function statusBadge(statut) {
@@ -137,7 +136,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   const [reviewObs, setReviewObs] = useState('');
   const careTypes = getTypeOptions('careTypes');
 
-  const effectiveAgentId = isRealAdherent ? user?.agentId : (personalMode ? simulatedAgentId : null);
+  const effectiveAgentId = personalMode ? (simulatedAgentId || user?.agentId) : (isRealAdherent ? user?.agentId : null);
   const myAgent = effectiveAgentId ? Number(effectiveAgentId) : null;
 
   const reload = async () => {
@@ -494,13 +493,13 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
 
   const staffReviewPanel = (d) => {
     const canScan = d.etatReponse === 'En cours' && !d.scanned;
-    const canDecide = (d.etatReponse === 'En cours' || d.etatReponse === 'En attente') && d.scanned;
+    const canDecide = d.etatReponse !== 'Clôturé' && (d.scanned || d.etatReponse === 'Traité' || d.etatReponse === 'Rejeté');
     return (
       <div className="staff-review-panel">
         <h4 className="staff-review-title">Validation mutuelle</h4>
         {canDecide && (
           <div className="form-grid">
-            <div className="form-group">
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>Montant remboursé (DH)</label>
               <input
                 type="number"
@@ -508,17 +507,6 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
                 className="form-control"
                 value={reviewMontant}
                 onChange={(e) => setReviewMontant(e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label>Taux de remboursement (%)</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                className="form-control"
-                value={reviewTaux}
-                onChange={(e) => setReviewTaux(e.target.value)}
               />
             </div>
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -545,7 +533,6 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
                 onClick={() =>
                   doAction(`/api/reimbursements/${d.id}/validate`, 'Remboursement validé', {
                     montantValide: Number(reviewMontant),
-                    taux: reviewTaux ? Number(reviewTaux) : null,
                     observation: reviewObs || null,
                   })
                 }
@@ -602,7 +589,6 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             <DetailItem label="Montant remboursé">
               {Number(d.montantValide) > 0 ? `${Number(d.montantValide).toLocaleString('fr-FR')} DH` : '—'}
             </DetailItem>
-            <DetailItem label="Taux">{d.tauxDisplay}</DetailItem>
             <DetailItem label="Observation">{d.observation}</DetailItem>
           </DetailView>
           {canMutate && staffReviewPanel(d)}
@@ -646,15 +632,15 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
 
   const myAgentObj = isAdherent && effectiveAgentId != null ? agents.find((a) => a.id === Number(effectiveAgentId)) : null;
 
-  const showWarning = isAdherent && (isRealAdherent ? (!user?.agentId || !myAgentObj) : (!simulatedAgentId || !myAgentObj));
+  const showWarning = isAdherent && !myAgentObj;
 
   if (showWarning) {
     return (
       <>
-        {personalMode && !isRealAdherent && (
+        {personalMode && !isRealAdherent && !user?.agentId && (
           <AdherentSimulationBanner
             agents={agents}
-            selectedAgentId={simulatedAgentId}
+            selectedAgentId={simulatedAgentId || user?.agentId}
             onChangeAgent={handleSimulatedAgentChange}
           />
         )}
@@ -687,10 +673,10 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
 
   return (
     <>
-      {personalMode && !isRealAdherent && (
+      {personalMode && !isRealAdherent && !user?.agentId && (
         <AdherentSimulationBanner
           agents={agents}
-          selectedAgentId={simulatedAgentId}
+          selectedAgentId={simulatedAgentId || user?.agentId}
           onChangeAgent={handleSimulatedAgentChange}
         />
       )}
@@ -740,11 +726,6 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             exportFilename="remboursements"
             showNew={canCreate}
             newLabel={isAdherent ? 'Nouvelle demande (3 étapes)' : 'Nouvelle demande'}
-            trailing={
-              <button type="button" className="btn btn-outline" onClick={downloadReimbursementTemplate}>
-                <FaIcon name="file-word" className="fa-inline-icon" /> Bulletin adhésion
-              </button>
-            }
             onNew={() => {
               resetWizard();
               setModal({ title: 'Demande de remboursement — 3 étapes', mode: 'wizard' });
@@ -762,7 +743,6 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
                 <th>Type</th>
                 <th>Montant demandé</th>
                 <th>Remboursé</th>
-                <th>Taux</th>
                 <th>État</th>
                 {isAdherent ? <th>Suivi</th> : null}
                 <th>PDF</th>
@@ -772,7 +752,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             <tbody>
               {pageData.length === 0 && (
                 <tr>
-                  <td colSpan={isAdherent ? 9 : 10} style={{ textAlign: 'center', padding: 24 }}>
+                  <td colSpan={isAdherent ? 8 : 9} style={{ textAlign: 'center', padding: 24 }}>
                     {isAdherent
                       ? 'Aucune demande. Créez une demande en 3 étapes avec justificatif PDF.'
                       : 'Aucun remboursement.'}
@@ -787,7 +767,6 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
                   <td>{d.typeSoin}</td>
                   <td>{Number(d.montantDemande).toLocaleString('fr-FR')} DH</td>
                   <td>{Number(d.montantValide) > 0 ? `${Number(d.montantValide).toLocaleString('fr-FR')} DH` : '—'}</td>
-                  <td>{d.tauxDisplay}</td>
                   <td>{statusBadge(d.etatReponse)}</td>
                   {isAdherent ? (
                     <td style={{ fontSize: 12, fontWeight: 600 }}>{workflowSummary(d)}</td>

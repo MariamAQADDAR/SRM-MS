@@ -77,4 +77,26 @@ public class EmailService {
 					e);
 		}
 	}
+
+	public void sendPendingRequestAlert(String toEmail, String requestType, String requestNumber, String agentName) {
+		try {
+			SimpleMailMessage message = new SimpleMailMessage();
+			message.setFrom(fromEmail);
+			message.setTo(toEmail);
+			message.setSubject("Nouvelle demande en attente - SRM Mutuelle");
+			message.setText(
+					"Bonjour,\n\n"
+							+ "Une nouvelle demande de " + requestType + " est en attente d'instruction.\n"
+							+ "• Numéro de la demande : " + requestNumber + "\n"
+							+ "• Agent demandeur : " + agentName + "\n\n"
+							+ "Veuillez vous connecter à l'application pour traiter cette demande : "
+							+ frontendBaseUrl + "\n\n"
+							+ "Cordialement,\n"
+							+ "L'équipe SRM Mutuelle");
+			mailSender.send(message);
+			log.info("Email d'alerte envoyé à {} pour la demande {}", toEmail, requestNumber);
+		} catch (Exception e) {
+			log.error("Erreur lors de l'envoi de l'email d'alerte à {} pour la demande {}", toEmail, requestNumber, e);
+		}
+	}
 }

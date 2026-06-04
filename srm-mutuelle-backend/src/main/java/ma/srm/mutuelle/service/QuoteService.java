@@ -425,9 +425,12 @@ public class QuoteService {
 		String agentLabel = q.getAgent() != null && q.getAgent().getNom() != null
 				? q.getAgent().getNom()
 				: "adhérent";
-		staffNotifierService.notifyStaffWriters(
+		staffNotifierService.notifyStaffWritersWithEmail(
 				"DEVIS_A_TRAITER",
-				"Devis à traiter — n° " + q.getNumero() + " (" + typeLabel + ", " + agentLabel + ").");
+				"Devis à traiter — n° " + q.getNumero() + " (" + typeLabel + ", " + agentLabel + ").",
+				"devis",
+				q.getNumero(),
+				agentLabel);
 	}
 
 	private QuoteResponse toDto(Quote q) {

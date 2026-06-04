@@ -83,9 +83,6 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
   const freeAgents = agents.filter((a) => !agentAdherentByAgentId?.has(a.id));
   const hasFreeAgentForAdherent = freeAgents.length > 0;
 
-  // Les rôles qui peuvent être liés à un agent
-  const needsAgentLink = role === 'ADHERENT' || role === 'ADMINISTRATEUR';
-
   const handleRoleChange = (nextRole) => {
     setRole(nextRole);
     setAgentId('');
@@ -94,7 +91,8 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
 
   const handleAgentChange = (nextAgentId) => {
     setAgentId(nextAgentId);
-    const name = agentFullName(findAgentById(agents, nextAgentId));
+    const agent = findAgentById(agents, nextAgentId);
+    const name = agentFullName(agent);
     if (name) setFullName(name);
   };
 
@@ -104,14 +102,27 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
     const roleVal = fd.get('role');
     const agentRaw = fd.get('agentId');
     const resolvedAgentId = agentRaw && String(agentRaw).trim() !== '' ? Number(agentRaw) : null;
-    const resolvedFullName = (roleVal === 'ADHERENT' || roleVal === 'ADMINISTRATEUR') && fullName
-      ? fullName
-      : String(fd.get('fullName') || '').trim();
+    const selectedAgent = resolvedAgentId ? findAgentById(agents, resolvedAgentId) : null;
 
-    if (roleVal === 'ADHERENT' && (resolvedAgentId == null || Number.isNaN(resolvedAgentId))) {
-      addToast('warning', 'Pour un compte adhérent, choisissez le porteur mutuelle dans la liste.');
-      return;
+    let resolvedEmail = '';
+    let resolvedPassword = '';
+
+    if (roleVal === 'ADHERENT') {
+      if (!selectedAgent) {
+        addToast('warning', 'Pour un compte adhérent, choisissez le porteur mutuelle dans la liste.');
+        return;
+      }
+      resolvedEmail = selectedAgent.matricule;
+      resolvedPassword = selectedAgent.cin || '';
+      if (!resolvedPassword) {
+        addToast('warning', "L'agent sélectionné n'a pas de CIN renseigné (le CIN sert de mot de passe).");
+        return;
+      }
+    } else {
+      resolvedEmail = String(fd.get('email') || '').trim();
+      resolvedPassword = String(fd.get('password') || '').trim();
     }
+
     if (roleVal === 'ADHERENT' && agentAdherentByAgentId?.has(resolvedAgentId)) {
       addToast(
         'warning',
@@ -119,13 +130,15 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
       );
       return;
     }
+
     const body = {
-      email: fd.get('email'),
-      password: fd.get('password'),
-      fullName: resolvedFullName,
+      email: resolvedEmail,
+      password: resolvedPassword,
+      fullName: fullName.trim(),
       role: roleVal,
-      agentId: needsAgentLink && resolvedAgentId ? resolvedAgentId : null,
+      agentId: resolvedAgentId,
     };
+
     try {
       await parseJsonOrThrow(await apiFetch('/api/admin/users', { method: 'POST', body }));
       onClose();
@@ -139,62 +152,7 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
   return (
     <form onSubmit={handleSubmit}>
       <div className="form-grid">
-        {/* Nom complet : dropdown agents si Adhérent, sinon saisie libre */}
-        <div className="form-group">
-          <label>
-            Nom complet <span className="required">*</span>
-          </label>
-          {role === 'ADHERENT' ? (
-            <>
-              <select
-                name="agentId"
-                className="form-control"
-                required
-                value={agentId}
-                onChange={(e) => handleAgentChange(e.target.value)}
-              >
-                <option value="" disabled>— Sélectionner un porteur —</option>
-                {freeAgents.map((a) => (
-                  <option key={a.id} value={String(a.id)}>
-                    {formatAgentOption(a)}
-                  </option>
-                ))}
-              </select>
-              {agents.length === 0 ? (
-                <p style={{ fontSize: '0.8125rem', color: 'var(--danger-600)', marginTop: 6, marginBottom: 0 }}>
-                  Aucun porteur enregistré. Créez d'abord un agent dans le menu Agents.
-                </p>
-              ) : freeAgents.length === 0 ? (
-                <p style={{ fontSize: '0.8125rem', color: 'var(--danger-600)', marginTop: 6, marginBottom: 0 }}>
-                  Tous les porteurs ont déjà un compte adhérent. Ajoutez d'abord un nouvel agent.
-                </p>
-              ) : (
-                <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 6, marginBottom: 0 }}>
-                  Le nom sera rempli automatiquement depuis le porteur sélectionné.
-                </p>
-              )}
-            </>
-          ) : (
-            <input
-              name="fullName"
-              className="form-control"
-              required
-              autoComplete="name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-          )}
-        </div>
-
-        <div className="form-group">
-          <label>
-            Email <span className="required">*</span>
-          </label>
-          <input name="email" type="email" className="form-control" placeholder="prenom.nom@srm-ms.ma" required autoComplete="email" />
-        </div>
-
-        <PasswordField label="Mot de passe" required />
-
+        {/* Rôle en premier */}
         <div className="form-group">
           <label>
             Rôle <span className="required">*</span>
@@ -207,27 +165,96 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
           </select>
         </div>
 
-        {/* Porteur pour l'Admin (optionnel) */}
-        {role === 'ADMINISTRATEUR' && (
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label>Porteur mutuelle lié <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>(optionnel)</span></label>
-            <select
-              name="agentId"
-              className="form-control"
-              value={agentId}
-              onChange={(e) => handleAgentChange(e.target.value)}
-            >
-              <option value="">— Aucun porteur —</option>
-              {agents.map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {formatAgentOption(a)}
-                </option>
-              ))}
-            </select>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 6, marginBottom: 0 }}>
-              L'administrateur peut être lié à une fiche agent pour accéder à son espace personnel.
+        {/* Agent lié */}
+        <div className="form-group">
+          <label>
+            Agent lié {role === 'ADHERENT' ? <span className="required">*</span> : <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>(optionnel)</span>}
+          </label>
+          <select
+            name="agentId"
+            className="form-control"
+            required={role === 'ADHERENT'}
+            value={agentId}
+            onChange={(e) => handleAgentChange(e.target.value)}
+          >
+            {role === 'ADHERENT' ? (
+              <option value="" disabled>— Sélectionner un porteur —</option>
+            ) : (
+              <option value="">— Aucun porteur lié —</option>
+            )}
+            {(role === 'ADHERENT' ? freeAgents : agents).map((a) => (
+              <option key={a.id} value={String(a.id)}>
+                {formatAgentOption(a)}
+              </option>
+            ))}
+          </select>
+          {role === 'ADHERENT' && agents.length === 0 ? (
+            <p style={{ fontSize: '0.8125rem', color: 'var(--danger-600)', marginTop: 6, marginBottom: 0 }}>
+              Aucun porteur enregistré. Créez d'abord un agent dans le menu Agents.
             </p>
+          ) : role === 'ADHERENT' && freeAgents.length === 0 ? (
+            <p style={{ fontSize: '0.8125rem', color: 'var(--danger-600)', marginTop: 6, marginBottom: 0 }}>
+              Tous les porteurs ont déjà un compte adhérent. Ajoutez d'abord un nouvel agent.
+            </p>
+          ) : null}
+        </div>
+
+        {/* Nom complet */}
+        <div className="form-group">
+          <label>
+            Nom complet <span className="required">*</span>
+          </label>
+          <input
+            name="fullName"
+            className="form-control"
+            required
+            readOnly={!!agentId}
+            style={agentId ? { opacity: 0.85, background: 'var(--gray-50)' } : {}}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Nom et prénom"
+          />
+        </div>
+
+        {/* Matricule & CIN - visibles pour ADHERENT */}
+        {role === 'ADHERENT' && (
+          <>
+            <div className="form-group">
+              <label>Matricule (Nom d'utilisateur)</label>
+              <input
+                className="form-control"
+                readOnly
+                style={{ opacity: 0.85, background: 'var(--gray-50)' }}
+                value={agentId ? (findAgentById(agents, agentId)?.matricule || '') : ''}
+                placeholder="— Rempli depuis l'agent —"
+              />
+            </div>
+            <div className="form-group">
+              <label>CIN (Mot de passe)</label>
+              <input
+                className="form-control"
+                readOnly
+                style={{ opacity: 0.85, background: 'var(--gray-50)' }}
+                value={agentId ? (findAgentById(agents, agentId)?.cin || '') : ''}
+                placeholder="— Rempli depuis l'agent —"
+              />
+            </div>
+          </>
+        )}
+
+        {/* Email - masqué pour ADHERENT */}
+        {role !== 'ADHERENT' && (
+          <div className="form-group">
+            <label>
+              Email <span className="required">*</span>
+            </label>
+            <input name="email" type="email" className="form-control" placeholder="prenom.nom@srm-ms.ma" required autoComplete="email" />
           </div>
+        )}
+
+        {/* Mot de passe - masqué pour ADHERENT */}
+        {role !== 'ADHERENT' && (
+          <PasswordField label="Mot de passe" required />
         )}
       </div>
 
@@ -262,14 +289,14 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
 
   const handleRoleChange = (nextRole) => {
     setRole(nextRole);
-    if (nextRole !== 'ADHERENT') {
-      setAgentId('');
-    }
+    setAgentId('');
+    setFullName('');
   };
 
   const handleAgentChange = (nextAgentId) => {
     setAgentId(nextAgentId);
-    const name = agentFullName(findAgentById(agents, nextAgentId));
+    const agent = findAgentById(agents, nextAgentId);
+    const name = agentFullName(agent);
     if (name) setFullName(name);
   };
 
@@ -288,17 +315,12 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
     );
   }
 
-  const needsAgentLink = role === 'ADHERENT' || role === 'ADMINISTRATEUR';
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const roleVal = fd.get('role');
     const agentRaw = fd.get('agentId');
     const resolvedAgentId = agentRaw && String(agentRaw).trim() !== '' ? Number(agentRaw) : null;
-    const resolvedFullName = (roleVal === 'ADHERENT' || roleVal === 'ADMINISTRATEUR') && fullName
-      ? fullName
-      : String(fd.get('fullName') || '').trim();
 
     if (roleVal === 'ADHERENT' && (resolvedAgentId == null || Number.isNaN(resolvedAgentId))) {
       addToast('warning', 'Pour un compte adhérent, choisissez le porteur mutuelle dans la liste.');
@@ -309,13 +331,25 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
       addToast('warning', `Ce porteur a déjà un compte adhérent (${takenEmail}). Choisissez un autre porteur.`);
       return;
     }
+
     const pwdRaw = String(fd.get('password') || '').trim();
     const body = {
-      fullName: resolvedFullName,
+      fullName: fullName.trim(),
       role: roleVal,
-      agentId: needsAgentLink && resolvedAgentId ? resolvedAgentId : null,
+      agentId: resolvedAgentId,
     };
-    if (pwdRaw) body.password = pwdRaw;
+
+    if (roleVal === 'ADHERENT') {
+      const selectedAgent = resolvedAgentId ? findAgentById(agents, resolvedAgentId) : null;
+      if (selectedAgent && (urow.role !== 'ADHERENT' || urow.agentId !== resolvedAgentId)) {
+        if (selectedAgent.cin) {
+          body.password = selectedAgent.cin;
+        }
+      }
+    } else if (pwdRaw) {
+      body.password = pwdRaw;
+    }
+
     try {
       await parseJsonOrThrow(await apiFetch(`/api/admin/users/${urow.id}`, { method: 'PUT', body }));
       onClose();
@@ -329,55 +363,7 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
   return (
     <form key={`edit-${urow.id}`} onSubmit={handleSubmit}>
       <div className="form-grid">
-        {/* Nom complet : dropdown agents si Adhérent, sinon saisie libre */}
-        <div className="form-group">
-          <label>
-            Nom complet <span className="required">*</span>
-          </label>
-          {role === 'ADHERENT' ? (
-            <>
-              <select
-                name="agentId"
-                className="form-control"
-                required
-                value={agentId}
-                onChange={(e) => handleAgentChange(e.target.value)}
-              >
-                <option value="">— Choisir dans la liste —</option>
-                {availableAgents.map((a) => (
-                  <option key={a.id} value={String(a.id)}>
-                    {formatAgentOption(a)}
-                    {a.id === urow.agentId ? ' — (porteur actuel)' : ''}
-                  </option>
-                ))}
-              </select>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 6, marginBottom: 0 }}>
-                Le nom est rempli depuis le porteur sélectionné. Un seul compte adhérent par porteur.
-              </p>
-            </>
-          ) : (
-            <input
-              name="fullName"
-              className="form-control"
-              required
-              autoComplete="name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-          )}
-        </div>
-
-        <div className="form-group">
-          <label>Email</label>
-          <input className="form-control" value={urow.email || ''} readOnly style={{ opacity: 0.85, background: 'var(--gray-50)' }} />
-        </div>
-
-        <PasswordField
-          label="Nouveau mot de passe"
-          hint="L'ancien mot de passe ne peut pas être affiché (stockage sécurisé). Saisissez un nouveau mot de passe pour le communiquer à l'utilisateur, ou laissez vide pour ne pas le modifier."
-          autoComplete="new-password"
-        />
-
+        {/* Rôle en premier */}
         <div className="form-group">
           <label>
             Rôle <span className="required">*</span>
@@ -390,28 +376,89 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
           </select>
         </div>
 
-        {/* Porteur pour l'Admin (optionnel) */}
-        {role === 'ADMINISTRATEUR' && (
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label>Porteur mutuelle lié <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>(optionnel)</span></label>
-            <select
-              name="agentId"
-              className="form-control"
-              value={agentId}
-              onChange={(e) => handleAgentChange(e.target.value)}
-            >
-              <option value="">— Aucun porteur —</option>
-              {agents.map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {formatAgentOption(a)}
-                  {a.id === urow.agentId ? ' — (actuel)' : ''}
-                </option>
-              ))}
-            </select>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: 6, marginBottom: 0 }}>
-              L'administrateur peut être lié à une fiche agent pour accéder à son espace personnel.
-            </p>
+        {/* Agent lié */}
+        <div className="form-group">
+          <label>
+            Agent lié {role === 'ADHERENT' ? <span className="required">*</span> : <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>(optionnel)</span>}
+          </label>
+          <select
+            name="agentId"
+            className="form-control"
+            required={role === 'ADHERENT'}
+            value={agentId}
+            onChange={(e) => handleAgentChange(e.target.value)}
+          >
+            {role === 'ADHERENT' ? (
+              <option value="">— Choisir dans la liste —</option>
+            ) : (
+              <option value="">— Aucun porteur lié —</option>
+            )}
+            {(role === 'ADHERENT' ? availableAgents : agents).map((a) => (
+              <option key={a.id} value={String(a.id)}>
+                {formatAgentOption(a)}
+                {a.id === urow.agentId ? ' — (porteur actuel)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Nom complet */}
+        <div className="form-group">
+          <label>
+            Nom complet <span className="required">*</span>
+          </label>
+          <input
+            name="fullName"
+            className="form-control"
+            required
+            readOnly={!!agentId}
+            style={agentId ? { opacity: 0.85, background: 'var(--gray-50)' } : {}}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+          />
+        </div>
+
+        {/* Matricule & CIN - visibles pour ADHERENT */}
+        {role === 'ADHERENT' && (
+          <>
+            <div className="form-group">
+              <label>Matricule (Nom d'utilisateur)</label>
+              <input
+                className="form-control"
+                readOnly
+                style={{ opacity: 0.85, background: 'var(--gray-50)' }}
+                value={agentId ? (findAgentById(agents, agentId)?.matricule || '') : ''}
+                placeholder="— Rempli depuis l'agent —"
+              />
+            </div>
+            <div className="form-group">
+              <label>CIN (Mot de passe)</label>
+              <input
+                className="form-control"
+                readOnly
+                style={{ opacity: 0.85, background: 'var(--gray-50)' }}
+                value={agentId ? (findAgentById(agents, agentId)?.cin || '') : ''}
+                placeholder="— Rempli depuis l'agent —"
+              />
+            </div>
+          </>
+        )}
+
+        {/* Email - masqué pour ADHERENT */}
+        {role !== 'ADHERENT' && (
+          <div className="form-group">
+            <label>Email</label>
+            <input className="form-control" value={urow.email || ''} readOnly style={{ opacity: 0.85, background: 'var(--gray-50)' }} />
           </div>
+        )}
+
+        {/* Mot de passe - masqué pour ADHERENT */}
+        {role !== 'ADHERENT' && (
+          <PasswordField
+            label="Nouveau mot de passe"
+            hint="L'ancien mot de passe ne peut pas être affiché (stockage sécurisé). Saisissez un nouveau mot de passe pour le communiquer à l'utilisateur, ou laissez vide pour ne pas le modifier."
+            autoComplete="new-password"
+          />
         )}
       </div>
 
@@ -614,56 +661,58 @@ export default function UtilisateursPage({ setPageTitle, addToast, user }) {
                     </td>
                     <td style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{formatLogin(u.lastLoginAt)}</td>
                     <td className="actions-cell">
-                      <div className="user-active-toggle-wrap" title={u.active ? 'Compte actif' : 'Compte inactif'}>
-                        <label className="user-active-toggle" htmlFor={`user-active-${u.id}`}>
-                          <span className="sr-only">{u.active ? 'Désactiver le compte' : 'Activer le compte'}</span>
-                          <input
-                            id={`user-active-${u.id}`}
-                            type="checkbox"
-                            role="switch"
-                            aria-checked={u.active}
-                            checked={!!u.active}
-                            disabled={toggleDisabled}
-                            onChange={(e) => handleActiveChange(u, e.target.checked)}
-                          />
-                          <span className="user-active-toggle-slider" aria-hidden />
-                        </label>
-                      </div>
-                      <button
-                        className="btn btn-icon btn-edit"
-                        type="button"
-                        title="Modifier"
-                        disabled={!allowAdminRole && isTargetAdmin}
-                        onClick={() =>
-                          setModal({
-                            title: `Modifier — ${u.fullName || u.email}`,
-                            content: (
-                              <UserEditForm
-                                urow={u}
-                                agents={agents}
-                                agentAdherentByAgentId={agentAdherentByAgentId}
-                                onClose={closeModal}
-                                reload={reload}
-                                addToast={addToast}
-                                allowAdminRole={allowAdminRole}
-                              />
-                            ),
-                          })
-                        }
-                      >
-                        <FaIcon name="pen-to-square" />
-                      </button>
-                      {allowAdminRole ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div className="user-active-toggle-wrap" title={u.active ? 'Compte actif' : 'Compte inactif'}>
+                          <label className="user-active-toggle" htmlFor={`user-active-${u.id}`}>
+                            <span className="sr-only">{u.active ? 'Désactiver le compte' : 'Activer le compte'}</span>
+                            <input
+                              id={`user-active-${u.id}`}
+                              type="checkbox"
+                              role="switch"
+                              aria-checked={u.active}
+                              checked={!!u.active}
+                              disabled={toggleDisabled}
+                              onChange={(e) => handleActiveChange(u, e.target.checked)}
+                            />
+                            <span className="user-active-toggle-slider" aria-hidden />
+                          </label>
+                        </div>
                         <button
-                          className="btn btn-icon btn-delete"
+                          className="btn btn-icon btn-edit"
                           type="button"
-                          title="Supprimer"
-                          disabled={isSelf}
-                          onClick={() => remove(u)}
+                          title="Modifier"
+                          disabled={!allowAdminRole && isTargetAdmin}
+                          onClick={() =>
+                            setModal({
+                              title: `Modifier — ${u.fullName || u.email}`,
+                              content: (
+                                <UserEditForm
+                                  urow={u}
+                                  agents={agents}
+                                  agentAdherentByAgentId={agentAdherentByAgentId}
+                                  onClose={closeModal}
+                                  reload={reload}
+                                  addToast={addToast}
+                                  allowAdminRole={allowAdminRole}
+                                />
+                              ),
+                            })
+                          }
                         >
-                          <FaIcon name="trash" />
+                          <FaIcon name="pen-to-square" />
                         </button>
-                      ) : null}
+                        {allowAdminRole ? (
+                          <button
+                            className="btn btn-icon btn-delete"
+                            type="button"
+                            title="Supprimer"
+                            disabled={isSelf}
+                            onClick={() => remove(u)}
+                          >
+                            <FaIcon name="trash" />
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );

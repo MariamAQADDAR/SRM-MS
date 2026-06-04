@@ -198,7 +198,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
   const agentById = Object.fromEntries((agents || []).map((a) => [a.id, a]));
   const quoteRows = quotes.map((q) => mapQuoteRow(q, agentById));
 
-  const effectiveAgentId = isRealAdherent ? user?.agentId : (personalMode ? simulatedAgentId : null);
+  const effectiveAgentId = personalMode ? (simulatedAgentId || user?.agentId) : (isRealAdherent ? user?.agentId : null);
   const myAgent = effectiveAgentId ? agents.find((a) => a.id === Number(effectiveAgentId)) : null;
   const agentsForForm = isAdherent && myAgent ? [myAgent] : agents;
 
@@ -607,15 +607,15 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
     return `Étape ${wf.activeStep}/3 — ${wf.steps[wf.activeStep - 1].label}`;
   };
 
-  const showWarning = isAdherent && (isRealAdherent ? (!user?.agentId || !myAgent) : (!simulatedAgentId || !myAgent));
+  const showWarning = isAdherent && !myAgent;
 
   if (showWarning) {
     return (
       <>
-        {personalMode && !isRealAdherent && (
+        {personalMode && !isRealAdherent && !user?.agentId && (
           <AdherentSimulationBanner
             agents={agents}
-            selectedAgentId={simulatedAgentId}
+            selectedAgentId={simulatedAgentId || user?.agentId}
             onChangeAgent={handleSimulatedAgentChange}
           />
         )}
@@ -648,10 +648,10 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
 
   return (
     <>
-      {personalMode && !isRealAdherent && (
+      {personalMode && !isRealAdherent && !user?.agentId && (
         <AdherentSimulationBanner
           agents={agents}
-          selectedAgentId={simulatedAgentId}
+          selectedAgentId={simulatedAgentId || user?.agentId}
           onChangeAgent={handleSimulatedAgentChange}
         />
       )}
@@ -661,6 +661,34 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
             ? renderQuoteForm(modal.mode, modal.quote)
             : modal.content}
         </Modal>
+      )}
+      {!isAdherent && (
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 16 }}>
+          <div className="stat-card">
+            <div className="stat-info">
+              <h4>En attente</h4>
+              <div className="stat-value">{quotes.filter((r) => r.etat === 'En attente').length}</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-info">
+              <h4>Soumis</h4>
+              <div className="stat-value">{quotes.filter((r) => r.etat === 'Soumis').length}</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-info">
+              <h4>Approuvés</h4>
+              <div className="stat-value">{quotes.filter((r) => r.etat === 'Approuvé').length}</div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-info">
+              <h4>Rejetés</h4>
+              <div className="stat-value">{quotes.filter((r) => r.etat === 'Rejeté').length}</div>
+            </div>
+          </div>
+        </div>
       )}
       <TablePageShell
         title={isAdherent ? 'Mes devis' : 'Liste des devis'}

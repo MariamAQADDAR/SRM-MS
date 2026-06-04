@@ -408,14 +408,14 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
             </div>
 
             <div className="add-benef-section">
-              <h5><FaIcon name="plus" /> Ajouter un nouveau proche</h5>
+              <h5><FaIcon name="plus" /> Ajouter un nouveau bénéficiaire</h5>
               <div className="add-benef-grid">
                 <div className="form-group">
                   <label>Nom</label>
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Nom du proche"
+                    placeholder="Nom du bénéficiaire"
                     value={newBenef.nom}
                     onChange={(e) => setNewBenef({ ...newBenef, nom: e.target.value })}
                   />
@@ -425,7 +425,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Prénom du proche"
+                    placeholder="Prénom du bénéficiaire"
                     value={newBenef.prenom}
                     onChange={(e) => setNewBenef({ ...newBenef, prenom: e.target.value })}
                   />
@@ -457,7 +457,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="CIN du proche"
+                    placeholder="CIN du bénéficiaire"
                     value={newBenef.cin}
                     onChange={(e) => setNewBenef({ ...newBenef, cin: e.target.value })}
                   />
@@ -528,7 +528,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
               <div className="recap-section">
                 <h5>Bénéficiaires Rattachés ({benefs.length})</h5>
                 {benefs.length === 0 ? (
-                  <p className="recap-empty-msg">Aucun proche enregistré pour cet agent.</p>
+                  <p className="recap-empty-msg">Aucun bénéficiaire enregistré pour cet agent.</p>
                 ) : (
                   <div className="data-table-wrapper">
                     <table className="data-table recap-table">
@@ -584,11 +584,293 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
   );
 }
 
+function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
+  const isEdit = !!p;
+  
+  const [agentId, setAgentId] = useState(p ? String(p.agentId) : '');
+  const [singleNom, setSingleNom] = useState(p ? p.nom : '');
+  const [singlePrenom, setSinglePrenom] = useState(p ? p.prenom : '');
+  const [singleType, setSingleType] = useState(p ? p.type : 'Enfant');
+  const [singleCin, setSingleCin] = useState(p ? (p.cin || '') : '');
+  const [singleDateNaissance, setSingleDateNaissance] = useState(p ? (p.dateNaissance ?? '') : '');
+
+  const [benefs, setBenefs] = useState([]);
+  const [newBenef, setNewBenef] = useState({
+    nom: '',
+    prenom: '',
+    type: 'Enfant',
+    dateNaissance: '',
+    cin: ''
+  });
+
+  const addBeneficiaryToList = () => {
+    if (!agentId) {
+      addToast('error', 'Veuillez d\'abord sélectionner un agent');
+      return;
+    }
+    if (!newBenef.nom.trim()) {
+      addToast('error', 'Le nom du bénéficiaire est requis');
+      return;
+    }
+    if (!newBenef.prenom.trim()) {
+      addToast('error', 'Le prénom du bénéficiaire est requis');
+      return;
+    }
+    
+    setBenefs([...benefs, { ...newBenef }]);
+    setNewBenef({
+      nom: '',
+      prenom: '',
+      type: 'Enfant',
+      dateNaissance: '',
+      cin: ''
+    });
+    addToast('success', 'Bénéficiaire ajouté à la liste temporaire');
+  };
+
+  const removeBeneficiaryFromList = (index) => {
+    setBenefs(benefs.filter((_, i) => i !== index));
+    addToast('info', 'Bénéficiaire retiré');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isEdit) {
+      const body = {
+        agentId: Number(agentId),
+        nom: singleNom,
+        prenom: singlePrenom,
+        type: singleType,
+        cin: singleCin || '',
+        dateNaissance: singleDateNaissance || null,
+      };
+      try {
+        await parseJsonOrThrow(await apiFetch(`/api/beneficiaries/${p.id}`, { method: 'PUT', body }));
+        onClose();
+        addToast('success', 'Bénéficiaire mis à jour');
+        reload();
+      } catch (err) {
+        addToast('error', err.message || 'Erreur');
+      }
+    } else {
+      if (benefs.length === 0) {
+        addToast('warning', 'Veuillez ajouter au moins un bénéficiaire à la liste');
+        return;
+      }
+      try {
+        await Promise.all(
+          benefs.map((b) =>
+            apiFetch('/api/beneficiaries', {
+              method: 'POST',
+              body: JSON.stringify({
+                agentId: Number(agentId),
+                nom: b.nom,
+                prenom: b.prenom,
+                type: b.type,
+                cin: b.cin || '',
+                dateNaissance: b.dateNaissance || null
+              })
+            }).then(parseJsonOrThrow)
+          )
+        );
+        onClose();
+        addToast('success', `${benefs.length} bénéficiaire(s) enregistré(s) avec succès !`);
+        reload();
+      } catch (err) {
+        addToast('error', err.message || 'Erreur lors de l\'enregistrement');
+      }
+    }
+  };
+
+  if (isEdit) {
+    return (
+      <form onSubmit={handleSubmit}>
+        <div className="form-grid">
+          <div className="form-group">
+            <label>Agent rattaché</label>
+            <select name="agentId" className="form-control" value={agentId} onChange={(e) => setAgentId(e.target.value)} required>
+              {agents.map((a) => (
+                <option key={a.id} value={String(a.id)}>
+                  {a.prenom} {a.nom} ({a.matricule})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Nom</label>
+            <input name="nom" className="form-control" value={singleNom} onChange={(e) => setSingleNom(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label>Prénom</label>
+            <input name="prenom" className="form-control" value={singlePrenom} onChange={(e) => setSinglePrenom(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label>Type</label>
+            <select name="type" className="form-control" value={singleType} onChange={(e) => setSingleType(e.target.value)}>
+              <option>Conjoint(e)</option>
+              <option>Enfant</option>
+              <option>Ascendant</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>CIN</label>
+            <input name="cin" className="form-control" value={singleCin} onChange={(e) => setSingleCin(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Date de naissance</label>
+            <input name="dateNaissance" type="date" className="form-control" value={singleDateNaissance} onChange={(e) => setSingleDateNaissance(e.target.value)} />
+          </div>
+        </div>
+        <div className="modal-footer" style={{ padding: '16px 0 0' }}>
+          <button type="button" className="btn btn-outline" onClick={onClose}>
+            Annuler
+          </button>
+          <button type="submit" className="btn btn-primary">
+            <FaIcon name="floppy-disk" className="fa-inline-icon" /> Mettre à jour
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="benefs-creation-wizard">
+      <div className="form-group" style={{ marginBottom: '20px' }}>
+        <label style={{ fontWeight: 'bold' }}>Sélectionner l'Agent rattaché <span className="required">*</span></label>
+        <select
+          className="form-control"
+          value={agentId}
+          onChange={(e) => setAgentId(e.target.value)}
+          required
+        >
+          <option value="" disabled>— Choisir un agent —</option>
+          {agents.map((a) => (
+            <option key={a.id} value={String(a.id)}>
+              {a.prenom} {a.nom} ({a.matricule})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="benefs-list" style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '20px', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px' }}>
+        {benefs.length === 0 ? (
+          <div className="empty-benefs" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <FaIcon name="users-slash" className="empty-icon" style={{ fontSize: '24px', marginBottom: '8px' }} />
+            <p style={{ margin: 0, fontSize: '14px' }}>Aucun bénéficiaire ajouté dans cette liste pour le moment.</p>
+          </div>
+        ) : (
+          <div className="benefs-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+            {benefs.map((b, idx) => (
+              <div key={idx} className="benef-card" style={{ border: '1px solid var(--border-color)', padding: '10px', borderRadius: '6px', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h5 style={{ margin: '0 0 4px 0', fontSize: '14px' }}>{b.prenom} {b.nom}</h5>
+                    <span className="badge badge-info" style={{ fontSize: '10px' }}>{b.type}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-icon btn-sm"
+                    onClick={() => removeBeneficiaryFromList(idx)}
+                    style={{ color: 'var(--danger-color)', padding: '4px' }}
+                    title="Retirer"
+                  >
+                    <FaIcon name="trash-can" />
+                  </button>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                  {b.dateNaissance && <div>Né(e) le : {formatDate(b.dateNaissance)}</div>}
+                  {b.cin && <div>CIN : {b.cin}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="add-benef-section" style={{ background: 'var(--bg-light)', padding: '15px', borderRadius: '6px', marginBottom: '20px' }}>
+        <h5 style={{ margin: '0 0 12px 0' }}><FaIcon name="plus" /> Saisir un bénéficiaire</h5>
+        <div className="add-benef-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div className="form-group">
+            <label>Nom</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Nom du bénéficiaire"
+              value={newBenef.nom}
+              onChange={(e) => setNewBenef({ ...newBenef, nom: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Prénom</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Prénom du bénéficiaire"
+              value={newBenef.prenom}
+              onChange={(e) => setNewBenef({ ...newBenef, prenom: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Type de lien</label>
+            <select
+              className="form-control"
+              value={newBenef.type}
+              onChange={(e) => setNewBenef({ ...newBenef, type: e.target.value })}
+            >
+              <option value="Conjoint(e)">Conjoint(e)</option>
+              <option value="Enfant">Enfant</option>
+              <option value="Ascendant">Ascendant</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Date de naissance</label>
+            <input
+              type="date"
+              className="form-control"
+              value={newBenef.dateNaissance}
+              onChange={(e) => setNewBenef({ ...newBenef, dateNaissance: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>CIN (Optionnel)</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="CIN"
+              value={newBenef.cin}
+              onChange={(e) => setNewBenef({ ...newBenef, cin: e.target.value })}
+            />
+          </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-outline-primary" onClick={addBeneficiaryToList}>
+              <FaIcon name="plus" className="fa-inline-icon" /> Ajouter à la liste
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal-footer" style={{ padding: '16px 0 0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+        <button type="button" className="btn btn-outline" onClick={onClose}>
+          Annuler
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={handleSubmit}
+          disabled={benefs.length === 0 || !agentId}
+        >
+          <FaIcon name="floppy-disk" className="fa-inline-icon" /> Enregistrer la liste ({benefs.length})
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function BeneficiairesPage({ setPageTitle, addToast, user, forcedTab = null }) {
   setPageTitle(forcedTab === 'agents' ? 'Agents' : 'Bénéficiaires', forcedTab === 'agents' ? 'Gestion des agents' : 'Gestion des bénéficiaires');
   const canMutate = canStaffMutate(user);
   const canDelete = canAdminDelete(user);
-  const [tab, setTab] = useState(forcedTab || 'agents');
+  const [tab, setTab] = useState(forcedTab || 'proches');
   const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState(null);
   const [agents, setAgents] = useState([]);
@@ -712,7 +994,7 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user, forced
           </DetailView>
           <section className="detail-proches-section">
             <h4>
-              <FaIcon name="user-group" className="fa-inline-icon" /> Proches ({proches.length})
+              <FaIcon name="user-group" className="fa-inline-icon" /> Bénéficiaires ({proches.length})
             </h4>
             <div className="data-table-wrapper">
               <table className="data-table detail-proches-table">
@@ -728,7 +1010,7 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user, forced
                   {proches.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="text-muted">
-                        Aucun proche enregistré
+                        Aucun bénéficiaire enregistré
                       </td>
                     </tr>
                   ) : (
@@ -763,82 +1045,22 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user, forced
     );
   };
 
-  const buildProcheForm = (p) => {
-    const submit = async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const agentId = Number(fd.get('agentId'));
-      const body = {
-        agentId,
-        nom: fd.get('nom'),
-        prenom: fd.get('prenom'),
-        type: fd.get('type'),
-        cin: fd.get('cin') || '',
-        dateNaissance: fd.get('dateNaissance') || null,
-      };
-      try {
-        await parseJsonOrThrow(await apiFetch(`/api/beneficiaries/${p.id}`, { method: 'PUT', body }));
-        closeModal();
-        addToast('success', 'Proche mis à jour');
-        reload();
-      } catch (err) {
-        addToast('error', err.message || 'Erreur');
-      }
-    };
+  const buildProcheForm = (p = null) => {
     return (
-      <form onSubmit={submit}>
-        <div className="form-grid">
-          <div className="form-group">
-            <label>Agent rattaché</label>
-            <select name="agentId" className="form-control" defaultValue={String(p.agentId)} required>
-              {agents.map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {a.prenom} {a.nom}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Nom</label>
-            <input name="nom" className="form-control" defaultValue={p.nom} required />
-          </div>
-          <div className="form-group">
-            <label>Prénom</label>
-            <input name="prenom" className="form-control" defaultValue={p.prenom} required />
-          </div>
-          <div className="form-group">
-            <label>Type</label>
-            <select name="type" className="form-control" defaultValue={p.type}>
-              <option>Conjoint(e)</option>
-              <option>Enfant</option>
-              <option>Ascendant</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>CIN</label>
-            <input name="cin" className="form-control" defaultValue={p.cin || ''} />
-          </div>
-          <div className="form-group">
-            <label>Date de naissance</label>
-            <input name="dateNaissance" type="date" className="form-control" defaultValue={p.dateNaissance ?? ''} />
-          </div>
-        </div>
-        <div className="modal-footer" style={{ padding: '16px 0 0' }}>
-          <button type="button" className="btn btn-outline" onClick={closeModal}>
-            Annuler
-          </button>
-          <button type="submit" className="btn btn-primary">
-            <FaIcon name="floppy-disk" className="fa-inline-icon" /> Mettre à jour
-          </button>
-        </div>
-      </form>
+      <BeneficiaryFormModal
+        p={p}
+        agents={agents}
+        onClose={closeModal}
+        addToast={addToast}
+        reload={reload}
+      />
     );
   };
 
   const viewProche = (p) => {
     const agent = agents.find((x) => x.id === p.agentId);
     setModal({
-      title: `Proche : ${p.prenom} ${p.nom}`,
+      title: `Bénéficiaire : ${p.prenom} ${p.nom}`,
       variant: 'detail',
       content: (
         <DetailView
@@ -872,30 +1094,24 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user, forced
           {modal.content}
         </Modal>
       )}
-      {!forcedTab && (
-        <div className="tabs">
-          <div className={`tab-item${effectiveTab === 'agents' ? ' active' : ''}`} onClick={() => { setTab('agents'); setSearchQuery(''); }}>
-            <FaIcon name="user" className="fa-inline-icon" /> Agents
-          </div>
-          <div className={`tab-item${effectiveTab === 'proches' ? ' active' : ''}`} onClick={() => { setTab('proches'); setSearchQuery(''); }}>
-            <FaIcon name="user-group" className="fa-inline-icon" /> Proches
-          </div>
-        </div>
-      )}
       <TablePageShell
-        title={effectiveTab === 'agents' ? 'Liste des agents' : 'Liste des proches'}
-        icon={effectiveTab === 'agents' ? 'user' : 'user-group'}
+        title={effectiveTab === 'agents' ? 'Liste des agents' : 'Liste des bénéficiaires'}
+        icon={effectiveTab === 'agents' ? 'user' : 'users'}
         toolbar={
           <ListPageToolbar
             searchValue={searchQuery}
             onSearchChange={(e) => setSearchQuery(e.target.value)}
-            searchPlaceholder={effectiveTab === 'agents' ? 'Rechercher un agent…' : 'Rechercher un proche…'}
+            searchPlaceholder={effectiveTab === 'agents' ? 'Rechercher un agent…' : 'Rechercher un bénéficiaire…'}
             exportColumns={effectiveTab === 'agents' ? AGENT_EXPORT_COLS : PROCHE_EXPORT_COLS}
             exportRows={effectiveTab === 'agents' ? filteredAgents : prochesExportRows}
-            exportFilename={effectiveTab === 'agents' ? 'agents' : 'proches'}
-            showNew={canMutate && effectiveTab === 'agents'}
-            newLabel="Nouvel agent"
-            onNew={() => setModal({ title: 'Ajouter un agent', content: buildAgentForm() })}
+            exportFilename={effectiveTab === 'agents' ? 'agents' : 'beneficiaires'}
+            showNew={canMutate}
+            newLabel={effectiveTab === 'agents' ? 'Nouvel agent' : 'Nouveau bénéficiaire'}
+            onNew={() =>
+              effectiveTab === 'agents'
+                ? setModal({ title: 'Ajouter un agent', content: buildAgentForm() })
+                : setModal({ title: 'Ajouter un bénéficiaire', content: buildProcheForm() })
+            }
           />
         }
       >

@@ -235,7 +235,7 @@ public class ChatbotService {
 		}
 		StringBuilder sb = new StringBuilder("**Vos remboursements** :\n");
 		snap.reimbursements.stream().limit(6).forEach(r -> {
-			String taux = r.getTaux() != null ? " — taux " + r.getTaux() + "%" : "";
+			String taux = r.getTaux() != null ? " — prix " + r.getTaux() + "%" : "";
 			sb.append("• **")
 					.append(r.getNumero())
 					.append("** — ")
@@ -458,7 +458,7 @@ public class ChatbotService {
 						String taux = r.getTaux() != null ? r.getTaux() + " %" : "—";
 						return "**Remboursement " + r.getNumero() + "**\n• Statut : **" + r.getStatus() + "**\n• Bénéficiaire : "
 								+ r.getBeneficiaire() + "\n• Demandé : " + formatMoney(r.getMontantDemande()) + " DH\n• Remboursé : "
-								+ formatMoney(r.getMontantValide()) + " DH\n• Taux : **" + taux + "**";
+								+ formatMoney(r.getMontantValide()) + " DH\n• Prix (%) : **" + taux + "**";
 					});
 		}
 		return Optional.empty();

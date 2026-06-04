@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import FaIcon from './FaIcon';
 import { isAdherentRole, isStaffWriterRole, isAdminRole } from '../authUtils';
 
-export default function Layout({ children, currentPage, onNavigate, user, navBadges }) {
+export default function Layout({ children, currentPage, onNavigate, user, navBadges, activeSpace }) {
   if (!user) return null;
 
   const isAdherent = isAdherentRole(user);
@@ -10,8 +10,10 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
   const isAdmin = isAdminRole(user);
   const b = navBadges || {};
 
-  const navSections = [
-    {
+  const navSections = [];
+
+  if (isAdherent || activeSpace === 'personal') {
+    navSections.push({
       section: 'Mon espace',
       items: [
         { id: 'mes-devis', fa: 'file-invoice', label: 'Mes devis', badge: b['mes-devis'] },
@@ -19,10 +21,8 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         { id: 'mes-prises-en-charge', fa: 'hospital', label: 'Mes prises en charge', badge: b['mes-pec'] },
         { id: 'mon-historique', fa: 'clock-rotate-left', label: 'Mon historique' },
       ],
-    },
-  ];
-
-  if (!isAdherent) {
+    });
+  } else if (activeSpace === 'staff' && !isAdherent) {
     navSections.push(
       {
         section: 'Principal',
@@ -33,7 +33,7 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
       {
         section: 'Gestion',
         items: [
-          ...(isAdmin ? [{ id: 'agents', fa: 'user-tie', label: 'Agents', badge: b.agents }] : []),
+          ...(isAdmin || staffWriter ? [{ id: 'agents', fa: 'user-tie', label: 'Agents', badge: b.agents }] : []),
           { id: 'beneficiaires', fa: 'users', label: 'Bénéficiaires', badge: b.agents },
           { id: 'cartes-mutuelles', fa: 'id-card', label: 'Cartes mutuelles' },
           { id: 'ordonnances', fa: 'clipboard-list', label: 'Ordonnances', badge: b.ordonnances },
@@ -47,6 +47,7 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
         section: 'Référentiel',
         items: [
           { id: 'etablissements', fa: 'building', label: 'Établissements', badge: b.facilities },
+          { id: 'medecins', fa: 'user-doctor', label: 'Médecins conv.', badge: b.medecins },
           { id: 'entites', fa: 'landmark', label: 'Entités org.', badge: b.entites },
           { id: 'medicaments', fa: 'pills', label: 'Médicaments', badge: b.medicaments },
         ],
@@ -69,6 +70,8 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
     }
   }
 
+
+
   const getSectionForPage = (pageId) =>
     navSections.find((sec) => sec.items.some((item) => item.id === pageId))?.section || null;
 
@@ -89,7 +92,7 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
     <div className="app-layout">
       <div className="sidebar">
         <div className="sidebar-header">
-          <div className="s-brand">
+          <div className="s-brand" onClick={() => onNavigate('portal')} style={{ cursor: 'pointer' }} title="Retour au portail">
             <img
               src="/srm-company-logo.png"
               alt="SRM-MS — Société Régionale Multiservices Marrakech-Safi"

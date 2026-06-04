@@ -21,6 +21,7 @@ import CartesMutuellesPage from '../pages/CartesMutuellesPage';
 import AgentsPage from '../pages/AgentsPage';
 import HistoriquePage from '../pages/HistoriquePage';
 import ArchivesPage from '../pages/ArchivesPage';
+import MedecinsPage from '../pages/MedecinsPage';
 import ChatbotWidget from './ChatbotWidget';
 import FaIcon from './FaIcon';
 import { apiFetch, apiMe, parseJsonOrThrow } from '../api/client';
@@ -46,6 +47,27 @@ export default function AppShell() {
   useEffect(() => {
     sessionStorage.setItem('srm_current_page', currentPage);
   }, [currentPage]);
+  
+  const [activeSpace, setActiveSpace] = useState(() => {
+    return sessionStorage.getItem('srm_active_space') || null;
+  });
+
+  useEffect(() => {
+    if (activeSpace) {
+      sessionStorage.setItem('srm_active_space', activeSpace);
+    } else {
+      sessionStorage.removeItem('srm_active_space');
+    }
+  }, [activeSpace]);
+
+  const handleNavigate = (page) => {
+    if (page === 'portal') {
+      setActiveSpace(null);
+    } else {
+      setCurrentPage(page);
+    }
+  };
+
   const [navBadges, setNavBadges] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -92,6 +114,7 @@ export default function AppShell() {
     maladies: { title: 'Maladies spéciales', breadcrumb: 'Gestion des maladies spéciales' },
     agents: { title: 'Agents', breadcrumb: 'Gestion des agents' },
     etablissements: { title: 'Établissements médicaux', breadcrumb: 'Référentiel' },
+    medecins: { title: 'Médecins conventionnés', breadcrumb: 'Référentiel' },
     entites: { title: 'Entités organisationnelles', breadcrumb: 'Référentiel' },
     medicaments: { title: 'Médicaments', breadcrumb: 'Référentiel médicaments' },
     utilisateurs: { title: 'Utilisateurs', breadcrumb: 'Administration' },
@@ -159,6 +182,7 @@ export default function AppShell() {
           apiFetch('/api/medical-facilities'),
           apiFetch('/api/organizational-entities'),
           apiFetch('/api/medicines'),
+          apiFetch('/api/contracted-doctors'),
         ];
         if (isStaffWriterRole(u)) {
           reqs.push(apiFetch('/api/admin/users'));
@@ -174,6 +198,7 @@ export default function AppShell() {
         const fac = out[i++];
         const ent = out[i++];
         const medicines = out[i++];
+        const doctors = out[i++];
         const users = isStaffWriterRole(u) ? out[i++] : [];
         const devisATraiter = quotes.filter((q) => q.etat === 'Soumis').length;
         setNavBadges({
@@ -186,6 +211,7 @@ export default function AppShell() {
           facilities: fac.length,
           entites: ent.length,
           medicaments: medicines.length,
+          medecins: doctors.length,
           users: users.length,
         });
       }
@@ -266,10 +292,10 @@ export default function AppShell() {
 
   useEffect(() => {
     if (!user) return;
-    if (isAdherentRole(user) && !ADHERENT_PAGES.has(currentPage)) {
+    if ((isAdherentRole(user) || activeSpace === 'personal') && !ADHERENT_PAGES.has(currentPage)) {
       setCurrentPage('mes-devis');
     }
-  }, [user, currentPage]);
+  }, [user, currentPage, activeSpace]);
 
   const setPageTitle = () => {};
 
@@ -425,6 +451,8 @@ export default function AppShell() {
         return isAdherent ? forbiddenForAdherent() : <MaladiesPage {...pageProps} />;
       case 'etablissements':
         return isAdherent ? forbiddenForAdherent() : <EtablissementsPage {...pageProps} />;
+      case 'medecins':
+        return isAdherent ? forbiddenForAdherent() : <MedecinsPage {...pageProps} />;
       case 'entites':
         return isAdherent ? forbiddenForAdherent() : <EntitesPage {...pageProps} />;
       case 'medicaments':
@@ -537,9 +565,96 @@ export default function AppShell() {
     );
   }
 
+  if (!activeSpace) {
+    return (
+      <div className="portal-container">
+        {/* Portal Header */}
+        <div className="portal-header">
+          <div className="portal-brand">
+            <img src="/srm-company-logo.png" alt="SRM-MS" className="portal-logo-img" />
+            <span className="portal-brand-text">SRM Mutuelle</span>
+          </div>
+          <div className="portal-header-right">
+            <div className="portal-user-chip">
+              <div className="portal-user-avatar">{initials}</div>
+              <div className="portal-user-info">
+                <span className="portal-user-name">{user.name}</span>
+                <span className="portal-user-role">{user.role}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm portal-logout-btn"
+              onClick={() => {
+                sessionStorage.removeItem('mutuelle_user');
+                sessionStorage.removeItem('srm_active_space');
+                navigate('/');
+              }}
+            >
+              <FaIcon name="right-from-bracket" className="fa-inline-icon" /> Déconnexion
+            </button>
+          </div>
+        </div>
+
+        {/* Portal Body */}
+        <div className="portal-body animate-fade-in">
+          <div className="portal-welcome-section">
+            <h1 className="portal-welcome-title">Bienvenue sur le portail SRM-MS</h1>
+            <p className="portal-welcome-subtitle">Veuillez sélectionner un espace pour continuer</p>
+            
+
+          </div>
+
+          <div className="portal-cards-grid">
+            {/* Mon Espace Card */}
+            <div
+              className="portal-space-card personal-space"
+              onClick={() => {
+                setActiveSpace('personal');
+                setCurrentPage('mes-devis');
+              }}
+            >
+              <div className="portal-card-icon-wrapper">
+                <FaIcon name="house-user" />
+              </div>
+              <div className="portal-card-meta">
+                <h3>Mon Espace</h3>
+                <p>Mes devis, remboursements, prises en charge et profil</p>
+              </div>
+            </div>
+
+            {/* Espace Gestion Card (visible for staff only) */}
+            {!isAdherent && (
+              <div
+                className="portal-space-card staff-space"
+                onClick={() => {
+                  setActiveSpace('staff');
+                  setCurrentPage('dashboard');
+                }}
+              >
+                <div className="portal-card-icon-wrapper">
+                  <FaIcon name="shield-halved" />
+                </div>
+                <div className="portal-card-meta">
+                  <h3>Espace Gestion</h3>
+                  <p>Gestion des adhérents, devis, remboursements, PEC, et référentiels</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Portal Footer */}
+        <div className="portal-footer">
+          <span>&copy; 2026 SRM-MS développé pour la gestion mutuelle</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      <Layout user={user} currentPage={currentPage} onNavigate={setCurrentPage} navBadges={navBadges}>
+      <Layout user={user} currentPage={currentPage} onNavigate={handleNavigate} navBadges={navBadges} activeSpace={activeSpace}>
         <div className="topbar">
           <div className="topbar-left">
             <div>
@@ -552,6 +667,7 @@ export default function AppShell() {
             </div>
           </div>
           <div className="topbar-right">
+
             <div className="topbar-dropdown-wrap" ref={notifDropdownRef}>
               <div
                 className={`topbar-btn${notifPopupOpen ? ' active' : ''}`}

@@ -7,9 +7,9 @@ const COPY = {
   fr: {
     title: 'Se connecter',
     subtitle: 'Accédez à votre compte pour continuer la gestion de la mutuelle.',
-    email: 'Adresse email',
+    email: 'Adresse email ou matricule',
     password: 'Mot de passe',
-    emailPh: 'vous@exemple.com',
+    emailPh: 'vous@exemple.com ou AGT-XXX',
     passwordPh: 'Votre mot de passe',
     submit: 'Se connecter',
     tagline: 'Chaque dossier compte, chaque bénéficiaire a son importance.',
@@ -20,9 +20,9 @@ const COPY = {
   ar: {
     title: 'تسجيل الدخول',
     subtitle: 'سجّل الدخول إلى حسابك لمتابعة إدارة التأمين الصحي.',
-    email: 'البريد الإلكتروني',
+    email: 'البريد الإلكتروني ou matricule',
     password: 'كلمة المرور',
-    emailPh: 'you@example.com',
+    emailPh: 'you@example.com ou AGT-XXX',
     passwordPh: 'كلمة المرور',
     submit: 'دخول',
     tagline: 'كل ملف مهم، وكل مستفيد له أهميته.',
@@ -241,7 +241,7 @@ export default function Login() {
                     {t.email} <span className="login-split-required">*</span>
                   </label>
                   <input
-                    type="email"
+                    type="text"
                     id="loginEmail"
                     className="login-split-input"
                     placeholder={t.emailPh}

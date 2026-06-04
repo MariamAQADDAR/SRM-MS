@@ -17,7 +17,7 @@ public class AppUserAdminDtos {
 			Instant lastLoginAt) {}
 
 	public record CreateAppUserRequest(
-			@NotBlank @Email String email,
+			@NotBlank String email,
 			@NotBlank String password,
 			@NotBlank String fullName,
 			@NotBlank String role,
