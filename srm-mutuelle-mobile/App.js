@@ -96,6 +96,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState('login');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotResetType, setForgotResetType] = useState('email');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwdCurrent, setPwdCurrent] = useState('');
@@ -407,10 +408,21 @@ export default function App() {
 
   const handleForgotPassword = async () => {
     setLoginError('');
+    const input = (forgotEmail || email || '').trim();
+    if (!input) {
+      setLoginError('Veuillez saisir votre email ou matricule');
+      return;
+    }
+    if (!input.includes('@')) {
+      setForgotSuccess(true);
+      setForgotResetType('contact');
+      return;
+    }
     setLoginLoading(true);
     try {
-      await apiForgotPassword(forgotEmail || email);
+      await apiForgotPassword(input);
       setForgotSuccess(true);
+      setForgotResetType('email');
     } catch (e) {
       setLoginError(e.message || 'Demande impossible');
     } finally {
@@ -548,9 +560,11 @@ export default function App() {
               <Text style={styles.loginHeading}>Mot de passe oublié</Text>
               <Text style={styles.loginLead}>Entrez votre adresse e-mail pour recevoir un lien de réinitialisation.</Text>
               {forgotSuccess ? (
-                <View style={[styles.loginAlert, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
-                  <Text style={[styles.loginAlertText, { color: '#065f46' }]}>
-                    Si un compte existe pour cette adresse, un e-mail avec le lien de réinitialisation a été envoyé (vérifiez les courriers indésirables). Le lien est valide 1 heure.
+                <View style={[styles.loginAlert, { backgroundColor: forgotResetType === 'contact' ? '#fef3c7' : '#ecfdf5', borderColor: forgotResetType === 'contact' ? '#fde68a' : '#a7f3d0' }]}>
+                  <Text style={[styles.loginAlertText, { color: forgotResetType === 'contact' ? '#92400e' : '#065f46' }]}>
+                    {forgotResetType === 'contact'
+                      ? "Veuillez contacter l'administration pour réinitialiser votre mot de passe."
+                      : "Si un compte existe pour cette adresse, un e-mail avec le lien de réinitialisation a été envoyé (vérifiez les courriers indésirables). Le lien est valide 1 heure."}
                   </Text>
                 </View>
               ) : (
@@ -560,12 +574,12 @@ export default function App() {
                       <Text style={styles.loginAlertText}>{loginError}</Text>
                     </View>
                   ) : null}
-                  <Text style={styles.label}>Adresse email <Text style={styles.req}>*</Text></Text>
+                  <Text style={styles.label}>Adresse email ou matricule <Text style={styles.req}>*</Text></Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="vous@exemple.com"
+                    placeholder="vous@exemple.com ou matricule"
                     placeholderTextColor={COLORS.textLight}
-                    keyboardType="email-address"
+                    keyboardType="default"
                     autoCapitalize="none"
                     value={forgotEmail}
                     onChangeText={setForgotEmail}
@@ -630,13 +644,13 @@ export default function App() {
                 </View>
               ) : null}
               <Text style={styles.label}>
-                Adresse email <Text style={styles.req}>*</Text>
+                Adresse email ou matricule <Text style={styles.req}>*</Text>
               </Text>
               <TextInput
                 style={styles.input}
-                placeholder="vous@exemple.com"
+                placeholder="vous@exemple.com ou matricule"
                 placeholderTextColor={COLORS.textLight}
-                keyboardType="email-address"
+                keyboardType="default"
                 autoCapitalize="none"
                 value={email}
                 onChangeText={setEmail}

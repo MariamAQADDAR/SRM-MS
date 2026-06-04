@@ -49,7 +49,6 @@ export default function DevisScreen({ user, addToast, personalMode = false }) {
     dentisteId: '',
     dentisteLibre: '',
     montant: '',
-    taux: '60',
     observation: '',
   });
   const [reviewPec, setReviewPec] = useState('');
@@ -111,7 +110,6 @@ export default function DevisScreen({ user, addToast, personalMode = false }) {
       dentisteId: '',
       dentisteLibre: '',
       montant: '',
-      taux: '60',
       observation: '',
     });
     setWizardStep(1);
@@ -161,7 +159,7 @@ export default function DevisScreen({ user, addToast, personalMode = false }) {
     const fields = {
       quoteType: form.type,
       montant: form.montant,
-      taux: form.taux || '60',
+      taux: '60',
       beneficiaire: form.beneficiaire,
       dateDevis: today,
       dateDepot: today,
@@ -262,9 +260,6 @@ export default function DevisScreen({ user, addToast, personalMode = false }) {
                 selectTextOnFocus
               />
             </FormField>
-            <FormField label="Taux (%)">
-              <TextField value={form.taux} onChangeText={(v) => setForm((f) => ({ ...f, taux: v }))} keyboardType="number-pad" />
-            </FormField>
           </>
         )}
         {wizardStep === 2 && (
@@ -280,7 +275,6 @@ export default function DevisScreen({ user, addToast, personalMode = false }) {
             <DetailItem label="Bénéficiaire">{form.beneficiaire}</DetailItem>
             <DetailItem label="Type">{form.type}</DetailItem>
             <DetailItem label="Montant">{formatMoney(form.montant)}</DetailItem>
-            <DetailItem label="Taux">{form.taux} %</DetailItem>
             <DetailItem label="PDF">{pdfFile ? pdfFile.name : '—'}</DetailItem>
           </>
         )}

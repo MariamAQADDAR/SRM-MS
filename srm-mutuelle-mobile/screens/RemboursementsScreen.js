@@ -59,7 +59,6 @@ export default function RemboursementsScreen({ user, addToast, personalMode = fa
     observation: '',
   });
   const [reviewMontant, setReviewMontant] = useState('');
-  const [reviewTaux, setReviewTaux] = useState('');
   const [reviewObs, setReviewObs] = useState('');
 
   const reload = useCallback(async (isRefresh = false) => {
@@ -171,7 +170,6 @@ export default function RemboursementsScreen({ user, addToast, personalMode = fa
   const openDetail = (item) => {
     const defaultMontant = Number(item.montantValide) > 0 ? item.montantValide : item.montantDemande;
     setReviewMontant(defaultMontant != null ? String(defaultMontant) : '');
-    setReviewTaux(item.taux != null ? String(item.taux) : '80');
     setReviewObs(item.observation || '');
     setModal({ mode: 'detail', item });
   };
@@ -353,7 +351,6 @@ export default function RemboursementsScreen({ user, addToast, personalMode = fa
             <DetailSection title="Montants" icon="coins">
               <DetailItem label="Demandé">{formatMoney(modal.item.montantDemande)}</DetailItem>
               <DetailItem label="Remboursé">{formatMoney(modal.item.montantValide)}</DetailItem>
-              <DetailItem label="Taux">{modal.item.taux != null ? `${modal.item.taux} %` : '—'}</DetailItem>
               <DetailItem label="Observation">{modal.item.observation || '—'}</DetailItem>
             </DetailSection>
             {modal.item.hasPdf ? (
@@ -372,9 +369,6 @@ export default function RemboursementsScreen({ user, addToast, personalMode = fa
                 <FormField label="Montant remboursé">
                   <TextField value={reviewMontant} onChangeText={setReviewMontant} keyboardType="decimal-pad" />
                 </FormField>
-                <FormField label="Taux (%)">
-                  <TextField value={reviewTaux} onChangeText={setReviewTaux} keyboardType="number-pad" />
-                </FormField>
                 <FormField label="Observation">
                   <TextField value={reviewObs} onChangeText={setReviewObs} multiline />
                 </FormField>
@@ -383,7 +377,6 @@ export default function RemboursementsScreen({ user, addToast, personalMode = fa
                   onPress={() =>
                     doAction(`/api/reimbursements/${modal.item.id}/validate`, 'Remboursement validé', {
                       montantValide: reviewMontant ? Number(reviewMontant) : null,
-                      taux: reviewTaux ? Number(reviewTaux) : null,
                       observation: reviewObs || null,
                     })
                   }

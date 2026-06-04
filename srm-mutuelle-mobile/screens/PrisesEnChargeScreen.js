@@ -48,13 +48,11 @@ export default function PrisesEnChargeScreen({ user, addToast, personalMode = fa
     typePrestation: '',
     etablissement: '',
     montantDemande: '',
-    taux: '70',
     dateDebut: new Date().toISOString().split('T')[0],
     dateFin: '',
     observation: '',
   });
   const [reviewMontant, setReviewMontant] = useState('');
-  const [reviewTaux, setReviewTaux] = useState('');
   const [reviewObs, setReviewObs] = useState('');
 
   const reload = useCallback(async (isRefresh = false) => {
@@ -125,7 +123,6 @@ export default function PrisesEnChargeScreen({ user, addToast, personalMode = fa
       typePrestation: careTypes[0] || '',
       etablissement: facilities[0]?.name || facilities[0]?.nom || '',
       montantDemande: '',
-      taux: '70',
       dateDebut: new Date().toISOString().split('T')[0],
       dateFin: '',
       observation: '',
@@ -165,7 +162,6 @@ export default function PrisesEnChargeScreen({ user, addToast, personalMode = fa
     const defaultMontant =
       item.montantPrisEnCharge != null && Number(item.montantPrisEnCharge) > 0 ? item.montantPrisEnCharge : item.montantDemande;
     setReviewMontant(defaultMontant != null ? String(defaultMontant) : '');
-    setReviewTaux(item.taux != null ? String(item.taux) : '70');
     setReviewObs(item.observation || '');
     setModal({ mode: 'detail', item });
   };
@@ -280,9 +276,6 @@ export default function PrisesEnChargeScreen({ user, addToast, personalMode = fa
                 selectTextOnFocus
               />
             </FormField>
-            <FormField label="Taux souhaité (%)">
-              <TextField value={form.taux} onChangeText={(v) => setForm((f) => ({ ...f, taux: v }))} keyboardType="number-pad" />
-            </FormField>
             <OutlineButton title={pdfFile ? `PDF : ${pdfFile.name}` : 'Choisir PDF *'} onPress={async () => { const f = await pickPdfFile(); if (f) setPdfFile(f); }} style={{ marginTop: 8 }} />
             <FormField label="Observation">
               <TextField value={form.observation} onChangeText={(v) => setForm((f) => ({ ...f, observation: v }))} multiline />
@@ -337,7 +330,6 @@ export default function PrisesEnChargeScreen({ user, addToast, personalMode = fa
             <DetailSection title="Détails financiers" icon="coins">
               <DetailItem label="Montant demandé">{formatMoney(modal.item.montantDemande)}</DetailItem>
               <DetailItem label="Montant PEC">{formatMoney(modal.item.montantPrisEnCharge)}</DetailItem>
-              <DetailItem label="Taux">{modal.item.taux != null ? `${modal.item.taux} %` : '—'}</DetailItem>
               <DetailItem label="Observation">{modal.item.observation || '—'}</DetailItem>
             </DetailSection>
             {modal.item.hasPdf ? (
@@ -356,9 +348,6 @@ export default function PrisesEnChargeScreen({ user, addToast, personalMode = fa
                 <FormField label="Montant PEC">
                   <TextField value={reviewMontant} onChangeText={setReviewMontant} keyboardType="decimal-pad" />
                 </FormField>
-                <FormField label="Taux">
-                  <TextField value={reviewTaux} onChangeText={setReviewTaux} keyboardType="number-pad" />
-                </FormField>
                 <FormField label="Observation">
                   <TextField value={reviewObs} onChangeText={setReviewObs} multiline />
                 </FormField>
@@ -367,7 +356,6 @@ export default function PrisesEnChargeScreen({ user, addToast, personalMode = fa
                   onPress={() =>
                     doAction(`/api/care-episodes/${modal.item.id}/validate`, 'PEC approuvée', {
                       montantPrisEnCharge: reviewMontant ? Number(reviewMontant) : null,
-                      taux: reviewTaux ? Number(reviewTaux) : null,
                       observation: reviewObs || null,
                     })
                   }
