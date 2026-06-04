@@ -61,7 +61,7 @@ public class DevUserDataInitializer implements ApplicationRunner {
 
 		AppUser adherent = new AppUser();
 		adherent.setEmail("adherent@srm-ms.ma");
-		adherent.setPasswordHash(passwordEncoder.encode("adh123"));
+		adherent.setPasswordHash(passwordEncoder.encode("11111111"));
 		adherent.setFullName("Youssef Benali");
 		adherent.setRole(AppUserRole.ADHERENT);
 		adherent.setActive(true);

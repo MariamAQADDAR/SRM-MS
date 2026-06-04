@@ -172,7 +172,7 @@ Le port doit être le même que `SERVER_PORT` du backend (`8082` par défaut).
 **Terminal 3** :
 
 ```powershell
-cd C:\chemin\vers\SRM-MS\srm-mutuelle-mobile
+cd C:\chemin\vers\SRM-MS\
 npm install
 npx expo start --lan
 ```

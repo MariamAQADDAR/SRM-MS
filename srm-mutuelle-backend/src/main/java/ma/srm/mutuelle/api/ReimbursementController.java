@@ -125,6 +125,12 @@ public class ReimbursementController {
 		reimbursementService.restore(id, AuthPrincipal.requireUser(authentication));
 	}
 
+	@PostMapping("/{id}/scan")
+	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
+	public ReimbursementResponse scan(@PathVariable Long id, Authentication authentication) {
+		return reimbursementService.scan(id, AuthPrincipal.requireUser(authentication));
+	}
+
 	@PostMapping("/{id}/validate")
 	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
 	public ReimbursementResponse validate(

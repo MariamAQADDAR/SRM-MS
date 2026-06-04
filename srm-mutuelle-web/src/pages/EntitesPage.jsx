@@ -16,7 +16,7 @@ const EXPORT_COLS = [
   { key: 'code', label: 'Code' },
   { key: 'nom', label: 'Nom' },
   { key: 'type', label: 'Type' },
-  { key: 'parentLabel', label: 'Entité parente' },
+  { key: 'parentLabel', label: 'Entité mère' },
 ];
 
 const TYPE_COLORS = {
@@ -164,9 +164,9 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
     setExpanded(new Set(dg ? [dg.id] : []));
   };
 
-  const buildForm = (entity = null) => {
+  const EntityForm = ({ entity, onClose }) => {
     const isEdit = !!entity;
-    const selectedType = entity?.type ?? entityTypes[0];
+    const [selectedType, setSelectedType] = React.useState(entity?.type ?? entityTypes[0]);
     const requiredParentType = PARENT_TYPE_FOR[selectedType];
     const parentOptions = rows.filter((ent) => {
       if (entity && ent.id === entity.id) return false;
@@ -182,14 +182,14 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
       const body = {
         code: fd.get('code'),
         nom: fd.get('nom'),
-        type: fd.get('type'),
+        type: selectedType,
         parentId,
       };
       try {
         const url = isEdit ? `/api/organizational-entities/${entity.id}` : '/api/organizational-entities';
         const method = isEdit ? 'PUT' : 'POST';
         await parseJsonOrThrow(await apiFetch(url, { method, body }));
-        closeModal();
+        onClose();
         addToast('success', isEdit ? 'Entité mise à jour' : 'Entité enregistrée');
         reload();
       } catch (err) {
@@ -217,7 +217,13 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
           </div>
           <div className="form-group">
             <label>Type</label>
-            <select name="type" className="form-control" defaultValue={entity?.type ?? entityTypes[0]} required>
+            <select
+              name="type"
+              className="form-control"
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              required
+            >
               {entityTypes.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -226,12 +232,13 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
             </select>
           </div>
           <div className="form-group">
-            <label>Entité parente {requiredParentType ? `(${requiredParentType})` : ''}</label>
+            <label>Entité mère {requiredParentType ? `(${requiredParentType})` : ''}</label>
             <select
               name="parentId"
               className="form-control"
               defaultValue={entity?.parentId != null ? String(entity.parentId) : ''}
               disabled={!requiredParentType}
+              key={selectedType}
             >
               <option value="">{requiredParentType ? '— Choisir —' : '— Racine (DG) —'}</option>
               {parentOptions.map((ent) => (
@@ -243,7 +250,7 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
           </div>
         </div>
         <div className="modal-footer" style={{ padding: '16px 0 0' }}>
-          <button type="button" className="btn btn-outline" onClick={closeModal}>
+          <button type="button" className="btn btn-outline" onClick={onClose}>
             Annuler
           </button>
           <button type="submit" className="btn btn-primary">
@@ -272,7 +279,7 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
             </div>
           </div>
           <div className="detail-item">
-            <div className="detail-label">Entité parente</div>
+            <div className="detail-label">Entité mère</div>
             <div className="detail-value">{parentName(entity.parentId)}</div>
           </div>
           <div className="modal-footer" style={{ padding: '16px 0 0', gridColumn: '1 / -1' }}>
@@ -283,7 +290,7 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => setModal({ title: `Modifier — ${entity.nom}`, content: buildForm(entity) })}
+                onClick={() => setModal({ title: `Modifier — ${entity.nom}`, content: <EntityForm entity={entity} onClose={closeModal} /> })}
               >
                 <FaIcon name="pen-to-square" className="fa-inline-icon" /> Modifier
               </button>
@@ -362,7 +369,7 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
               exportFilename="organigramme-srm-ms"
               showNew={canMutate}
               newLabel="Nouvelle entité"
-              onNew={() => setModal({ title: 'Nouvelle entité', content: buildForm() })}
+              onNew={() => setModal({ title: 'Nouvelle entité', content: <EntityForm entity={null} onClose={closeModal} /> })}
             />
           </div>
         }
@@ -388,7 +395,7 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
                     <th>Code</th>
                     <th>Nom</th>
                     <th>Type</th>
-                    <th>Entité parente</th>
+                    <th>Entité mère</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -414,7 +421,7 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
                             className="btn btn-icon btn-edit"
                             type="button"
                             title="Modifier"
-                            onClick={() => setModal({ title: `Modifier — ${e.nom}`, content: buildForm(e) })}
+                            onClick={() => setModal({ title: `Modifier — ${e.nom}`, content: <EntityForm entity={e} onClose={closeModal} /> })}
                           >
                             <FaIcon name="pen-to-square" />
                           </button>

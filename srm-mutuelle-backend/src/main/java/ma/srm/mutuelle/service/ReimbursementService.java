@@ -141,6 +141,22 @@ public class ReimbursementService {
 	}
 
 	@Transactional
+	public ReimbursementResponse scan(Long id, AppUser user) {
+		AccessRules.assertStaffWrite(user);
+		Reimbursement r = reimbursementRepository
+				.findByIdAndDeletedFalse(id)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
+		if (!"En cours".equals(r.getStatus()) && !r.isScanned()) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "La demande doit être transmise (En cours) avant instruction");
+		}
+		assertHasPdf(r);
+		r.setScanned(true);
+		r = reimbursementRepository.save(r);
+		notify(r, "Étape 3/3 — Instruction : votre remboursement n° " + r.getNumero() + " est en cours de traitement par la mutuelle.");
+		return toDto(r);
+	}
+
+	@Transactional
 	public ReimbursementResponse update(Long id, ReimbursementWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		Reimbursement r = reimbursementRepository
@@ -188,6 +204,9 @@ public class ReimbursementService {
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Remboursement introuvable"));
 		if (!"En cours".equals(r.getStatus()) && !"En attente".equals(r.getStatus())) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Demande déjà traitée ou clôturée");
+		}
+		if (!r.isScanned()) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Marquez la demande comme instructée (scan) avant validation");
 		}
 		r.setMontantValide(req.montantValide());
 		if (req.taux() != null) {
@@ -317,6 +336,7 @@ public class ReimbursementService {
 				r.getStatus(),
 				r.getTaux(),
 				hasPdf,
+				r.isScanned(),
 				r.getPdfOriginalName(),
 				r.getEstablishmentName(),
 				r.getCareType(),

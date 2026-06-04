@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { isAdherentRole, isStaffWriterRole } from '../authUtils';
+import AdherentSimulationBanner from '../components/AdherentSimulationBanner';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
 import TablePageShell from '../components/TablePageShell';
@@ -10,6 +11,8 @@ import WorkflowSteps from '../components/WorkflowSteps';
 import { resolveDevisWorkflow } from '../utils/workflowSteps';
 import { apiFetch, apiFetchBlob, parseJsonOrThrow } from '../api/client';
 import { getTypeOptions } from '../config/typeConfig';
+import ListPageToolbar from '../components/ListPageToolbar';
+import { matchesSearch } from '../utils/filterSearch';
 
 function statusBadge(statut) {
   const map = {
@@ -76,42 +79,7 @@ function BeneficiaryField({ agents, readOnly }) {
   );
 }
 
-function DentistFields({ dentistes, defaultValueDentistId, defaultValueDentisteLibre }) {
-  return (
-    <>
-      <div className="form-group">
-        <label>Dentiste conventionné</label>
-        <select name="dentisteId" className="form-control" defaultValue={defaultValueDentistId}>
-          <option value="">— Choisir —</option>
-          {dentistes.map((doc) => (
-            <option key={doc.id} value={String(doc.id)}>
-              {doc.fullName}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="form-group">
-        <label>Ou nom du dentiste</label>
-        <input name="dentisteLibre" className="form-control" defaultValue={defaultValueDentisteLibre} placeholder="Si hors liste" />
-      </div>
-    </>
-  );
-}
 
-function MontantFields() {
-  return (
-    <>
-      <div className="form-group">
-        <label>Montant devis (DH)</label>
-        <input name="montant" type="number" step="0.01" min="0" className="form-control" required />
-      </div>
-      <div className="form-group">
-        <label>Taux (%)</label>
-        <input name="taux" type="number" min="0" max="100" className="form-control" defaultValue="60" required />
-      </div>
-    </>
-  );
-}
 
 function StaffReviewPanel({ d, reviewPec, setReviewPec, reviewObs, setReviewObs, canScan, canDecide, doAction }) {
   const reviewBody = () => ({
@@ -169,7 +137,8 @@ function StaffReviewPanel({ d, reviewPec, setReviewPec, reviewObs, setReviewObs,
 }
 
 export default function DevisPage({ setPageTitle, addToast, user, personalMode = false }) {
-  const effectiveAdherent = personalMode || isAdherentRole(user);
+  const isRealAdherent = isAdherentRole(user);
+  const effectiveAdherent = personalMode || isRealAdherent;
   setPageTitle(
     personalMode ? 'Mes devis' : 'Devis',
     personalMode ? 'Mon espace — Mes devis' : 'Gestion des devis',
@@ -178,15 +147,21 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
   const canStaffActions = isStaffWriterRole(user);
   const canCreate = isAdherent || canStaffActions;
 
-  const [filterMatricule, setFilterMatricule] = useState('');
-  const [filterNom, setFilterNom] = useState('');
-  const [filterDateRef, setFilterDateRef] = useState('dateDepot');
-  const [filterDateRefValue, setFilterDateRefValue] = useState('');
-  const [filterDateDebut, setFilterDateDebut] = useState('');
-  const [filterDateFin, setFilterDateFin] = useState('');
-  const [filterEtat, setFilterEtat] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterPrestataire, setFilterPrestataire] = useState('');
+  const [simulatedAgentId, setSimulatedAgentId] = useState(() => {
+    const val = sessionStorage.getItem('simulated_agent_id');
+    return val ? Number(val) : null;
+  });
+
+  const handleSimulatedAgentChange = (id) => {
+    setSimulatedAgentId(id);
+    if (id) {
+      sessionStorage.setItem('simulated_agent_id', String(id));
+    } else {
+      sessionStorage.removeItem('simulated_agent_id');
+    }
+  };
+
+  const [searchQuery, setSearchQuery] = useState('');
   const quoteTypes = getTypeOptions('quoteTypes');
 
   const [modal, setModal] = useState(null);
@@ -223,27 +198,37 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
   const agentById = Object.fromEntries((agents || []).map((a) => [a.id, a]));
   const quoteRows = quotes.map((q) => mapQuoteRow(q, agentById));
 
-  const myAgent =
-    isAdherent && user?.agentId != null ? agents.find((a) => a.id === Number(user.agentId)) : null;
+  const effectiveAgentId = isRealAdherent ? user?.agentId : (personalMode ? simulatedAgentId : null);
+  const myAgent = effectiveAgentId ? agents.find((a) => a.id === Number(effectiveAgentId)) : null;
   const agentsForForm = isAdherent && myAgent ? [myAgent] : agents;
 
   let data = [...quoteRows];
   // In personal mode (or adherent role): restrict list to the user's own agent
   if (isAdherent) {
-    if (user?.agentId != null) {
-      data = data.filter((d) => String(d.agentId) === String(user.agentId));
+    if (effectiveAgentId != null) {
+      data = data.filter((d) => String(d.agentId) === String(effectiveAgentId));
     } else {
       data = [];
     }
   }
-  if (filterType) data = data.filter((d) => d.typeLabel === filterType);
-  if (filterMatricule) data = data.filter((d) => d.matricule.toLowerCase().includes(filterMatricule.toLowerCase()));
-  if (filterNom) data = data.filter((d) => d.nomPrenomAgent.toLowerCase().includes(filterNom.toLowerCase()));
-  if (filterDateRefValue) data = data.filter((d) => String(d[filterDateRef] || '') === filterDateRefValue);
-  if (filterDateDebut) data = data.filter((d) => String(d.dateDepot || '') >= filterDateDebut);
-  if (filterDateFin) data = data.filter((d) => String(d.dateDepot || '') <= filterDateFin);
-  if (filterEtat) data = data.filter((d) => d.etat === filterEtat);
-  if (filterPrestataire) data = data.filter((d) => d.prestataire.toLowerCase().includes(filterPrestataire.toLowerCase()));
+  if (searchQuery.trim()) {
+    data = data.filter((d) =>
+      matchesSearch(
+        searchQuery,
+        d.matricule,
+        d.nomPrenomAgent,
+        d.beneficiaire,
+        d.typeLabel,
+        d.prestataire,
+        d.numero,
+        d.etat,
+        d.montant,
+        d.observation,
+        d.dateDepot,
+        formatDate(d.dateDepot),
+      )
+    );
+  }
 
   const openPdf = async (id) => {
     try {
@@ -278,11 +263,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
       return;
     }
     const quoteType = String(fd.get('quoteType') || quoteTypes[0] || 'Dentaire');
-    const dentistSelect = fd.get('dentisteId');
-    const dentistCustom = String(fd.get('dentisteLibre') || '').trim();
-    const providerFree = String(fd.get('providerName') || '').trim();
-    const dentistRow = dentistSelect ? dentistes.find((d) => String(d.id) === String(dentistSelect)) : null;
-    const providerName = dentistRow?.fullName || dentistCustom || providerFree || '';
+    const providerName = String(fd.get('providerName') || '').trim();
 
     const body = new FormData();
     const montant = fd.get('montant');
@@ -293,7 +274,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
     body.append('file', file, file.name || 'devis.pdf');
     body.append('quoteType', quoteType);
     body.append('montant', String(montant));
-    body.append('taux', String(fd.get('taux') || '60'));
+    body.append('taux', '60');
     if (!isAdherent || user.roleCode !== 'ADHERENT') body.append('agentId', String(agent.id));
     body.append('beneficiaire', agentLabel);
     if (providerName) body.append('providerName', providerName);
@@ -340,11 +321,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
       return;
     }
     const quoteType = String(fd.get('quoteType') || 'Dentaire');
-    const dentistSelect = fd.get('dentisteId');
-    const dentistCustom = String(fd.get('dentisteLibre') || '').trim();
-    const providerFree = String(fd.get('providerName') || '').trim();
-    const dentistRow = dentistSelect ? dentistes.find((d) => String(d.id) === String(dentistSelect)) : null;
-    const providerName = dentistRow?.fullName || dentistCustom || providerFree || '';
+    const providerName = String(fd.get('providerName') || '').trim();
 
     const body = new FormData();
     const montant = fd.get('montant');
@@ -358,7 +335,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
     }
     body.append('quoteType', quoteType);
     body.append('montant', String(montant));
-    body.append('taux', String(fd.get('taux') || '60'));
+    body.append('taux', '60');
     if (!isAdherent || user.roleCode !== 'ADHERENT') body.append('agentId', String(agent.id));
     body.append('beneficiaire', agentLabel);
     if (providerName) body.append('providerName', providerName);
@@ -384,22 +361,25 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
 
   const renderQuoteForm = (mode, q = null) => {
     const isEdit = mode === 'edit';
-    const docMatch = q ? dentistes.find((doc) => doc.fullName === q.dentistName) : null;
-    const defaultDentistId = docMatch ? String(docMatch.id) : '';
-    const defaultDentisteLibre = !docMatch && q ? q.dentistName : '';
 
     return (
       <form onSubmit={isEdit ? handleEditQuote : handleCreateQuote}>
         <div className="form-grid">
           <div className="form-group">
             <label>Type de devis</label>
-            <select name="quoteType" className="form-control" defaultValue={q ? q.type : (quoteTypes[0] || 'Dentaire')} required>
+            <input
+              name="quoteType"
+              list="quote-types-list"
+              className="form-control"
+              defaultValue={q ? q.type : (quoteTypes[0] || 'Dentaire')}
+              required
+              placeholder="Saisir ou rechercher un type..."
+            />
+            <datalist id="quote-types-list">
               {quoteTypes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
+                <option key={t} value={t} />
               ))}
-            </select>
+            </datalist>
           </div>
           {isAdherent && myAgent && (
             <>
@@ -410,28 +390,36 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
           {!isAdherent && (
             <div className="form-group">
               <label>Bénéficiaire</label>
-              <select name="beneficiaire" className="form-control" defaultValue={q ? q.beneficiaire : ''} required>
+              <input
+                name="beneficiaire"
+                list="beneficiaires-list"
+                className="form-control"
+                defaultValue={q ? q.beneficiaire : ''}
+                required
+                placeholder="Rechercher ou saisir un bénéficiaire..."
+              />
+              <datalist id="beneficiaires-list">
                 {agentsForForm.map((a) => (
-                  <option key={a.id} value={`${a.prenom} ${a.nom}`}>
-                    {a.prenom} {a.nom}
-                  </option>
+                  <option key={a.id} value={`${a.prenom} ${a.nom}`} />
                 ))}
-              </select>
+              </datalist>
             </div>
           )}
-          <DentistFields
-            dentistes={dentistes}
-            defaultValueDentistId={defaultDentistId}
-            defaultValueDentisteLibre={defaultDentisteLibre}
-          />
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label>Autre prestataire (optique, auditif, hospi…)</label>
+            <label>Prestataire / Dentiste</label>
             <input
               name="providerName"
+              list="dentists-list"
               className="form-control"
-              defaultValue={q && !docMatch ? q.dentistName : ''}
-              placeholder="Nom du professionnel ou établissement"
+              defaultValue={q ? q.dentistName : ''}
+              placeholder="Saisir ou rechercher un dentiste, opticien, clinique..."
+              required
             />
+            <datalist id="dentists-list">
+              {dentistes.map((doc) => (
+                <option key={doc.id} value={doc.fullName} />
+              ))}
+            </datalist>
           </div>
           <div className="form-group">
             <label>Date devis</label>
@@ -462,18 +450,6 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
               className="form-control"
               defaultValue={q ? q.montant : ''}
               placeholder="Ex. 3500"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>Taux (%)</label>
-            <input
-              name="taux"
-              type="number"
-              min="0"
-              max="100"
-              className="form-control"
-              defaultValue={q ? q.taux : '60'}
               required
             />
           </div>
@@ -567,7 +543,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
     );
   }
 
-  const etats = [...new Set(quoteRows.map((x) => x.etat))].filter(Boolean);
+
   const closeModal = () => setModal(null);
 
   const viewDevis = (d) => {
@@ -631,25 +607,54 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
     return `Étape ${wf.activeStep}/3 — ${wf.steps[wf.activeStep - 1].label}`;
   };
 
-  if (isAdherent && (!user?.agentId || !myAgent)) {
+  const showWarning = isAdherent && (isRealAdherent ? (!user?.agentId || !myAgent) : (!simulatedAgentId || !myAgent));
+
+  if (showWarning) {
     return (
-      <div className="card">
-        <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
-          <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
-            <FaIcon name="triangle-exclamation" />
+      <>
+        {personalMode && !isRealAdherent && (
+          <AdherentSimulationBanner
+            agents={agents}
+            selectedAgentId={simulatedAgentId}
+            onChangeAgent={handleSimulatedAgentChange}
+          />
+        )}
+        <div className="card" style={{ marginTop: personalMode && !isRealAdherent ? '16px' : '0' }}>
+          <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
+              <FaIcon name="triangle-exclamation" />
+            </div>
+            {isRealAdherent ? (
+              <>
+                <h4>Compte non associé à un porteur</h4>
+                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+                  Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+                  Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
+                </p>
+              </>
+            ) : (
+              <>
+                <h4>Aucun agent sélectionné</h4>
+                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+                  Veuillez sélectionner un agent dans la bannière de simulation ci-dessus pour visualiser son espace.
+                </p>
+              </>
+            )}
           </div>
-          <h4>Compte non associé à un porteur</h4>
-          <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
-            Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
-            Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
-          </p>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
     <>
+      {personalMode && !isRealAdherent && (
+        <AdherentSimulationBanner
+          agents={agents}
+          selectedAgentId={simulatedAgentId}
+          onChangeAgent={handleSimulatedAgentChange}
+        />
+      )}
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
           {modal.mode === 'create' || modal.mode === 'edit'
@@ -661,58 +666,29 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
         title={isAdherent ? 'Mes devis' : 'Liste des devis'}
         icon="file-lines"
         toolbar={
-          <>
-            {!isAdherent && (
-              <div className="table-page-toolbar-filters">
-                <div className="filter-group" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
-                  <input className="form-control" placeholder="Matricule" value={filterMatricule} onChange={(e) => setFilterMatricule(e.target.value)} />
-                  <input className="form-control" placeholder="Nom Agent" value={filterNom} onChange={(e) => setFilterNom(e.target.value)} />
-                  <select className="form-control" value={filterDateRef} onChange={(e) => setFilterDateRef(e.target.value)}>
-                    <option value="dateDepot">Date dépôt</option>
-                    <option value="dateDevis">Date devis</option>
-                  </select>
-                  <input className="form-control" type="date" value={filterDateRefValue} onChange={(e) => setFilterDateRefValue(e.target.value)} />
-                  <input className="form-control" type="date" value={filterDateDebut} onChange={(e) => setFilterDateDebut(e.target.value)} />
-                  <input className="form-control" type="date" value={filterDateFin} onChange={(e) => setFilterDateFin(e.target.value)} />
-                  <select className="form-control" value={filterEtat} onChange={(e) => setFilterEtat(e.target.value)}>
-                    <option value="">État réponse</option>
-                    {etats.map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
-                  <select className="form-control" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                    <option value="">Type devis</option>
-                    {quoteTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    className="form-control"
-                    placeholder="Prestataire"
-                    value={filterPrestataire}
-                    onChange={(e) => setFilterPrestataire(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-            <div className="table-page-toolbar-row">
-              <span className="toolbar-spacer" />
-              {canCreate && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    setPdfFile(null);
-                    setModal({ title: 'Nouveau devis', mode: 'create' });
-                  }}
-                >
-                  <FaIcon name="plus" className="fa-inline-icon" /> {isAdherent ? 'Déposer un devis' : 'Créer'}
-                </button>
-              )}
-            </div>
-          </>
+          <ListPageToolbar
+            searchValue={searchQuery}
+            onSearchChange={(e) => setSearchQuery(e.target.value)}
+            searchPlaceholder="Rechercher (matricule, agent, type, prestataire...)"
+            exportColumns={[
+              ...(!isAdherent ? [{ key: 'matricule', label: 'Matricule' }] : []),
+              { key: 'nomPrenomAgent', label: isAdherent ? 'Porteur' : 'Nom et Prénom Agent' },
+              { key: 'typeLabel', label: 'Type' },
+              { key: 'prestataire', label: 'Prestataire' },
+              { key: 'numero', label: 'Numéro' },
+              { key: 'dateDepot', label: 'Date dépôt' },
+              { key: 'etat', label: 'État' },
+              { key: 'montant', label: 'Montant' },
+            ]}
+            exportRows={data}
+            exportFilename="devis"
+            showNew={canCreate}
+            newLabel={isAdherent ? 'Déposer un devis' : 'Créer'}
+            onNew={() => {
+              setPdfFile(null);
+              setModal({ title: 'Nouveau devis', mode: 'create' });
+            }}
+          />
         }
       >
         <div className="data-table-wrapper">

@@ -1412,7 +1412,7 @@ body.login-route-active {
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  overflow: clip;
   margin-bottom: 24px;
 }
 
@@ -4114,5 +4114,61 @@ textarea.form-control {
 
 .org-type-filter {
   min-width: 180px;
+}
+
+/* --- Simulation Banner --- */
+.simulation-banner {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+  border-bottom: 2px solid #ffeeba;
+  color: #856404;
+  padding: 12px 32px;
+  box-shadow: var(--shadow-sm);
+  z-index: 45;
+}
+.sim-banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.sim-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--font-sm);
+}
+.sim-badge {
+  background: #ffc107;
+  color: #212529;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: var(--font-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sim-text {
+  font-weight: 600;
+}
+.sim-banner-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sim-label {
+  font-weight: 700;
+  font-size: var(--font-sm);
+  white-space: nowrap;
+}
+.sim-select {
+  width: 280px;
+  height: 36px;
+  padding: 4px 8px;
+  font-size: var(--font-sm);
+  border: 1px solid #ffeeba;
+  border-radius: var(--radius-sm);
 }
 

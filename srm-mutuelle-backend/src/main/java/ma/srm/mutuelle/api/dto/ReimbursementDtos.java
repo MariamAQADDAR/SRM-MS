@@ -18,6 +18,7 @@ public class ReimbursementDtos {
 			String statut,
 			Integer taux,
 			boolean hasPdf,
+			boolean scanned,
 			String pdfOriginalName,
 			String establishmentName,
 			String careType,

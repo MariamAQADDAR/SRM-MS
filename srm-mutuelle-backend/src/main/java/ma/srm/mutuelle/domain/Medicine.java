@@ -21,7 +21,7 @@ public class Medicine {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(nullable = false, unique = true)
+	@Column(nullable = false)
 	private String name;
 
 	@Column(name = "ean13", length = 32)
@@ -44,6 +44,9 @@ public class Medicine {
 
 	@Column(length = 500)
 	private String note;
+
+	@Column(length = 1000)
+	private String observation;
 
 	@Column(nullable = false)
 	private boolean deleted = false;

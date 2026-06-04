@@ -108,7 +108,7 @@ function errorMessageFromBody(data, res, rawText) {
 
 /** Télécharge un fichier binaire authentifié (ex. PDF devis). */
 export async function apiFetchBlob(path) {
-  const res = await apiFetch(path);
+  const res = await apiFetch(path, { headers: { Accept: 'application/pdf, */*' } });
   if (!res.ok) {
     await parseJsonOrThrow(res);
   }

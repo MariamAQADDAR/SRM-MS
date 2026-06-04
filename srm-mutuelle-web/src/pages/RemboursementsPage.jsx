@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { usePagination } from '../hooks/usePagination';
 import TablePagination from '../components/TablePagination';
 import { canAdminDelete, isAdherentRole, isStaffWriterRole } from '../authUtils';
+import AdherentSimulationBanner from '../components/AdherentSimulationBanner';
 import WorkflowSteps from '../components/WorkflowSteps';
 import { REMBOURSEMENT_WORKFLOW_STEPS, resolveRemboursementWorkflow } from '../utils/workflowSteps';
 import DetailView from '../components/DetailView';
@@ -88,7 +89,8 @@ function WizardSteps({ step }) {
 }
 
 export default function RemboursementsPage({ setPageTitle, addToast, user, personalMode = false }) {
-  const effectiveAdherent = personalMode || isAdherentRole(user);
+  const isRealAdherent = isAdherentRole(user);
+  const effectiveAdherent = personalMode || isRealAdherent;
   setPageTitle(
     personalMode ? 'Mes remboursements' : 'Remboursements',
     personalMode ? 'Mon espace — Remboursements' : 'Demandes de remboursement',
@@ -97,6 +99,20 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   const canDelete = canAdminDelete(user);
   const isAdherent = effectiveAdherent;
   const canCreate = isAdherent || canMutate;
+
+  const [simulatedAgentId, setSimulatedAgentId] = useState(() => {
+    const val = sessionStorage.getItem('simulated_agent_id');
+    return val ? Number(val) : null;
+  });
+
+  const handleSimulatedAgentChange = (id) => {
+    setSimulatedAgentId(id);
+    if (id) {
+      sessionStorage.setItem('simulated_agent_id', String(id));
+    } else {
+      sessionStorage.removeItem('simulated_agent_id');
+    }
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState(null);
@@ -121,7 +137,8 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   const [reviewObs, setReviewObs] = useState('');
   const careTypes = getTypeOptions('careTypes');
 
-  const myAgent = isAdherent && user?.agentId != null ? Number(user.agentId) : null;
+  const effectiveAgentId = isRealAdherent ? user?.agentId : (personalMode ? simulatedAgentId : null);
+  const myAgent = effectiveAgentId ? Number(effectiveAgentId) : null;
 
   const reload = async () => {
     setLoading(true);
@@ -131,7 +148,11 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
       const out = await Promise.all(reqs.map((p) => p.then((r) => parseJsonOrThrow(r))));
       setRows(out[0]);
       setAgents(out[1]);
-      if (myAgent && out[2]) setBeneficiaries(out[2]);
+      if (myAgent && out[2]) {
+        setBeneficiaries(out[2]);
+      } else {
+        setBeneficiaries([]);
+      }
     } catch (e) {
       addToast('error', e.message || 'Chargement impossible');
     } finally {
@@ -141,14 +162,14 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
 
   useEffect(() => {
     reload();
-  }, []);
+  }, [myAgent]);
 
   const agentById = Object.fromEntries((agents || []).map((a) => [a.id, a]));
   const rowsView = rows.map((r) => mapRow(r, agentById));
 
   // In personal / adherent mode: restrict to the user's own records
   const visibleRows = isAdherent
-    ? (user?.agentId != null ? rowsView.filter((r) => String(r.agentId) === String(user.agentId)) : [])
+    ? (effectiveAgentId != null ? rowsView.filter((r) => String(r.agentId) === String(effectiveAgentId)) : [])
     : rowsView;
 
   const beneficiaryOptions = useMemo(() => {
@@ -472,39 +493,51 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   };
 
   const staffReviewPanel = (d) => {
-    const canValidate = d.etatReponse === 'En cours' || d.etatReponse === 'En attente';
+    const canScan = d.etatReponse === 'En cours' && !d.scanned;
+    const canDecide = (d.etatReponse === 'En cours' || d.etatReponse === 'En attente') && d.scanned;
     return (
       <div className="staff-review-panel">
         <h4 className="staff-review-title">Validation mutuelle</h4>
-        <div className="form-grid">
-          <div className="form-group">
-            <label>Montant remboursé (DH)</label>
-            <input
-              type="number"
-              step="0.01"
-              className="form-control"
-              value={reviewMontant}
-              onChange={(e) => setReviewMontant(e.target.value)}
-            />
+        {canDecide && (
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Montant remboursé (DH)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="form-control"
+                value={reviewMontant}
+                onChange={(e) => setReviewMontant(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label>Taux de remboursement (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                className="form-control"
+                value={reviewTaux}
+                onChange={(e) => setReviewTaux(e.target.value)}
+              />
+            </div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Observation</label>
+              <textarea className="form-control" rows={2} value={reviewObs} onChange={(e) => setReviewObs(e.target.value)} />
+            </div>
           </div>
-          <div className="form-group">
-            <label>Taux de remboursement (%)</label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              className="form-control"
-              value={reviewTaux}
-              onChange={(e) => setReviewTaux(e.target.value)}
-            />
-          </div>
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label>Observation</label>
-            <textarea className="form-control" rows={2} value={reviewObs} onChange={(e) => setReviewObs(e.target.value)} />
-          </div>
-        </div>
+        )}
         <div className="workflow-actions-bar">
-          {canValidate && (
+          {canScan && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => doAction(`/api/reimbursements/${d.id}/scan`, 'Remboursement en instruction')}
+            >
+              <FaIcon name="clipboard-check" className="fa-inline-icon" /> Marquer instructé
+            </button>
+          )}
+          {canDecide && (
             <>
               <button
                 type="button"
@@ -592,7 +625,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   };
 
   const workflowSummary = (d) => {
-    const wf = resolveRemboursementWorkflow(d.etatReponse);
+    const wf = resolveRemboursementWorkflow(d.etatReponse, !!d.scanned);
     if (wf.terminal) {
       const extra =
         d.etatReponse === 'Traité' && Number(d.montantValide) > 0
@@ -611,27 +644,56 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
     );
   }
 
-  const myAgentObj = isAdherent && user?.agentId != null ? agents.find((a) => a.id === Number(user.agentId)) : null;
+  const myAgentObj = isAdherent && effectiveAgentId != null ? agents.find((a) => a.id === Number(effectiveAgentId)) : null;
 
-  if (isAdherent && (!user?.agentId || !myAgentObj)) {
+  const showWarning = isAdherent && (isRealAdherent ? (!user?.agentId || !myAgentObj) : (!simulatedAgentId || !myAgentObj));
+
+  if (showWarning) {
     return (
-      <div className="card">
-        <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
-          <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
-            <FaIcon name="triangle-exclamation" />
+      <>
+        {personalMode && !isRealAdherent && (
+          <AdherentSimulationBanner
+            agents={agents}
+            selectedAgentId={simulatedAgentId}
+            onChangeAgent={handleSimulatedAgentChange}
+          />
+        )}
+        <div className="card" style={{ marginTop: personalMode && !isRealAdherent ? '16px' : '0' }}>
+          <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
+              <FaIcon name="triangle-exclamation" />
+            </div>
+            {isRealAdherent ? (
+              <>
+                <h4>Compte non associé à un porteur</h4>
+                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+                  Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+                  Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
+                </p>
+              </>
+            ) : (
+              <>
+                <h4>Aucun agent sélectionné</h4>
+                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+                  Veuillez sélectionner un agent dans la bannière de simulation ci-dessus pour visualiser son espace.
+                </p>
+              </>
+            )}
           </div>
-          <h4>Compte non associé à un porteur</h4>
-          <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
-            Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
-            Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
-          </p>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
     <>
+      {personalMode && !isRealAdherent && (
+        <AdherentSimulationBanner
+          agents={agents}
+          selectedAgentId={simulatedAgentId}
+          onChangeAgent={handleSimulatedAgentChange}
+        />
+      )}
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
           {modal.mode === 'wizard' ? buildWizardForm() : modal.content}
@@ -752,6 +814,16 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
                         onClick={() => doAction(`/api/reimbursements/${d.id}/submit`, 'Demande envoyée')}
                       >
                         <FaIcon name="paper-plane" />
+                      </button>
+                    )}
+                    {canMutate && d.etatReponse === 'En cours' && !d.scanned && (
+                      <button
+                        className="btn btn-icon btn-edit"
+                        type="button"
+                        title="Marquer instructé"
+                        onClick={() => doAction(`/api/reimbursements/${d.id}/scan`, 'Remboursement en instruction')}
+                      >
+                        <FaIcon name="clipboard-check" />
                       </button>
                     )}
                   </td>

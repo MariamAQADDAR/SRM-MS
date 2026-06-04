@@ -29,10 +29,8 @@ import { isAdherentRole, isStaffWriterRole, isAdminRole } from '../authUtils';
 
 const ADHERENT_PAGES = new Set([
   'mes-devis',
-  'mes-cartes',
   'mes-remboursements',
   'mes-prises-en-charge',
-  'medicaments',
   'mon-historique',
   'notifications',
   'profil',

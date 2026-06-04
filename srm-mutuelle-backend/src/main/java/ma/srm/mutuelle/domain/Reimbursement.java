@@ -79,5 +79,8 @@ public class Reimbursement {
 	private String observation;
 
 	@Column(nullable = false)
+	private boolean scanned = false;
+
+	@Column(nullable = false)
 	private boolean deleted = false;
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePagination } from '../hooks/usePagination';
 import TablePagination from '../components/TablePagination';
 import { canAdminDelete, isAdherentRole, isStaffWriterRole } from '../authUtils';
+import AdherentSimulationBanner from '../components/AdherentSimulationBanner';
 import WorkflowSteps from '../components/WorkflowSteps';
 import { PEC_WORKFLOW_STEPS, resolvePecWorkflow } from '../utils/workflowSteps';
 import Modal from '../components/Modal';
@@ -28,7 +29,6 @@ const EXPORT_COLS = [
   { key: 'statut', label: 'Statut' },
   { key: 'montantDemande', label: 'Montant demandé' },
   { key: 'montantPec', label: 'Montant PEC' },
-  { key: 'tauxDisplay', label: 'Taux %' },
 ];
 
 function statusBadge(statut) {
@@ -97,7 +97,8 @@ function WizardSteps({ step }) {
 }
 
 export default function PrisesEnChargePage({ setPageTitle, addToast, user, personalMode = false }) {
-  const effectiveAdherent = personalMode || isAdherentRole(user);
+  const isRealAdherent = isAdherentRole(user);
+  const effectiveAdherent = personalMode || isRealAdherent;
   setPageTitle(
     personalMode ? 'Mes prises en charge' : 'Prises en charge',
     personalMode ? 'Mon espace — PEC' : 'Demandes de prise en charge',
@@ -107,6 +108,20 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
   const isAdherent = effectiveAdherent;
   const canCreate = isAdherent || canMutate;
   const careTypes = getTypeOptions('careTypes');
+
+  const [simulatedAgentId, setSimulatedAgentId] = useState(() => {
+    const val = sessionStorage.getItem('simulated_agent_id');
+    return val ? Number(val) : null;
+  });
+
+  const handleSimulatedAgentChange = (id) => {
+    setSimulatedAgentId(id);
+    if (id) {
+      sessionStorage.setItem('simulated_agent_id', String(id));
+    } else {
+      sessionStorage.removeItem('simulated_agent_id');
+    }
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState(null);
@@ -123,16 +138,15 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
     typePrestation: '',
     etablissement: '',
     montantDemande: '',
-    taux: '70',
     dateDebut: new Date().toISOString().split('T')[0],
     dateFin: '',
     observation: '',
   });
   const [reviewMontant, setReviewMontant] = useState('');
-  const [reviewTaux, setReviewTaux] = useState('');
   const [reviewObs, setReviewObs] = useState('');
 
-  const myAgent = isAdherent && user?.agentId != null ? Number(user.agentId) : null;
+  const effectiveAgentId = isRealAdherent ? user?.agentId : (personalMode ? simulatedAgentId : null);
+  const myAgent = effectiveAgentId ? Number(effectiveAgentId) : null;
 
   const reload = async () => {
     setLoading(true);
@@ -143,7 +157,11 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
       setRows(out[0]);
       setAgents(out[1]);
       setFacilities(out[2]);
-      if (myAgent && out[3]) setBeneficiaries(out[3]);
+      if (myAgent && out[3]) {
+        setBeneficiaries(out[3]);
+      } else {
+        setBeneficiaries([]);
+      }
     } catch (e) {
       addToast('error', e.message || 'Chargement impossible');
     } finally {
@@ -153,14 +171,14 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
 
   useEffect(() => {
     reload();
-  }, []);
+  }, [myAgent]);
 
   const agentById = Object.fromEntries((agents || []).map((a) => [a.id, a]));
   const rowsView = rows.map((r) => mapRow(r, agentById));
 
   // In personal / adherent mode: restrict to the user's own records
   const visibleRows = isAdherent
-    ? (user?.agentId != null ? rowsView.filter((r) => String(r.agentId) === String(user.agentId)) : [])
+    ? (effectiveAgentId != null ? rowsView.filter((r) => String(r.agentId) === String(effectiveAgentId)) : [])
     : rowsView;
 
   const beneficiaryOptions = useMemo(() => {
@@ -215,7 +233,6 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
       typePrestation: careTypes[0] || '',
       etablissement: facilities[0]?.nom || '',
       montantDemande: '',
-      taux: '70',
       dateDebut: new Date().toISOString().split('T')[0],
       dateFin: '',
       observation: '',
@@ -312,7 +329,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
       body.append('typePrestation', wizardDraft.typePrestation);
       body.append('etablissement', wizardDraft.etablissement);
       body.append('montantDemande', wizardDraft.montantDemande);
-      body.append('taux', wizardDraft.taux || '0');
+      body.append('taux', '70');
       if (wizardDraft.dateDebut) body.append('dateDebut', wizardDraft.dateDebut);
       if (wizardDraft.dateFin) body.append('dateFin', wizardDraft.dateFin);
       if (wizardDraft.observation) body.append('observation', wizardDraft.observation);
@@ -342,66 +359,72 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             {!isAdherent && (
               <div className="form-group">
                 <label>Porteur</label>
-                <select
+                <input
+                  list="porteurs-list"
                   className="form-control"
                   required
+                  placeholder="Rechercher ou saisir un porteur..."
                   value={wizardDraft.agentId}
-                  onChange={(e) => patchDraft('agentId', e.target.value)}
-                >
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const matched = agents.find((a) => `${a.matricule} — ${a.prenom} ${a.nom}` === val || String(a.id) === val);
+                    patchDraft('agentId', matched ? String(matched.id) : val);
+                  }}
+                />
+                <datalist id="porteurs-list">
                   {agents.map((a) => (
-                    <option key={a.id} value={String(a.id)}>
-                      {a.matricule} — {a.prenom} {a.nom}
-                    </option>
+                    <option key={a.id} value={String(a.id)} label={`${a.matricule} — ${a.prenom} ${a.nom}`} />
                   ))}
-                </select>
+                </datalist>
               </div>
             )}
             <div className="form-group">
               <label>Bénéficiaire</label>
-              <select
+              <input
+                list="beneficiaires-pec-list"
                 className="form-control"
                 required
+                placeholder="Rechercher ou saisir un bénéficiaire..."
                 value={wizardDraft.beneficiaire}
                 onChange={(e) => patchDraft('beneficiaire', e.target.value)}
-              >
+              />
+              <datalist id="beneficiaires-pec-list">
                 {beneficiaryOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
+                  <option key={o.value} value={o.value} label={o.label} />
                 ))}
-              </select>
+              </datalist>
             </div>
             <div className="form-group">
               <label>Type de prestation</label>
-              <select
+              <input
+                list="care-types-list"
                 className="form-control"
                 required
+                placeholder="Rechercher ou saisir un type..."
                 value={wizardDraft.typePrestation}
                 onChange={(e) => patchDraft('typePrestation', e.target.value)}
-              >
-                <option value="">— Choisir —</option>
+              />
+              <datalist id="care-types-list">
                 {careTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
+                  <option key={t} value={t} />
                 ))}
-              </select>
+              </datalist>
             </div>
             <div className="form-group">
               <label>Établissement / corps médical</label>
-              <select
+              <input
+                list="facilities-list"
                 className="form-control"
                 required
+                placeholder="Rechercher ou saisir un établissement..."
                 value={wizardDraft.etablissement}
                 onChange={(e) => patchDraft('etablissement', e.target.value)}
-              >
-                <option value="">— Choisir —</option>
+              />
+              <datalist id="facilities-list">
                 {facilities.map((f) => (
-                  <option key={f.id} value={f.nom}>
-                    {f.nom}
-                  </option>
+                  <option key={f.id} value={f.nom} />
                 ))}
-              </select>
+              </datalist>
             </div>
             <div className="form-group">
               <label>Date début soins</label>
@@ -437,17 +460,6 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
                 required
                 value={wizardDraft.montantDemande}
                 onChange={(e) => patchDraft('montantDemande', e.target.value)}
-              />
-            </div>
-            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-              <label>Taux souhaité (%)</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                className="form-control"
-                value={wizardDraft.taux}
-                onChange={(e) => patchDraft('taux', e.target.value)}
               />
             </div>
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -515,7 +527,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
       <div className="staff-review-panel">
         <h4 className="staff-review-title">Validation prise en charge</h4>
         <div className="form-grid">
-          <div className="form-group">
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label>Montant PEC (DH)</label>
             <input
               type="number"
@@ -523,17 +535,6 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
               className="form-control"
               value={reviewMontant}
               onChange={(e) => setReviewMontant(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label>Taux (%)</label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              className="form-control"
-              value={reviewTaux}
-              onChange={(e) => setReviewTaux(e.target.value)}
             />
           </div>
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -550,7 +551,6 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
                 onClick={() =>
                   doAction(`/api/care-episodes/${p.id}/validate`, 'PEC approuvée', {
                     montantPrisEnCharge: Number(reviewMontant),
-                    taux: reviewTaux ? Number(reviewTaux) : null,
                     observation: reviewObs || null,
                   })
                 }
@@ -579,7 +579,6 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
     const defaultMontant =
       p.montantPec != null && Number(p.montantPec) > 0 ? p.montantPec : p.montantDemande;
     setReviewMontant(String(defaultMontant ?? ''));
-    setReviewTaux(p.taux != null ? String(p.taux) : '70');
     setReviewObs(p.observation !== '—' ? p.observation : '');
     setModal({
       title: `PEC ${p.numero}`,
@@ -608,7 +607,6 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
               <DetailItem label="Montant estimé">
                 {p.montantDemande != null ? `${Number(p.montantDemande).toLocaleString('fr-FR')} DH` : '—'}
               </DetailItem>
-              <DetailItem label="Taux demandé">{p.tauxDisplay}</DetailItem>
               <DetailItem label="Montant accordé">
                 {p.montantPec != null && Number(p.montantPec) > 0
                   ? `${Number(p.montantPec).toLocaleString('fr-FR')} DH`
@@ -671,27 +669,56 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
     );
   }
 
-  const myAgentObj = isAdherent && user?.agentId != null ? agents.find((a) => a.id === Number(user.agentId)) : null;
+  const myAgentObj = isAdherent && effectiveAgentId != null ? agents.find((a) => a.id === Number(effectiveAgentId)) : null;
 
-  if (isAdherent && (!user?.agentId || !myAgentObj)) {
+  const showWarning = isAdherent && (isRealAdherent ? (!user?.agentId || !myAgentObj) : (!simulatedAgentId || !myAgentObj));
+
+  if (showWarning) {
     return (
-      <div className="card">
-        <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
-          <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
-            <FaIcon name="triangle-exclamation" />
+      <>
+        {personalMode && !isRealAdherent && (
+          <AdherentSimulationBanner
+            agents={agents}
+            selectedAgentId={simulatedAgentId}
+            onChangeAgent={handleSimulatedAgentChange}
+          />
+        )}
+        <div className="card" style={{ marginTop: personalMode && !isRealAdherent ? '16px' : '0' }}>
+          <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
+              <FaIcon name="triangle-exclamation" />
+            </div>
+            {isRealAdherent ? (
+              <>
+                <h4>Compte non associé à un porteur</h4>
+                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+                  Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+                  Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
+                </p>
+              </>
+            ) : (
+              <>
+                <h4>Aucun agent sélectionné</h4>
+                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+                  Veuillez sélectionner un agent dans la bannière de simulation ci-dessus pour visualiser son espace.
+                </p>
+              </>
+            )}
           </div>
-          <h4>Compte non associé à un porteur</h4>
-          <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
-            Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
-            Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
-          </p>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
     <>
+      {personalMode && !isRealAdherent && (
+        <AdherentSimulationBanner
+          agents={agents}
+          selectedAgentId={simulatedAgentId}
+          onChangeAgent={handleSimulatedAgentChange}
+        />
+      )}
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
           {modal.mode === 'wizard' ? buildWizardForm() : modal.content}
@@ -742,11 +769,6 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             exportFilename="prises-en-charge"
             showNew={canCreate}
             newLabel={isAdherent ? 'Nouvelle demande PEC (3 étapes)' : 'Nouvelle demande PEC'}
-            trailing={
-              <button type="button" className="btn btn-outline" onClick={downloadCareTemplate}>
-                <FaIcon name="file-word" className="fa-inline-icon" /> Modèle PEC
-              </button>
-            }
             onNew={() => {
               resetWizard();
               setModal({ title: 'Demande de prise en charge — 3 étapes', mode: 'wizard' });
@@ -766,7 +788,6 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
                 <th>Début</th>
                 <th>Montant demandé</th>
                 <th>Montant PEC</th>
-                <th>Taux</th>
                 <th>Statut</th>
                 {isAdherent ? <th>Suivi</th> : null}
                 <th>PDF</th>
@@ -776,7 +797,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             <tbody>
               {pageData.length === 0 && (
                 <tr>
-                  <td colSpan={isAdherent ? 12 : 13} style={{ textAlign: 'center', padding: 24 }}>
+                  <td colSpan={isAdherent ? 11 : 11} style={{ textAlign: 'center', padding: 24 }}>
                     {isAdherent
                       ? 'Aucune demande. Créez une demande PEC en 3 étapes avec justificatif PDF.'
                       : 'Aucune prise en charge.'}
@@ -801,7 +822,6 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
                       ? `${Number(p.montantPec).toLocaleString('fr-FR')} DH`
                       : '—'}
                   </td>
-                  <td>{p.tauxDisplay}</td>
                   <td>{statusBadge(p.statut)}</td>
                   {isAdherent ? (
                     <td style={{ fontSize: 12, fontWeight: 600 }}>{workflowSummary(p)}</td>

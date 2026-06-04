@@ -42,7 +42,7 @@ public class MutualCardPdfService {
 	@Value("${app.brand.logo-path:classpath:assets/srm-company-logo.png}")
 	private Resource logoResource;
 
-	public String generateAndStore(MutualCard card, Agent agent) throws IOException {
+	public String generateAndStore(MutualCard card, Agent agent, java.util.List<ma.srm.mutuelle.domain.Beneficiary> beneficiaries) throws IOException {
 		Path base = Paths.get(storageDir).toAbsolutePath().normalize();
 		Files.createDirectories(base);
 		String suffix = card.getBeneficiary() != null ? "b" + card.getBeneficiary().getId() : "titulaire";
@@ -56,7 +56,7 @@ public class MutualCardPdfService {
 			PdfWriter.getInstance(document, os);
 			document.open();
 			addHeader(document);
-			addCardBody(document, card, agent);
+			addCardBody(document, card, agent, beneficiaries);
 			addFooter(document);
 			document.close();
 		}
@@ -96,7 +96,7 @@ public class MutualCardPdfService {
 		document.add(new Paragraph(" "));
 	}
 
-	private void addCardBody(Document document, MutualCard card, Agent agent) {
+	private void addCardBody(Document document, MutualCard card, Agent agent, java.util.List<ma.srm.mutuelle.domain.Beneficiary> beneficiaries) {
 		Font labelFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, Font.BOLD, BRAND_BLUE);
 		Font valueFont = FontFactory.getFont(FontFactory.HELVETICA, 11);
 
@@ -106,9 +106,6 @@ public class MutualCardPdfService {
 		document.add(title);
 
 		String holderName = formatHolderName(card);
-		String link = card.getCardLabel() != null ? card.getCardLabel() : "Titulaire";
-		String cin = nullToDash(card.getHolderCin());
-		String birth = card.getHolderDateNaissance() != null ? DATE_FMT.format(card.getHolderDateNaissance()) : "—";
 		String issued = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
 				.withZone(ZoneId.systemDefault())
 				.format(card.getIssuedAt() != null ? card.getIssuedAt() : Instant.now());
@@ -116,15 +113,71 @@ public class MutualCardPdfService {
 		PdfPTable grid = new PdfPTable(2);
 		grid.setWidthPercentage(100);
 		grid.setSpacingBefore(4);
-		addRow(grid, "Matricule porteur", agent.getMatricule(), labelFont, valueFont);
-		addRow(grid, "Bénéficiaire", holderName, labelFont, valueFont);
-		addRow(grid, "Lien de parenté", link, labelFont, valueFont);
-		addRow(grid, "CIN", cin, labelFont, valueFont);
-		addRow(grid, "Date de naissance", birth, labelFont, valueFont);
+		grid.setSpacingAfter(12);
+		addRow(grid, "Porteur (Titulaire)", holderName, labelFont, valueFont);
+		addRow(grid, "Matricule", agent.getMatricule(), labelFont, valueFont);
+		addRow(grid, "CIN", nullToDash(agent.getCin()), labelFont, valueFont);
+		addRow(grid, "Date de naissance", agent.getDateNaissance() != null ? DATE_FMT.format(agent.getDateNaissance()) : "—", labelFont, valueFont);
 		addRow(grid, "Entité / Direction", nullToDash(agent.getEntiteName()), labelFont, valueFont);
-		addRow(grid, "N° carte", "SRM-" + agent.getMatricule() + "-" + card.getId(), labelFont, valueFont);
+		addRow(grid, "N° carte / ID", "SRM-" + agent.getMatricule(), labelFont, valueFont);
 		addRow(grid, "Date d'émission", issued, labelFont, valueFont);
 		document.add(grid);
+
+		// Add beneficiaries table
+		Paragraph subTitle = new Paragraph("Membres du foyer couverts :", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, Font.BOLD, BRAND_BLUE));
+		subTitle.setSpacingBefore(10);
+		subTitle.setSpacingAfter(6);
+		document.add(subTitle);
+
+		PdfPTable table = new PdfPTable(4);
+		table.setWidthPercentage(100);
+		try {
+			table.setWidths(new float[] { 2.2f, 1.2f, 1.2f, 1.4f });
+		} catch (Exception ignored) {}
+
+		// Table headers
+		Font thFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Font.BOLD, Color.WHITE);
+		PdfPCell ch1 = new PdfPCell(new Phrase("Nom & Prénom", thFont));
+		ch1.setBackgroundColor(BRAND_BLUE);
+		ch1.setPadding(6);
+		PdfPCell ch2 = new PdfPCell(new Phrase("Parenté", thFont));
+		ch2.setBackgroundColor(BRAND_BLUE);
+		ch2.setPadding(6);
+		PdfPCell ch3 = new PdfPCell(new Phrase("CIN", thFont));
+		ch3.setBackgroundColor(BRAND_BLUE);
+		ch3.setPadding(6);
+		PdfPCell ch4 = new PdfPCell(new Phrase("Date naiss.", thFont));
+		ch4.setBackgroundColor(BRAND_BLUE);
+		ch4.setPadding(6);
+
+		table.addCell(ch1);
+		table.addCell(ch2);
+		table.addCell(ch3);
+		table.addCell(ch4);
+
+		// Add titulaire row
+		Font tdFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
+		addTableTd(table, holderName, tdFont);
+		addTableTd(table, "Titulaire (Porteur)", tdFont);
+		addTableTd(table, nullToDash(agent.getCin()), tdFont);
+		addTableTd(table, agent.getDateNaissance() != null ? DATE_FMT.format(agent.getDateNaissance()) : "—", tdFont);
+
+		// Add beneficiaries rows
+		if (beneficiaries != null) {
+			for (ma.srm.mutuelle.domain.Beneficiary b : beneficiaries) {
+				addTableTd(table, b.getPrenom() + " " + b.getNom(), tdFont);
+				addTableTd(table, nullToDash(b.getLinkType()), tdFont);
+				addTableTd(table, nullToDash(b.getCin()), tdFont);
+				addTableTd(table, b.getDateNaissance() != null ? DATE_FMT.format(b.getDateNaissance()) : "—", tdFont);
+			}
+		}
+		document.add(table);
+	}
+
+	private void addTableTd(PdfPTable table, String text, Font font) {
+		PdfPCell cell = new PdfPCell(new Phrase(text, font));
+		cell.setPadding(5);
+		table.addCell(cell);
 	}
 
 	private void addFooter(Document document) {

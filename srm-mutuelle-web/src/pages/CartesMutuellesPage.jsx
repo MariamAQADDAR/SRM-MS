@@ -57,113 +57,186 @@ function EmissionPdfSection({
   isAdherent,
   canGenerate,
   agents,
-  selectedAgentId,
-  setSelectedAgentId,
+  allCards,
   family,
   loading,
   busyId,
-  generateCard,
-  downloadCard,
+  generateCardForAgent,
+  downloadCardById,
   downloadMembershipTemplate,
 }) {
-  const agentLabel = () => {
-    if (isAdherent) return null;
-    const a = agents.find((x) => String(x.id) === String(selectedAgentId));
-    return a ? `${a.prenom} ${a.nom} (${a.matricule})` : '';
-  };
+  const [search, setSearch] = useState('');
+
+  const filteredAgents = useMemo(() => {
+    if (isAdherent) return [];
+    return agents.filter(
+      (a) =>
+        matchesSearch(search, a.matricule, a.nom, a.prenom)
+    );
+  }, [agents, search, isAdherent]);
+
+  const cardsByAgentId = useMemo(() => {
+    const map = {};
+    allCards.forEach((c) => {
+      if (c.beneficiaryId === null) {
+        map[c.agentId] = c;
+      }
+    });
+    return map;
+  }, [allCards]);
+
+  if (isAdherent) {
+    const myCard = family.find((m) => m.beneficiaryId === null);
+    const busy = busyId === 'titulaire';
+    return (
+      <>
+        <div className="table-page-toolbar-row" style={{ marginBottom: 16 }}>
+          <span className="toolbar-spacer" />
+          <button type="button" className="btn btn-outline" onClick={downloadMembershipTemplate}>
+            <FaIcon name="file-word" className="fa-inline-icon" /> Bulletin d&apos;adhésion
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="card">
+            <div className="card-body">Chargement…</div>
+          </div>
+        ) : !myCard ? (
+          <div className="card">
+            <div className="card-body cartes-empty">
+              <FaIcon name="users" className="fa-inline-icon" />
+              <p>Aucune carte disponible. Veuillez contacter un administrateur.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="cartes-grid">
+            <article className="carte-member-card" style={{ maxWidth: '420px', margin: '0 auto' }}>
+              <div className="carte-member-header">
+                <img src="/srm-company-logo.png" alt="SRM-MS" className="carte-member-logo" />
+                {linkBadge('Titulaire')}
+              </div>
+              <h3 className="carte-member-name">{myCard.fullName}</h3>
+              <ul className="carte-member-meta">
+                <li>
+                  <span>CIN</span> {myCard.cin || '—'}
+                </li>
+                <li>
+                  <span>Naissance</span>{' '}
+                  {myCard.dateNaissance ? String(myCard.dateNaissance).split('-').reverse().join('/') : '—'}
+                </li>
+                <li>
+                  <span>Statut</span> {myCard.hasPdf ? 'Carte émise' : 'Non générée'}
+                </li>
+              </ul>
+              <div className="carte-member-actions">
+                {canGenerate && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={busy}
+                    onClick={() => generateCardForAgent({ id: myCard.agentId, prenom: '', nom: myCard.fullName })}
+                  >
+                    <FaIcon name="file-pdf" className="fa-inline-icon" />
+                    {myCard.hasPdf ? 'Régénérer' : 'Générer PDF'}
+                  </button>
+                )}
+                {myCard.hasPdf && (
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => downloadCardById(myCard.cardId)}>
+                    <FaIcon name="download" className="fa-inline-icon" /> Télécharger
+                  </button>
+                )}
+              </div>
+            </article>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <>
       <div className="table-page-toolbar-row" style={{ marginBottom: 16 }}>
-        {!isAdherent && (
-          <label className="form-group" style={{ margin: 0, minWidth: 280 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-600)' }}>Porteur</span>
-            <select
-              className="form-control"
-              value={selectedAgentId}
-              onChange={(e) => setSelectedAgentId(e.target.value)}
-            >
-              {agents.map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {a.matricule} — {a.prenom} {a.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <input
+          type="text"
+          className="form-control"
+          placeholder="Rechercher par matricule ou nom de l'agent..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ maxWidth: '360px' }}
+        />
         <span className="toolbar-spacer" />
         <button type="button" className="btn btn-outline" onClick={downloadMembershipTemplate}>
           <FaIcon name="file-word" className="fa-inline-icon" /> Bulletin d&apos;adhésion
         </button>
       </div>
 
-      <p className="cartes-intro">
-        {isAdherent
-          ? 'Générez une carte PDF pour vous (titulaire), votre conjoint et chaque enfant déclaré. Les cartes portent le logo officiel SRM-MS.'
-          : `Cartes du foyer${agentLabel() ? ` : ${agentLabel()}` : ''}. Une carte par membre (titulaire, conjoint, enfants).`}
-      </p>
-
-      {loading ? (
-        <div className="card">
-          <div className="card-body">Chargement…</div>
-        </div>
-      ) : family.length === 0 ? (
-        <div className="card">
-          <div className="card-body cartes-empty">
-            <FaIcon name="users" className="fa-inline-icon" />
-            <p>
-              {isAdherent
-                ? 'Aucun bénéficiaire enregistré. Demandez à la mutuelle d’ajouter votre conjoint et vos enfants.'
-                : 'Sélectionnez un porteur ou enregistrez des ayants droit.'}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="cartes-grid">
-          {family.map((m) => {
-            const busy = busyId === (m.beneficiaryId ?? 'titulaire');
-            return (
-              <article key={m.beneficiaryId ?? 'titulaire'} className="carte-member-card">
-                <div className="carte-member-header">
-                  <img src="/srm-company-logo.png" alt="SRM-MS" className="carte-member-logo" />
-                  {linkBadge(m.cardLabel)}
-                </div>
-                <h3 className="carte-member-name">{m.fullName}</h3>
-                <ul className="carte-member-meta">
-                  <li>
-                    <span>CIN</span> {m.cin || '—'}
-                  </li>
-                  <li>
-                    <span>Naissance</span>{' '}
-                    {m.dateNaissance ? String(m.dateNaissance).split('-').reverse().join('/') : '—'}
-                  </li>
-                  <li>
-                    <span>Statut</span> {m.hasPdf ? 'Carte émise' : 'Non générée'}
-                  </li>
-                </ul>
-                <div className="carte-member-actions">
-                  {canGenerate && (
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      disabled={busy}
-                      onClick={() => generateCard(m)}
-                    >
-                      <FaIcon name="file-pdf" className="fa-inline-icon" />
-                      {m.hasPdf ? 'Régénérer' : 'Générer PDF'}
-                    </button>
-                  )}
-                  {m.hasPdf && (
-                    <button type="button" className="btn btn-outline btn-sm" onClick={() => downloadCard(m)}>
-                      <FaIcon name="download" className="fa-inline-icon" /> Télécharger
-                    </button>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
+      <div className="data-table-wrapper">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Matricule</th>
+              <th>Agent</th>
+              <th>Statut de la carte</th>
+              <th>Date d'émission</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredAgents.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'var(--gray-500)' }}>
+                  Aucun agent trouvé.
+                </td>
+              </tr>
+            ) : (
+              filteredAgents.map((a) => {
+                const card = cardsByAgentId[a.id];
+                const hasPdf = card?.hasPdf;
+                const busy = busyId === a.id;
+                const issuedAt = card?.issuedAt;
+                const formattedDate = issuedAt ? new Date(issuedAt).toLocaleString('fr-FR') : '—';
+                return (
+                  <tr key={a.id}>
+                    <td>{a.matricule}</td>
+                    <td>{a.nom} {a.prenom}</td>
+                    <td>
+                      {hasPdf ? (
+                        <span className="badge badge-success">Carte émise</span>
+                      ) : (
+                        <span className="badge badge-warning">Non générée</span>
+                      )}
+                    </td>
+                    <td>{formattedDate}</td>
+                    <td className="actions-cell">
+                      {canGenerate && (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={busy}
+                          onClick={() => generateCardForAgent(a)}
+                          style={{ marginRight: 8 }}
+                        >
+                          <FaIcon name="file-pdf" className="fa-inline-icon" />
+                          {hasPdf ? 'Régénérer' : 'Générer'}
+                        </button>
+                      )}
+                      {hasPdf && (
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => downloadCardById(card.id)}
+                        >
+                          <FaIcon name="download" className="fa-inline-icon" /> Télécharger
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
@@ -200,6 +273,8 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
   const [family, setFamily] = useState([]);
   const [familyLoading, setFamilyLoading] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const [allCards, setAllCards] = useState([]);
+  const [allCardsLoading, setAllCardsLoading] = useState(false);
 
   const effectiveAgentId = isAdherent ? (user?.agentId != null ? String(user.agentId) : null) : selectedAgentId;
 
@@ -233,6 +308,19 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
     }
   }, [effectiveAgentId, addToast]);
 
+  const loadAllCards = useCallback(async () => {
+    if (isAdherent) return;
+    setAllCardsLoading(true);
+    try {
+      const res = await apiFetch('/api/mutual-cards');
+      setAllCards(await parseJsonOrThrow(res));
+    } catch (e) {
+      addToast('error', e.message || 'Impossible de charger la liste des cartes');
+    } finally {
+      setAllCardsLoading(false);
+    }
+  }, [isAdherent, addToast]);
+
   useEffect(() => {
     reloadRequests();
   }, [reloadRequests]);
@@ -244,8 +332,14 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
   }, [agents, selectedAgentId, isAdherent]);
 
   useEffect(() => {
-    if (activeTab === 'emission') loadFamily();
-  }, [activeTab, loadFamily]);
+    if (activeTab === 'emission') {
+      if (isAdherent) {
+        loadFamily();
+      } else {
+        loadAllCards();
+      }
+    }
+  }, [activeTab, isAdherent, loadFamily, loadAllCards]);
 
   const loadBeneficiariesForAgent = useCallback(async (agentId) => {
     if (!agentId) {
@@ -384,19 +478,21 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
     });
   };
 
-  const generateCard = async (member) => {
-    if (!effectiveAgentId) return;
-    const key = member.beneficiaryId ?? 'titulaire';
-    setBusyId(key);
+  const generateCardForAgent = async (agent) => {
+    setBusyId(isAdherent ? 'titulaire' : agent.id);
     try {
       await parseJsonOrThrow(
         await apiFetch('/api/mutual-cards', {
           method: 'POST',
-          body: { agentId: Number(effectiveAgentId), beneficiaryId: member.beneficiaryId },
+          body: { agentId: agent.id, beneficiaryId: null },
         }),
       );
-      addToast('success', `Carte générée pour ${member.fullName}`);
-      loadFamily();
+      addToast('success', `Carte générée pour ${agent.prenom} ${agent.nom}`);
+      if (isAdherent) {
+        loadFamily();
+      } else {
+        loadAllCards();
+      }
     } catch (e) {
       addToast('error', e.message || 'Génération impossible');
     } finally {
@@ -404,13 +500,9 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
     }
   };
 
-  const downloadCard = async (member) => {
-    if (!member.cardId) {
-      addToast('warning', 'Générez d’abord la carte');
-      return;
-    }
+  const downloadCardById = async (cardId) => {
     try {
-      const blob = await apiFetchBlob(`/api/mutual-cards/${member.cardId}/download`);
+      const blob = await apiFetchBlob(`/api/mutual-cards/${cardId}/download`);
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -586,13 +678,12 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
             isAdherent={isAdherent}
             canGenerate={canGenerate}
             agents={agents}
-            selectedAgentId={selectedAgentId}
-            setSelectedAgentId={setSelectedAgentId}
+            allCards={allCards}
             family={family}
-            loading={familyLoading}
+            loading={isAdherent ? familyLoading : allCardsLoading}
             busyId={busyId}
-            generateCard={generateCard}
-            downloadCard={downloadCard}
+            generateCardForAgent={generateCardForAgent}
+            downloadCardById={downloadCardById}
             downloadMembershipTemplate={downloadMembershipTemplate}
           />
         )}

@@ -14,23 +14,35 @@ import { matchesSearch } from '../utils/filterSearch';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { adminDeleteRecord } from '../utils/adminDelete';
 
+// Colonnes de la table USER_COS.MEDICAMENT :
+// ID | CODEEAN13 | NOTE | CLASSE_THERAPEUTIQUE | FORME | NOMDELASPECIALITE | OBSERVATION | PRESENTATION | PRINCEPS_OU_GENERIQUE | REMBOURSABLE
+
 const EXPORT_COLS = [
-  { key: 'ean13', label: 'Code EAN13' },
-  { key: 'name', label: 'Spécialité' },
-  { key: 'therapeuticClass', label: 'Classe thérapeutique' },
-  { key: 'form', label: 'Forme' },
-  { key: 'presentation', label: 'Présentation' },
-  { key: 'type', label: 'Type' },
-  { key: 'reimbursedLabel', label: 'Remboursable' },
-  { key: 'note', label: 'Note' },
+  { key: 'ean13',             label: 'Code EAN13' },
+  { key: 'name',              label: 'Nom de la spécialité' },
+  { key: 'therapeuticClass',  label: 'Classe thérapeutique' },
+  { key: 'form',              label: 'Forme' },
+  { key: 'presentation',      label: 'Présentation' },
+  { key: 'type',              label: 'Princeps ou Générique' },
+  { key: 'reimbursedLabel',   label: 'Remboursable' },
+  { key: 'note',              label: 'Note' },
+  { key: 'observation',       label: 'Observation' },
 ];
 
 function reimbursedBadge(value) {
   return <span className={`badge ${value ? 'badge-success' : 'badge-danger'}`}>{value ? 'Oui' : 'Non'}</span>;
 }
 
+function typeBadge(type) {
+  if (!type) return '—';
+  const cls = type.toLowerCase().includes('generic') || type.toLowerCase().includes('énérique')
+    ? 'badge-info'
+    : 'badge-primary';
+  return <span className={`badge ${cls}`}>{type}</span>;
+}
+
 export default function MedicamentsPage({ setPageTitle, addToast, user }) {
-  setPageTitle('Médicaments', 'Référentiel médicaments');
+  setPageTitle('Médicaments', 'Référentiel médicaments — USER_COS.MEDICAMENT');
   const canMutate = canStaffMutate(user);
   const canDelete = canAdminDelete(user);
   const [rows, setRows] = useState([]);
@@ -67,6 +79,7 @@ export default function MedicamentsPage({ setPageTitle, addToast, user }) {
         m.type,
         m.reimbursed ? 'oui remboursable' : 'non non-remboursable',
         m.note,
+        m.observation,
       ),
     );
   }, [rows, searchQuery]);
@@ -80,14 +93,24 @@ export default function MedicamentsPage({ setPageTitle, addToast, user }) {
       e.preventDefault();
       const fd = new FormData(e.target);
       const body = {
+        // NOMDELASPECIALITE
         name: fd.get('name'),
+        // CODEEAN13
         ean13: fd.get('ean13') || '',
+        // CLASSE_THERAPEUTIQUE
         therapeuticClass: fd.get('therapeuticClass') || '',
+        // FORME
         form: fd.get('form') || '',
+        // PRESENTATION
         presentation: fd.get('presentation') || '',
+        // PRINCEPS_OU_GENERIQUE
         type: fd.get('type') || 'Princeps',
+        // REMBOURSABLE
         reimbursed: fd.get('reimbursed') === 'true',
+        // NOTE
         note: fd.get('note') || '',
+        // OBSERVATION
+        observation: fd.get('observation') || '',
       };
       try {
         const url = isEdit ? `/api/medicines/${medicine.id}` : '/api/medicines';
@@ -104,35 +127,75 @@ export default function MedicamentsPage({ setPageTitle, addToast, user }) {
     return (
       <form onSubmit={submit}>
         <div className="form-grid">
-          <div className="form-group">
+          {/* NOMDELASPECIALITE */}
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label>
               Nom de la spécialité <span className="required">*</span>
             </label>
             <input name="name" className="form-control" defaultValue={medicine?.name ?? ''} required />
           </div>
+
+          {/* CODEEAN13 */}
           <div className="form-group">
             <label>Code EAN13</label>
-            <input name="ean13" className="form-control" defaultValue={medicine?.ean13 ?? ''} placeholder="611XXXXXXXXXX" />
+            <input
+              name="ean13"
+              className="form-control"
+              defaultValue={medicine?.ean13 ?? ''}
+              placeholder="6118XXXXXXXXX"
+            />
           </div>
+
+          {/* PRINCEPS_OU_GENERIQUE */}
           <div className="form-group">
-            <label>Classe thérapeutique</label>
-            <input name="therapeuticClass" className="form-control" defaultValue={medicine?.therapeuticClass ?? ''} />
+            <label>Princeps ou Générique</label>
+            <input
+              list="med-type-list"
+              name="type"
+              className="form-control"
+              defaultValue={medicine?.type ?? 'Princeps'}
+              placeholder="Princeps, Générique..."
+            />
+            <datalist id="med-type-list">
+              <option value="Princeps" />
+              <option value="Générique" />
+            </datalist>
           </div>
+
+          {/* CLASSE_THERAPEUTIQUE */}
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>Classe thérapeutique</label>
+            <input
+              name="therapeuticClass"
+              className="form-control"
+              defaultValue={medicine?.therapeuticClass ?? ''}
+              placeholder="Ex : ANTIHYPERTENSEUR, GLYCOPEPTIDE..."
+            />
+          </div>
+
+          {/* FORME */}
           <div className="form-group">
             <label>Forme</label>
-            <input name="form" className="form-control" defaultValue={medicine?.form ?? ''} placeholder="Comprimé, sirop..." />
+            <input
+              name="form"
+              className="form-control"
+              defaultValue={medicine?.form ?? ''}
+              placeholder="Ex : COMPRIMÉ PELLICULÉ, SIROP..."
+            />
           </div>
+
+          {/* PRESENTATION */}
           <div className="form-group">
             <label>Présentation</label>
-            <input name="presentation" className="form-control" defaultValue={medicine?.presentation ?? ''} />
+            <input
+              name="presentation"
+              className="form-control"
+              defaultValue={medicine?.presentation ?? ''}
+              placeholder="Ex : 1 BOITE 28 COMPRIMÉS..."
+            />
           </div>
-          <div className="form-group">
-            <label>Type</label>
-            <select name="type" className="form-control" defaultValue={medicine?.type ?? 'Princeps'}>
-              <option>Princeps</option>
-              <option>Générique</option>
-            </select>
-          </div>
+
+          {/* REMBOURSABLE */}
           <div className="form-group">
             <label>Remboursable</label>
             <select name="reimbursed" className="form-control" defaultValue={String(medicine?.reimbursed ?? true)}>
@@ -140,9 +203,22 @@ export default function MedicamentsPage({ setPageTitle, addToast, user }) {
               <option value="false">Non</option>
             </select>
           </div>
+
+          {/* NOTE */}
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label>Note / observation</label>
-            <textarea name="note" className="form-control" rows={3} defaultValue={medicine?.note ?? ''} />
+            <label>Note</label>
+            <textarea name="note" className="form-control" rows={2} defaultValue={medicine?.note ?? ''} />
+          </div>
+
+          {/* OBSERVATION */}
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>Observation</label>
+            <textarea
+              name="observation"
+              className="form-control"
+              rows={2}
+              defaultValue={medicine?.observation ?? ''}
+            />
           </div>
         </div>
         <div className="modal-footer" style={{ padding: '16px 0 0' }}>
@@ -171,15 +247,24 @@ export default function MedicamentsPage({ setPageTitle, addToast, user }) {
             />
           }
         >
-          <DetailItem label="Code EAN13">{m.ean13 || '—'}</DetailItem>
-          <DetailItem label="Classe thérapeutique">{m.therapeuticClass || '—'}</DetailItem>
-          <DetailItem label="Forme">{m.form || '—'}</DetailItem>
-          <DetailItem label="Présentation">{m.presentation || '—'}</DetailItem>
-          <DetailItem label="Type">{m.type || '—'}</DetailItem>
-          <DetailItem label="Remboursable">{reimbursedBadge(m.reimbursed)}</DetailItem>
-          <DetailItem label="Note" fullWidth>
-            {m.note || '—'}
+          {/* CODEEAN13 */}
+          <DetailItem label="Code EAN13">
+            <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{m.ean13 || '—'}</span>
           </DetailItem>
+          {/* CLASSE_THERAPEUTIQUE */}
+          <DetailItem label="Classe thérapeutique">{m.therapeuticClass || '—'}</DetailItem>
+          {/* FORME */}
+          <DetailItem label="Forme">{m.form || '—'}</DetailItem>
+          {/* PRESENTATION */}
+          <DetailItem label="Présentation">{m.presentation || '—'}</DetailItem>
+          {/* PRINCEPS_OU_GENERIQUE */}
+          <DetailItem label="Princeps ou Générique">{typeBadge(m.type)}</DetailItem>
+          {/* REMBOURSABLE */}
+          <DetailItem label="Remboursable">{reimbursedBadge(m.reimbursed)}</DetailItem>
+          {/* NOTE */}
+          <DetailItem label="Note" fullWidth>{m.note || '—'}</DetailItem>
+          {/* OBSERVATION */}
+          <DetailItem label="Observation" fullWidth>{m.observation || '—'}</DetailItem>
         </DetailView>
       ),
     });
@@ -208,7 +293,7 @@ export default function MedicamentsPage({ setPageTitle, addToast, user }) {
           <ListPageToolbar
             searchValue={searchQuery}
             onSearchChange={(e) => setSearchQuery(e.target.value)}
-            searchPlaceholder="Filtrer par code, nom, classe, forme, type, remboursement..."
+            searchPlaceholder="Filtrer par EAN13, nom, classe, forme, type, remboursement..."
             exportColumns={EXPORT_COLS}
             exportRows={data.map((m) => ({ ...m, reimbursedLabel: m.reimbursed ? 'Oui' : 'Non' }))}
             exportFilename="medicaments"
@@ -223,10 +308,11 @@ export default function MedicamentsPage({ setPageTitle, addToast, user }) {
             <thead>
               <tr>
                 <th>Code EAN13</th>
-                <th>Spécialité</th>
-                <th>Classe</th>
+                <th>Nom de la spécialité</th>
+                <th>Classe thérapeutique</th>
                 <th>Forme</th>
-                <th>Type</th>
+                <th>Présentation</th>
+                <th>Princeps / Gén.</th>
                 <th>Remboursable</th>
                 <th>Actions</th>
               </tr>
@@ -234,18 +320,19 @@ export default function MedicamentsPage({ setPageTitle, addToast, user }) {
             <tbody>
               {pageData.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: 24 }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: 24 }}>
                     Aucun médicament trouvé.
                   </td>
                 </tr>
               )}
               {pageData.map((m) => (
                 <tr key={m.id}>
-                  <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{m.ean13 || '—'}</td>
-                  <td>{m.name}</td>
-                  <td>{m.therapeuticClass || '—'}</td>
+                  <td style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 12 }}>{m.ean13 || '—'}</td>
+                  <td style={{ fontWeight: 500 }}>{m.name}</td>
+                  <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.therapeuticClass || '—'}</td>
                   <td>{m.form || '—'}</td>
-                  <td>{m.type || '—'}</td>
+                  <td style={{ fontSize: 12 }}>{m.presentation || '—'}</td>
+                  <td>{typeBadge(m.type)}</td>
                   <td>{reimbursedBadge(m.reimbursed)}</td>
                   <td className="actions-cell">
                     <button className="btn btn-icon btn-view" type="button" title="Voir" onClick={() => viewMedicine(m)}>

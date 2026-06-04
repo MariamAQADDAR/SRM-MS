@@ -77,6 +77,7 @@ public class MedicineService {
 		m.setType(req.type());
 		m.setReimbursed(req.reimbursed());
 		m.setNote(req.note());
+		m.setObservation(req.observation());
 	}
 
 	private MedicineResponse toDto(Medicine m) {
@@ -89,6 +90,7 @@ public class MedicineService {
 				m.getPresentation(),
 				m.getType(),
 				m.isReimbursed(),
-				m.getNote());
+				m.getNote(),
+				m.getObservation());
 	}
 }

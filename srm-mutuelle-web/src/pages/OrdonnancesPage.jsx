@@ -109,10 +109,10 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
       ...o,
       matricule: agent?.matricule || '—',
       nomPrenomAgent: agent ? `${agent.nom} ${agent.prenom}` : o.beneficiaire,
-      medecin: doctor?.fullName || '—',
-      laboratoire: lab?.nom || '—',
-      pharmacie: pharm?.nom || '—',
-      centreRadiologie: centre?.nom || '—',
+      medecin: doctor?.fullName || meta.doctorId || '—',
+      laboratoire: lab?.nom || meta.laboratoireId || '—',
+      pharmacie: pharm?.nom || meta.pharmacieId || '—',
+      centreRadiologie: centre?.nom || meta.centreRadiologieId || '—',
       dateAnalyse: meta.dateAnalyse || o.date,
       dateOrdonnance: meta.dateOrdonnance || o.date,
       dateRadio: meta.dateRadio || o.date,
@@ -201,147 +201,201 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
 
   const closeModal = () => setModal(null);
 
-  const metaFromForm = (fd) => ({
-    doctorId: String(fd.get('doctorId') || '').trim(),
-    laboratoireId: String(fd.get('laboratoireId') || '').trim(),
-    pharmacieId: String(fd.get('pharmacieId') || '').trim(),
-    centreRadiologieId: String(fd.get('centreRadiologieId') || '').trim(),
-    dateAnalyse: String(fd.get('dateAnalyse') || '').trim(),
-    dateOrdonnance: String(fd.get('dateOrdonnance') || '').trim(),
-    dateRadio: String(fd.get('dateRadio') || '').trim(),
-    numInstance: String(fd.get('numInstance') || '').trim(),
-    typeRadio: String(fd.get('typeRadio') || '').trim(),
-    scanAnalyse: String(fd.get('scanAnalyse') || '').trim(),
-    scanOrdonnance: String(fd.get('scanOrdonnance') || '').trim(),
-    scanRadio: String(fd.get('scanRadio') || '').trim(),
-    observation: String(fd.get('observation') || '').trim(),
-  });
+  const metaFromForm = (fd) => {
+    const doctorLabel = String(fd.get('doctorId') || '').trim();
+    const doc = doctors.find((d) => d.fullName === doctorLabel);
+    const doctorIdVal = doc ? String(doc.id) : doctorLabel;
 
-  const renderOrdonnanceFields = (kind, meta = {}) => (
-    <>
-      <div className="form-group">
-        <label>Bénéficiaire</label>
-        <select name="beneficiaire" className="form-control" defaultValue={meta._beneficiaire ?? ''} required>
-          {agents.map((a) => (
-            <option key={a.id} value={`${a.prenom} ${a.nom}`}>
-              {a.prenom} {a.nom}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="form-group">
-        <label>Médecin</label>
-        <select name="doctorId" className="form-control" defaultValue={meta.doctorId || ''}>
-          <option value="">Select One</option>
-          {doctors.map((d) => (
-            <option key={d.id} value={String(d.id)}>
-              {d.fullName}
-            </option>
-          ))}
-        </select>
-      </div>
-      {kind === 'analyse' && (
-        <>
-          <div className="form-group">
-            <label>Laboratoire</label>
-            <select name="laboratoireId" className="form-control" defaultValue={meta.laboratoireId || ''}>
-              <option value="">Select One</option>
-              {labOptions.map((f) => (
-                <option key={f.id} value={String(f.id)}>
-                  {f.nom}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Date analyse</label>
-            <input name="dateAnalyse" type="date" className="form-control" defaultValue={meta.dateAnalyse || ''} />
-          </div>
-          <div className="form-group">
-            <label>Scan analyse</label>
-            <input name="scanAnalyse" className="form-control" defaultValue={meta.scanAnalyse || ''} />
-          </div>
-        </>
-      )}
-      {kind === 'ordonnance' && (
-        <>
-          <div className="form-group">
-            <label>Pharmacie</label>
-            <select name="pharmacieId" className="form-control" defaultValue={meta.pharmacieId || ''}>
-              <option value="">Select One</option>
-              {pharmacieOptions.map((f) => (
-                <option key={f.id} value={String(f.id)}>
-                  {f.nom}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Date ordonnance</label>
-            <input name="dateOrdonnance" type="date" className="form-control" defaultValue={meta.dateOrdonnance || ''} />
-          </div>
-          <div className="form-group">
-            <label>Num instance</label>
-            <input name="numInstance" className="form-control" defaultValue={meta.numInstance || ''} />
-          </div>
-          <div className="form-group">
-            <label>Scan ordonnance</label>
-            <input name="scanOrdonnance" className="form-control" defaultValue={meta.scanOrdonnance || ''} />
-          </div>
-        </>
-      )}
-      {kind === 'radio' && (
-        <>
-          <div className="form-group">
-            <label>Centre radiologie</label>
-            <select name="centreRadiologieId" className="form-control" defaultValue={meta.centreRadiologieId || ''}>
-              <option value="">Select One</option>
-              {centreRadioOptions.map((f) => (
-                <option key={f.id} value={String(f.id)}>
-                  {f.nom}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Date radio</label>
-            <input name="dateRadio" type="date" className="form-control" defaultValue={meta.dateRadio || ''} />
-          </div>
-          <div className="form-group">
-            <label>Type_radio</label>
-            <select name="typeRadio" className="form-control" defaultValue={meta.typeRadio || ''}>
-              <option value="">Select One</option>
-              {radioTypes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Scan Radio</label>
-            <input name="scanRadio" className="form-control" defaultValue={meta.scanRadio || ''} />
-          </div>
-        </>
-      )}
-      <div className="form-group">
-        <label>Date (API)</label>
-        <input name="date" type="date" className="form-control" defaultValue={meta._date || new Date().toISOString().split('T')[0]} />
-      </div>
-      <div className="form-group">
-        <label>Montant total (DH)</label>
-        <input name="montant" type="number" step="0.01" className="form-control" defaultValue={meta._montant ?? ''} required />
-      </div>
-      <div className="form-group">
-        <label>Taux (%)</label>
-        <input name="taux" type="number" className="form-control" defaultValue={meta._taux ?? 80} />
-      </div>
-      <div className="form-group" style={{ gridColumn: '1/-1' }}>
-        <label>Observation</label>
-        <textarea name="observation" className="form-control" rows={2} defaultValue={meta.observation || ''} />
-      </div>
-    </>
-  );
+    const labLabel = String(fd.get('laboratoireId') || '').trim();
+    const lab = labOptions.find((f) => f.nom === labLabel);
+    const labIdVal = lab ? String(lab.id) : labLabel;
+
+    const pharmLabel = String(fd.get('pharmacieId') || '').trim();
+    const pharm = pharmacieOptions.find((f) => f.nom === pharmLabel);
+    const pharmIdVal = pharm ? String(pharm.id) : pharmLabel;
+
+    const centreLabel = String(fd.get('centreRadiologieId') || '').trim();
+    const centre = centreRadioOptions.find((f) => f.nom === centreLabel);
+    const centreIdVal = centre ? String(centre.id) : centreLabel;
+
+    return {
+      doctorId: doctorIdVal,
+      laboratoireId: labIdVal,
+      pharmacieId: pharmIdVal,
+      centreRadiologieId: centreIdVal,
+      dateAnalyse: String(fd.get('dateAnalyse') || '').trim(),
+      dateOrdonnance: String(fd.get('dateOrdonnance') || '').trim(),
+      dateRadio: String(fd.get('dateRadio') || '').trim(),
+      numInstance: String(fd.get('numInstance') || '').trim(),
+      typeRadio: String(fd.get('typeRadio') || '').trim(),
+      scanAnalyse: String(fd.get('scanAnalyse') || '').trim(),
+      scanOrdonnance: String(fd.get('scanOrdonnance') || '').trim(),
+      scanRadio: String(fd.get('scanRadio') || '').trim(),
+      observation: String(fd.get('observation') || '').trim(),
+    };
+  };
+
+  const renderOrdonnanceFields = (kind, meta = {}) => {
+    const docMatch = meta.doctorId ? (doctorById[Number(meta.doctorId)] || null) : null;
+    const defaultValueDoctor = docMatch ? docMatch.fullName : (meta.doctorId || '');
+
+    const labMatch = meta.laboratoireId ? (facilityById[Number(meta.laboratoireId)] || null) : null;
+    const defaultValueLab = labMatch ? labMatch.nom : (meta.laboratoireId || '');
+
+    const pharmMatch = meta.pharmacieId ? (facilityById[Number(meta.pharmacieId)] || null) : null;
+    const defaultValuePharm = pharmMatch ? pharmMatch.nom : (meta.pharmacieId || '');
+
+    const centreMatch = meta.centreRadiologieId ? (facilityById[Number(meta.centreRadiologieId)] || null) : null;
+    const defaultValueCentre = centreMatch ? centreMatch.nom : (meta.centreRadiologieId || '');
+
+    return (
+      <>
+        <div className="form-group">
+          <label>Bénéficiaire</label>
+          <input
+            name="beneficiaire"
+            list="beneficiaires-list"
+            className="form-control"
+            defaultValue={meta._beneficiaire ?? ''}
+            required
+            placeholder="Rechercher ou saisir un bénéficiaire..."
+          />
+          <datalist id="beneficiaires-list">
+            {agents.map((a) => (
+              <option key={a.id} value={`${a.prenom} ${a.nom}`} />
+            ))}
+          </datalist>
+        </div>
+        <div className="form-group">
+          <label>Médecin</label>
+          <input
+            name="doctorId"
+            list="doctors-list"
+            className="form-control"
+            defaultValue={defaultValueDoctor}
+            placeholder="Saisir ou rechercher un médecin..."
+          />
+          <datalist id="doctors-list">
+            {doctors.map((d) => (
+              <option key={d.id} value={d.fullName} />
+            ))}
+          </datalist>
+        </div>
+        {kind === 'analyse' && (
+          <>
+            <div className="form-group">
+              <label>Laboratoire</label>
+              <input
+                name="laboratoireId"
+                list="laboratoires-list"
+                className="form-control"
+                defaultValue={defaultValueLab}
+                placeholder="Saisir ou rechercher un laboratoire..."
+              />
+              <datalist id="laboratoires-list">
+                {labOptions.map((f) => (
+                  <option key={f.id} value={f.nom} />
+                ))}
+              </datalist>
+            </div>
+            <div className="form-group">
+              <label>Date analyse</label>
+              <input name="dateAnalyse" type="date" className="form-control" defaultValue={meta.dateAnalyse || ''} />
+            </div>
+            <div className="form-group">
+              <label>Scan analyse</label>
+              <input name="scanAnalyse" className="form-control" defaultValue={meta.scanAnalyse || ''} />
+            </div>
+          </>
+        )}
+        {kind === 'ordonnance' && (
+          <>
+            <div className="form-group">
+              <label>Pharmacie</label>
+              <input
+                name="pharmacieId"
+                list="pharmacies-list"
+                className="form-control"
+                defaultValue={defaultValuePharm}
+                placeholder="Saisir ou rechercher une pharmacie..."
+              />
+              <datalist id="pharmacies-list">
+                {pharmacieOptions.map((f) => (
+                  <option key={f.id} value={f.nom} />
+                ))}
+              </datalist>
+            </div>
+            <div className="form-group">
+              <label>Date ordonnance</label>
+              <input name="dateOrdonnance" type="date" className="form-control" defaultValue={meta.dateOrdonnance || ''} />
+            </div>
+            <div className="form-group">
+              <label>Num instance</label>
+              <input name="numInstance" className="form-control" defaultValue={meta.numInstance || ''} />
+            </div>
+            <div className="form-group">
+              <label>Scan ordonnance</label>
+              <input name="scanOrdonnance" className="form-control" defaultValue={meta.scanOrdonnance || ''} />
+            </div>
+          </>
+        )}
+        {kind === 'radio' && (
+          <>
+            <div className="form-group">
+              <label>Centre radiologie</label>
+              <input
+                name="centreRadiologieId"
+                list="centres-radio-list"
+                className="form-control"
+                defaultValue={defaultValueCentre}
+                placeholder="Saisir ou rechercher un centre..."
+              />
+              <datalist id="centres-radio-list">
+                {centreRadioOptions.map((f) => (
+                  <option key={f.id} value={f.nom} />
+                ))}
+              </datalist>
+            </div>
+            <div className="form-group">
+              <label>Date radio</label>
+              <input name="dateRadio" type="date" className="form-control" defaultValue={meta.dateRadio || ''} />
+            </div>
+            <div className="form-group">
+              <label>Type radio</label>
+              <input
+                name="typeRadio"
+                list="radio-types-list"
+                className="form-control"
+                defaultValue={meta.typeRadio || ''}
+                placeholder="Saisir ou rechercher un type..."
+              />
+              <datalist id="radio-types-list">
+                {radioTypes.map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
+            </div>
+            <div className="form-group">
+              <label>Scan Radio</label>
+              <input name="scanRadio" className="form-control" defaultValue={meta.scanRadio || ''} />
+            </div>
+          </>
+        )}
+        <div className="form-group">
+          <label>Date (API)</label>
+          <input name="date" type="date" className="form-control" defaultValue={meta._date || new Date().toISOString().split('T')[0]} />
+        </div>
+        <div className="form-group">
+          <label>Montant total (DH)</label>
+          <input name="montant" type="number" step="0.01" className="form-control" defaultValue={meta._montant ?? ''} required />
+        </div>
+        <div className="form-group" style={{ gridColumn: '1/-1' }}>
+          <label>Observation</label>
+          <textarea name="observation" className="form-control" rows={2} defaultValue={meta.observation || ''} />
+        </div>
+      </>
+    );
+  };
 
   const buildForm = () => {
     const kind = viewType;
@@ -355,7 +409,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
         return;
       }
       const montant = Number(fd.get('montant'));
-      const taux = Number(fd.get('taux') || 80);
+      const taux = 80;
       const body = {
         date: fd.get('date') || new Date().toISOString().split('T')[0],
         agentId: agent.id,
@@ -409,7 +463,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
         return;
       }
       const montant = Number(fd.get('montant'));
-      const taux = Number(fd.get('taux') || 80);
+      const taux = 80;
       const body = {
         date: fd.get('date') || o.date,
         agentId: agent.id,

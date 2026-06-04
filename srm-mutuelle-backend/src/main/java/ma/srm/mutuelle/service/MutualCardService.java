@@ -57,17 +57,13 @@ public class MutualCardService {
 				titulaireCard));
 
 		for (Beneficiary b : beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(agentId)) {
-			MutualCard card = cards.stream()
-					.filter(c -> c.getBeneficiary() != null && c.getBeneficiary().getId().equals(b.getId()))
-					.findFirst()
-					.orElse(null);
 			out.add(familyRow(
 					b.getId(),
 					b.getLinkType(),
 					b.getPrenom() + " " + b.getNom(),
 					b.getCin(),
 					b.getDateNaissance(),
-					card));
+					titulaireCard));
 		}
 		return out;
 	}
@@ -89,35 +85,21 @@ public class MutualCardService {
 		}
 		Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Porteur introuvable"));
 
-		MutualCard card;
-		if (req.beneficiaryId() == null) {
-			card = mutualCardRepository.findByAgent_IdAndBeneficiaryIsNull(req.agentId()).orElseGet(MutualCard::new);
-			card.setBeneficiary(null);
-			card.setCardLabel("Titulaire");
-			card.setHolderPrenom(agent.getPrenom());
-			card.setHolderNom(agent.getNom());
-			card.setHolderCin(agent.getCin());
-			card.setHolderDateNaissance(agent.getDateNaissance());
-		} else {
-			Beneficiary b = beneficiaryRepository
-					.findByIdAndAgent_IdAndDeletedFalse(req.beneficiaryId(), req.agentId())
-					.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bénéficiaire introuvable pour ce porteur"));
-			card = mutualCardRepository
-					.findByAgent_IdAndBeneficiary_Id(req.agentId(), req.beneficiaryId())
-					.orElseGet(MutualCard::new);
-			card.setBeneficiary(b);
-			card.setCardLabel(b.getLinkType());
-			card.setHolderPrenom(b.getPrenom());
-			card.setHolderNom(b.getNom());
-			card.setHolderCin(b.getCin());
-			card.setHolderDateNaissance(b.getDateNaissance());
-		}
+		// Force single card for the agent (titulaire)
+		MutualCard card = mutualCardRepository.findByAgent_IdAndBeneficiaryIsNull(req.agentId()).orElseGet(MutualCard::new);
+		card.setBeneficiary(null);
+		card.setCardLabel("Titulaire");
+		card.setHolderPrenom(agent.getPrenom());
+		card.setHolderNom(agent.getNom());
+		card.setHolderCin(agent.getCin());
+		card.setHolderDateNaissance(agent.getDateNaissance());
 
 		card.setAgent(agent);
 		card.setIssuedAt(java.time.Instant.now());
 		MutualCard saved = mutualCardRepository.save(card);
 		try {
-			String key = mutualCardPdfService.generateAndStore(saved, agent);
+			List<Beneficiary> beneficiaries = beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(agent.getId());
+			String key = mutualCardPdfService.generateAndStore(saved, agent, beneficiaries);
 			saved.setPdfStorageKey(key);
 			saved = mutualCardRepository.save(saved);
 		} catch (IOException e) {
@@ -145,7 +127,8 @@ public class MutualCardService {
 		if (key == null || key.isBlank()) {
 			try {
 				Agent agent = c.getAgent();
-				key = mutualCardPdfService.generateAndStore(c, agent);
+				List<Beneficiary> beneficiaries = beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(agent.getId());
+				key = mutualCardPdfService.generateAndStore(c, agent, beneficiaries);
 				c.setPdfStorageKey(key);
 				mutualCardRepository.save(c);
 			} catch (IOException e) {

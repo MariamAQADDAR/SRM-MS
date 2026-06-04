@@ -179,7 +179,7 @@ export async function apiMarkNotificationRead(id) {
 }
 
 export async function apiFetchBlob(path) {
-  const res = await apiFetch(path);
+  const res = await apiFetch(path, { headers: { Accept: 'application/pdf, */*' } });
   if (!res.ok) {
     await parseJsonOrThrow(res);
   }

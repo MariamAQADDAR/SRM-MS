@@ -24,7 +24,8 @@ public class MedicalDtos {
 			String presentation,
 			String type,
 			boolean reimbursed,
-			String note) {}
+			String note,
+			String observation) {}
 
 	public record MedicineWriteRequest(
 			@NotBlank String name,
@@ -34,5 +35,6 @@ public class MedicalDtos {
 			String presentation,
 			String type,
 			boolean reimbursed,
-			String note) {}
+			String note,
+			String observation) {}
 }
