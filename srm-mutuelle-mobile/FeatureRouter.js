@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { COLORS } from '../theme';
+import { COLORS } from './theme';
 import { isAdminRole } from './authUtils';
 import { canAccessTab, resolveTabRoute } from './navigationAccess';
 import AccessDeniedScreen from './components/AccessDeniedScreen';
