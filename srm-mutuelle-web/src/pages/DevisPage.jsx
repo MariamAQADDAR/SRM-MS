@@ -580,7 +580,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
             <DetailItem label="Document">{d.hasPdf ? d.pdfOriginalName || 'PDF' : 'Non joint'}</DetailItem>
             <DetailItem label="Observation">{d.observation}</DetailItem>
           </DetailView>
-          {canStaffActions && staffReviewActions(d)}
+          {canStaffActions && !personalMode && staffReviewActions(d)}
           {isAdherent && (d.etat === 'En attente' || d.etat === 'Brouillon') && (
             <div className="workflow-actions-bar">
               <p className="workflow-actions-hint">

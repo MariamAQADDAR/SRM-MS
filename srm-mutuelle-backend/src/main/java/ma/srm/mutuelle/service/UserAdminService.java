@@ -61,7 +61,12 @@ public class UserAdminService {
 			Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 			u.setAgent(agent);
 		} else {
-			u.setAgent(null);
+			if (req.agentId() != null) {
+				Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
+				u.setAgent(agent);
+			} else {
+				u.setAgent(null);
+			}
 		}
 		AppUser saved = appUserRepository.save(u);
 		
@@ -93,21 +98,21 @@ public class UserAdminService {
 						HttpStatus.FORBIDDEN, "Accès refusé : vous ne pouvez pas attribuer le rôle administrateur.");
 			}
 			u.setRole(newRole);
-			if (u.getRole() != AppUserRole.ADHERENT) {
-				u.setAgent(null);
+			if (u.getRole() == AppUserRole.ADHERENT && u.getAgent() == null) {
+				if (req.agentId() == null) {
+					throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "agentId obligatoire pour ADHERENT");
+				}
 			}
 		}
 		if (req.active() != null) {
 			u.setActive(req.active());
 		}
 		if (req.agentId() != null) {
-			if (u.getRole() != AppUserRole.ADHERENT) {
-				u.setAgent(null);
-			} else {
+			if (u.getRole() == AppUserRole.ADHERENT) {
 				assertAgentAvailableForAdherent(req.agentId(), u.getId());
-				Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
-				u.setAgent(agent);
 			}
+			Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
+			u.setAgent(agent);
 		}
 		if (req.password() != null && !req.password().isBlank()) {
 			String pwd = req.password().trim();

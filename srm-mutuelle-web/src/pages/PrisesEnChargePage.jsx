@@ -335,8 +335,8 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
       if (wizardDraft.observation) body.append('observation', wizardDraft.observation);
       if (!isAdherent && wizardDraft.agentId) {
         body.append('agentId', wizardDraft.agentId);
-      } else if (isAdherent && user?.agentId != null) {
-        body.append('agentId', String(user.agentId));
+      } else if (isAdherent && effectiveAgentId != null) {
+        body.append('agentId', String(effectiveAgentId));
       }
 
       try {
@@ -630,7 +630,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
             </DetailSection>
             <DetailModalFooter onClose={closeModal} canEdit={false} />
           </div>
-          {canMutate && staffReviewPanel(p)}
+          {canMutate && !personalMode && staffReviewPanel(p)}
           {isAdherent && p.statut === 'En attente' && (
             <div className="workflow-actions-bar">
               <p className="workflow-actions-hint">Étape 1/3 — Envoyez votre dossier pour lancer l&apos;instruction.</p>

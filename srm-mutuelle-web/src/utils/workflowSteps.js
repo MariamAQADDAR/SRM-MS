@@ -24,7 +24,7 @@ export function resolveDevisWorkflow(etat, scanned) {
   let activeStep = 1;
   if (terminal) activeStep = 3;
   else if (scanned) activeStep = 3;
-  else if (etat === 'Soumis') activeStep = 2;
+  else if (etat === 'Soumis' || etat === 'En cours') activeStep = 2;
   else activeStep = 1;
 
   return {
@@ -55,7 +55,7 @@ export function resolvePecWorkflow(statut) {
   const terminal = statut === 'Approuvé' || statut === 'Clôturé' || statut === 'Rejeté';
   let activeStep = 1;
   if (terminal) activeStep = 3;
-  else if (statut === 'En cours') activeStep = 2;
+  else if (statut === 'En cours' || statut === 'Soumis') activeStep = 2;
   else activeStep = 1;
 
   return {
