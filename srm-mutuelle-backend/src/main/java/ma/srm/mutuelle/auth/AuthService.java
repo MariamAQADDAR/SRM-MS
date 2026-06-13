@@ -52,6 +52,7 @@ public class AuthService {
 			throw new BadCredentialsException("Identifiants invalides");
 		}
 		user.setLastLoginAt(Instant.now());
+		autoLinkAgentIfNeeded(user);
 		appUserRepository.save(user);
 		String token = jwtService.generateToken(user);
 		return new LoginResponse(token, UserProfileDto.fromEntity(user), user.isForcePasswordChange());
@@ -125,5 +126,49 @@ public class AuthService {
 		u.setAgent(agent);
 		AppUser saved = appUserRepository.save(u);
 		return UserProfileDto.fromEntity(saved);
+	}
+
+	@Transactional
+	public UserProfileDto getOrCreateLinkedProfile(AppUser user) {
+		AppUser u = appUserRepository.findById(user.getId())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+		if (u.getAgent() == null) {
+			autoLinkAgentIfNeeded(u);
+			u = appUserRepository.save(u);
+		}
+		return UserProfileDto.fromEntity(u);
+	}
+
+	public void autoLinkAgentIfNeeded(AppUser u) {
+		if (u.getAgent() == null) {
+			// Find matching agent by email
+			var agentOpt = agentRepository.findByDeletedFalse().stream()
+					.filter(a -> a.getEmail() != null && a.getEmail().equalsIgnoreCase(u.getEmail()))
+					.findFirst();
+			if (agentOpt.isPresent()) {
+				u.setAgent(agentOpt.get());
+			} else {
+				// Create a new Agent record
+				Agent newAgent = new Agent();
+				String matricule = "AGT-" + u.getRole().name() + "-" + u.getId();
+				newAgent.setMatricule(matricule);
+				
+				String fullName = u.getFullName() != null ? u.getFullName().trim() : "Staff";
+				String[] parts = fullName.split("\\s+");
+				if (parts.length >= 2) {
+					newAgent.setPrenom(parts[0]);
+					newAgent.setNom(fullName.substring(parts[0].length()).trim());
+				} else {
+					newAgent.setPrenom(fullName);
+					newAgent.setNom("Staff");
+				}
+				newAgent.setEmail(u.getEmail());
+				newAgent.setEntiteName("Direction SRM-MS");
+				newAgent.setDeleted(false);
+				
+				Agent savedAgent = agentRepository.save(newAgent);
+				u.setAgent(savedAgent);
+			}
+		}
 	}
 }

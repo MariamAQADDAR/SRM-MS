@@ -31,7 +31,7 @@ public class AuthController {
 
 	@GetMapping("/me")
 	public UserProfileDto me(@AuthenticationPrincipal AppUser user) {
-		return UserProfileDto.fromEntity(user);
+		return authService.getOrCreateLinkedProfile(user);
 	}
 
 	@PostMapping("/logout")
