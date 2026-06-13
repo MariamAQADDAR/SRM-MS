@@ -3,10 +3,14 @@ package ma.srm.mutuelle.auth;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import ma.srm.mutuelle.auth.dto.ChangePasswordRequest;
+import ma.srm.mutuelle.auth.dto.LinkAgentRequest;
 import ma.srm.mutuelle.auth.dto.LoginRequest;
 import ma.srm.mutuelle.auth.dto.LoginResponse;
 import ma.srm.mutuelle.auth.dto.UserProfileDto;
+import ma.srm.mutuelle.domain.Agent;
 import ma.srm.mutuelle.domain.AppUser;
+import ma.srm.mutuelle.domain.AppUserRole;
+import ma.srm.mutuelle.domain.repo.AgentRepository;
 import ma.srm.mutuelle.domain.repo.AppUserRepository;
 import ma.srm.mutuelle.security.AppUserDetailsService;
 import ma.srm.mutuelle.security.JwtService;
@@ -30,6 +34,7 @@ public class AuthService {
 	private final PasswordEncoder passwordEncoder;
 	private final JwtService jwtService;
 	private final AppUserRepository appUserRepository;
+	private final AgentRepository agentRepository;
 	private final EmailService emailService;
 
 	@Transactional
@@ -100,5 +105,25 @@ public class AuthService {
 		user.setResetToken(null);
 		user.setResetTokenExpiry(null);
 		appUserRepository.save(user);
+	}
+
+	/**
+	 * Allows a non-adherent staff user to link themselves to an agent record.
+	 * Only staff roles (ADMINISTRATEUR, OPERATEUR, CONSULTATEUR) can self-link.
+	 * The agent must not already be linked to an ADHERENT account.
+	 */
+	@Transactional
+	public UserProfileDto linkAgent(AppUser user, LinkAgentRequest req) {
+		if (user.getRole() == AppUserRole.ADHERENT) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Les adhérents ne peuvent pas modifier leur liaison agent");
+		}
+		Agent agent = agentRepository.findById(req.agentId())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent introuvable"));
+		// Refresh current user from DB
+		AppUser u = appUserRepository.findById(user.getId())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+		u.setAgent(agent);
+		AppUser saved = appUserRepository.save(u);
+		return UserProfileDto.fromEntity(saved);
 	}
 }
