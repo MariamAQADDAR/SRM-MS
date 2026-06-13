@@ -411,25 +411,181 @@ export default function AppShell() {
     </div>
   );
 
-  const noAgentLinkedPage = () => (
-    <div className="empty-state" style={{ padding: '60px 20px' }}>
-      <div className="empty-icon" style={{ fontSize: '3rem', marginBottom: '20px', color: 'var(--primary)' }}>
-        <FaIcon name="user-tie" />
+  const NoAgentLinkedPage = () => {
+    const [agentsList, setAgentsList] = React.useState([]);
+    const [loadingAgents, setLoadingAgents] = React.useState(true);
+    const [searchQuery, setSearchQuery] = React.useState('');
+    const [selectedAgentId, setSelectedAgentId] = React.useState('');
+    const [linking, setLinking] = React.useState(false);
+
+    React.useEffect(() => {
+      (async () => {
+        try {
+          const res = await apiFetch('/api/agents');
+          const data = await parseJsonOrThrow(res);
+          setAgentsList(Array.isArray(data) ? data : []);
+        } catch {
+          setAgentsList([]);
+        } finally {
+          setLoadingAgents(false);
+        }
+      })();
+    }, []);
+
+    const filteredAgents = searchQuery.trim()
+      ? agentsList.filter((a) =>
+          `${a.matricule} ${a.nom} ${a.prenom}`.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : agentsList;
+
+    const handleLink = async () => {
+      if (!selectedAgentId) return;
+      setLinking(true);
+      try {
+        await apiFetch('/api/auth/link-agent', {
+          method: 'PATCH',
+          body: { agentId: Number(selectedAgentId) },
+        });
+        // Refresh user from /api/me to get updated agentId
+        const meRes = await apiFetch('/api/auth/me');
+        const me = await parseJsonOrThrow(meRes);
+        const raw = sessionStorage.getItem('mutuelle_user');
+        const stored = raw ? JSON.parse(raw) : {};
+        const updatedUser = { ...stored, agentId: me.agentId };
+        sessionStorage.setItem('mutuelle_user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        addToast('success', 'Votre dossier adhérent a été lié avec succès !');
+      } catch (e) {
+        addToast('error', e.message || 'Impossible de lier le dossier');
+      } finally {
+        setLinking(false);
+      }
+    };
+
+    return (
+      <div style={{ maxWidth: 560, margin: '40px auto', padding: '0 16px' }}>
+        <div className="card" style={{ borderRadius: 16, overflow: 'hidden' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark, #1a3a6b) 100%)',
+            padding: '32px 32px 24px',
+            textAlign: 'center',
+            color: '#fff',
+          }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: 12, opacity: 0.9 }}>
+              <FaIcon name="user-tie" />
+            </div>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Associer votre dossier adhérent</h3>
+            <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: '0.9rem' }}>
+              Sélectionnez votre dossier pour accéder à votre espace personnel
+            </p>
+          </div>
+          <div className="card-body" style={{ padding: 28 }}>
+            {loadingAgents ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)' }}>
+                Chargement des agents…
+              </div>
+            ) : agentsList.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon"><FaIcon name="users-slash" /></div>
+                <p>Aucun agent trouvé dans le système.</p>
+              </div>
+            ) : (
+              <>
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label style={{ fontWeight: 600, marginBottom: 8, display: 'block' }}>
+                    Rechercher votre dossier
+                  </label>
+                  <div className="input-group">
+                    <span className="input-icon"><FaIcon name="magnifying-glass" /></span>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Matricule, nom ou prénom…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{ paddingLeft: 36 }}
+                    />
+                  </div>
+                </div>
+                <div style={{
+                  maxHeight: 260,
+                  overflowY: 'auto',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 8,
+                  marginBottom: 20,
+                }}>
+                  {filteredAgents.length === 0 ? (
+                    <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>
+                      Aucun résultat pour « {searchQuery} »
+                    </div>
+                  ) : (
+                    filteredAgents.map((a) => (
+                      <div
+                        key={a.id}
+                        onClick={() => setSelectedAgentId(String(a.id))}
+                        style={{
+                          padding: '12px 16px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--border-color)',
+                          background: selectedAgentId === String(a.id) ? 'var(--primary-light, #e8f0ff)' : 'transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          transition: 'background 0.15s',
+                        }}
+                      >
+                        <div style={{
+                          width: 36, height: 36, borderRadius: '50%',
+                          background: selectedAgentId === String(a.id) ? 'var(--primary)' : 'var(--gray-200)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: selectedAgentId === String(a.id) ? '#fff' : 'var(--gray-500)',
+                          fontSize: '0.85rem', fontWeight: 700, flexShrink: 0,
+                        }}>
+                          {(a.prenom?.[0] || '?').toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>
+                            {a.prenom} {a.nom}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            Matricule : {a.matricule || '—'}
+                          </div>
+                        </div>
+                        {selectedAgentId === String(a.id) && (
+                          <FaIcon name="circle-check" style={{ marginLeft: 'auto', color: 'var(--primary)', fontSize: '1.1rem' }} />
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => handleNavigate('portal')}
+                  >
+                    Retour au portail
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={!selectedAgentId || linking}
+                    onClick={handleLink}
+                  >
+                    {linking ? (
+                      <><FaIcon name="spinner" className="fa-inline-icon" /> Liaison en cours…</>
+                    ) : (
+                      <><FaIcon name="link" className="fa-inline-icon" /> Lier ce dossier</>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
-      <h4 style={{ marginBottom: '12px' }}>Aucun dossier adhérent lié</h4>
-      <p style={{ maxWidth: '420px', margin: '0 auto 24px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-        Votre compte n'est pas encore lié à un dossier adhérent. Veuillez contacter un administrateur pour associer
-        votre compte à un dossier agent afin d'accéder à votre espace personnel.
-      </p>
-      <button
-        type="button"
-        className="btn btn-outline"
-        onClick={() => handleNavigate('portal')}
-      >
-        <FaIcon name="arrow-left" className="fa-inline-icon" /> Retour au portail
-      </button>
-    </div>
-  );
+    );
+  };
 
   const renderPage = () => {
     // Adherents are only allowed in ADHERENT_PAGES
@@ -437,10 +593,10 @@ export default function AppShell() {
       return forbiddenForAdherent();
     }
 
-    // Staff in personal space with no linked agent → show informative message
+    // Staff in personal space with no linked agent → show agent picker
     const isInPersonalSpace = activeSpace === 'personal' && !isAdherent;
     if (isInPersonalSpace && !user.agentId) {
-      return noAgentLinkedPage();
+      return <NoAgentLinkedPage />;
     }
 
     switch (currentPage) {
