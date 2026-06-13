@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import FaIcon from './FaIcon';
-import { isAdherentRole, isStaffWriterRole, isAdminRole } from '../authUtils';
+import { isAdherentRole, isStaffWriterRole, isAdminRole, isConsultateurRole } from '../authUtils';
 
 export default function Layout({ children, currentPage, onNavigate, user, navBadges, activeSpace }) {
   if (!user) return null;
@@ -8,6 +8,7 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
   const isAdherent = isAdherentRole(user);
   const staffWriter = isStaffWriterRole(user);
   const isAdmin = isAdminRole(user);
+  const isConsult = isConsultateurRole(user);
   const b = navBadges || {};
 
   const navSections = [];
@@ -18,9 +19,11 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
       items: [
         { id: 'mes-devis', fa: 'file-invoice', label: 'Mes devis', badge: b['mes-devis'] },
         { id: 'mes-remboursements', fa: 'money-bill-wave', label: 'Mes remboursements', badge: b['mes-rembPending'] },
+        { id: 'mes-cartes', fa: 'id-card', label: 'Mes cartes mutuelles' },
         { id: 'mes-prises-en-charge', fa: 'hospital', label: 'Mes prises en charge', badge: b['mes-pec'] },
         { id: 'mon-historique', fa: 'clock-rotate-left', label: 'Mon historique' },
       ],
+
     });
   } else if (activeSpace === 'staff' && !isAdherent) {
     navSections.push(
@@ -33,7 +36,7 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
       {
         section: 'Gestion',
         items: [
-          ...(isAdmin || staffWriter ? [{ id: 'agents', fa: 'user-tie', label: 'Agents', badge: b.agents }] : []),
+          ...(isAdmin || staffWriter || isConsult ? [{ id: 'agents', fa: 'user-tie', label: 'Agents', badge: b.agents }] : []),
           { id: 'beneficiaires', fa: 'users', label: 'Bénéficiaires', badge: b.agents },
           { id: 'cartes-mutuelles', fa: 'id-card', label: 'Cartes mutuelles' },
           { id: 'ordonnances', fa: 'clipboard-list', label: 'Ordonnances', badge: b.ordonnances },

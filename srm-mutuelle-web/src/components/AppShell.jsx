@@ -31,6 +31,7 @@ import { isAdherentRole, isStaffWriterRole, isAdminRole } from '../authUtils';
 const ADHERENT_PAGES = new Set([
   'mes-devis',
   'mes-remboursements',
+  'mes-cartes',
   'mes-prises-en-charge',
   'mon-historique',
   'notifications',
@@ -410,11 +411,38 @@ export default function AppShell() {
     </div>
   );
 
+  const noAgentLinkedPage = () => (
+    <div className="empty-state" style={{ padding: '60px 20px' }}>
+      <div className="empty-icon" style={{ fontSize: '3rem', marginBottom: '20px', color: 'var(--primary)' }}>
+        <FaIcon name="user-tie" />
+      </div>
+      <h4 style={{ marginBottom: '12px' }}>Aucun dossier adhérent lié</h4>
+      <p style={{ maxWidth: '420px', margin: '0 auto 24px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+        Votre compte n'est pas encore lié à un dossier adhérent. Veuillez contacter un administrateur pour associer
+        votre compte à un dossier agent afin d'accéder à votre espace personnel.
+      </p>
+      <button
+        type="button"
+        className="btn btn-outline"
+        onClick={() => handleNavigate('portal')}
+      >
+        <FaIcon name="arrow-left" className="fa-inline-icon" /> Retour au portail
+      </button>
+    </div>
+  );
+
   const renderPage = () => {
     // Adherents are only allowed in ADHERENT_PAGES
     if (isAdherent && !ADHERENT_PAGES.has(currentPage)) {
       return forbiddenForAdherent();
     }
+
+    // Staff in personal space with no linked agent → show informative message
+    const isInPersonalSpace = activeSpace === 'personal' && !isAdherent;
+    if (isInPersonalSpace && !user.agentId) {
+      return noAgentLinkedPage();
+    }
+
     switch (currentPage) {
       // ── Personal space (all roles) ────────────────────────────────
       case 'mes-devis':
