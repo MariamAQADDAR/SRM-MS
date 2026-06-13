@@ -31,7 +31,6 @@ import { isAdherentRole, isStaffWriterRole, isAdminRole } from '../authUtils';
 const ADHERENT_PAGES = new Set([
   'mes-devis',
   'mes-remboursements',
-  'mes-cartes',
   'mes-prises-en-charge',
   'mon-historique',
   'notifications',
@@ -126,7 +125,6 @@ export default function AppShell() {
     parametrage: { title: 'Paramétrage', breadcrumb: 'Administration' },
     // Personal-space pages (all roles)
     'mes-devis': { title: 'Mes devis', breadcrumb: 'Mon espace — Mes devis' },
-    'mes-cartes': { title: 'Mes cartes mutuelles', breadcrumb: 'Mon espace — Cartes' },
     'mes-remboursements': { title: 'Mes remboursements', breadcrumb: 'Mon espace — Remboursements' },
     'mes-prises-en-charge': { title: 'Mes prises en charge', breadcrumb: 'Mon espace — PEC' },
     'mon-historique': { title: 'Mon historique', breadcrumb: 'Mon espace — Historique' },
@@ -605,8 +603,6 @@ export default function AppShell() {
         return <DevisPage {...pageProps} personalMode />;
       case 'mes-remboursements':
         return <RemboursementsPage {...pageProps} personalMode />;
-      case 'mes-cartes':
-        return <CartesMutuellesPage {...pageProps} personalMode />;
       case 'mes-prises-en-charge':
         return <PrisesEnChargePage {...pageProps} personalMode />;
       case 'mon-historique':

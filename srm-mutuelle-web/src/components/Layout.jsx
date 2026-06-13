@@ -19,7 +19,6 @@ export default function Layout({ children, currentPage, onNavigate, user, navBad
       items: [
         { id: 'mes-devis', fa: 'file-invoice', label: 'Mes devis', badge: b['mes-devis'] },
         { id: 'mes-remboursements', fa: 'money-bill-wave', label: 'Mes remboursements', badge: b['mes-rembPending'] },
-        { id: 'mes-cartes', fa: 'id-card', label: 'Mes cartes mutuelles' },
         { id: 'mes-prises-en-charge', fa: 'hospital', label: 'Mes prises en charge', badge: b['mes-pec'] },
         { id: 'mon-historique', fa: 'clock-rotate-left', label: 'Mon historique' },
       ],
