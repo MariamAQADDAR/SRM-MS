@@ -412,13 +412,13 @@ export default function AppShell() {
   );
 
   const NoAgentLinkedPage = () => {
-    const [agentsList, setAgentsList] = React.useState([]);
-    const [loadingAgents, setLoadingAgents] = React.useState(true);
-    const [searchQuery, setSearchQuery] = React.useState('');
-    const [selectedAgentId, setSelectedAgentId] = React.useState('');
-    const [linking, setLinking] = React.useState(false);
+    const [agentsList, setAgentsList] = useState([]);
+    const [loadingAgents, setLoadingAgents] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedAgentId, setSelectedAgentId] = useState('');
+    const [linking, setLinking] = useState(false);
 
-    React.useEffect(() => {
+    useEffect(() => {
       (async () => {
         try {
           const res = await apiFetch('/api/agents');
