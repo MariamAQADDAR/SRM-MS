@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { isAdherentRole, isStaffWriterRole, canAdminDelete } from '../authUtils';
 import FaIcon from '../components/FaIcon';
 import Modal from '../components/Modal';
+import SearchableSelect from '../components/SearchableSelect';
 import TablePageShell from '../components/TablePageShell';
 import ExportExcelButton from '../components/ExportExcelButton';
 import TablePagination from '../components/TablePagination';
@@ -271,6 +272,7 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
   const [allCards, setAllCards] = useState([]);
   const [allCardsLoading, setAllCardsLoading] = useState(false);
 
+  const isRealAdherent = isAdherentRole(user);
   const effectiveAgentId = isAdherent ? (user?.agentId != null ? String(user.agentId) : null) : selectedAgentId;
 
   const reloadRequests = useCallback(async () => {
@@ -338,6 +340,11 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
 
   const filteredRequests = useMemo(() => {
     return requests.filter((r) => {
+      if (isAdherent) {
+        if (!effectiveAgentId || String(r.agentId) !== String(effectiveAgentId)) {
+          return false;
+        }
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesMatricule = r.matricule && r.matricule.toLowerCase().includes(q);
@@ -349,11 +356,20 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
       if (statusFilter && r.statut !== statusFilter) return false;
       return true;
     });
-  }, [requests, searchQuery, typeFilter, statusFilter]);
+  }, [requests, searchQuery, typeFilter, statusFilter, isAdherent, effectiveAgentId]);
 
   const { pageData, page, setPage, totalPages } = usePagination(filteredRequests, `${searchQuery}_${typeFilter}_${statusFilter}`);
 
-  const closeModal = () => setModal(null);
+  const [viewData, setViewData] = useState({
+    loading: false,
+    agent: null,
+    family: [],
+  });
+
+  const closeModal = () => {
+    setModal(null);
+    setViewData({ loading: false, agent: null, family: [] });
+  };
 
   const openCreate = () => {
     const f = emptyForm(isAdherent, user?.agentId);
@@ -373,7 +389,453 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
     setModal({ mode: 'edit', row });
   };
 
-  const openView = (row) => setModal({ mode: 'view', row });
+  const openView = async (row) => {
+    setModal({ mode: 'view', row });
+    setViewData({ loading: true, agent: null, family: [] });
+    try {
+      const [agentRes, familyRes] = await Promise.all([
+        apiFetch(`/api/agents/${row.agentId}`),
+        apiFetch(`/api/mutual-cards/family/${row.agentId}`),
+      ]);
+      const agent = await parseJsonOrThrow(agentRes);
+      const family = await parseJsonOrThrow(familyRes);
+      setViewData({ loading: false, agent, family });
+    } catch (e) {
+      addToast('error', e.message || 'Chargement des détails impossible');
+      setViewData({ loading: false, agent: null, family: [] });
+    }
+  };
+
+  const handlePrintBulletin = (row, agent, family) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      addToast('error', 'Le bloqueur de fenêtres a empêché l\'ouverture de la page d\'impression.');
+      return;
+    }
+
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      return String(dateStr).split('-').reverse().join('/');
+    };
+
+    const agentName = (agent.nom || '').toUpperCase();
+    const agentPrenom = agent.prenom || '';
+    const matricule = agent.matricule || '';
+    const service = agent.entite || 'Service relation avec CMSS';
+    const birthDate = formatDate(agent.dateNaissance);
+    const situation = agent.situation || '';
+    const contact = agent.telephone || agent.email || '';
+    const entryDate = formatDate(agent.dateRecrutement);
+    const typeDemande = row.typeDemande || 'Adhésion (Première carte)';
+    const raison = row.raison || '';
+
+    const conjoint = family ? family.find(f => f.cardLabel === 'Conjoint' || f.cardLabel === 'Conjoint(e)') : null;
+    const conjointName = conjoint ? conjoint.fullName : '';
+    const conjointBirth = conjoint ? formatDate(conjoint.dateNaissance) : '';
+
+    const kids = family ? family.filter(f => f.cardLabel === 'Enfant') : [];
+
+    let kidsTableRows = '';
+    const maxRows = Math.max(2, kids.length);
+    for (let i = 0; i < maxRows; i++) {
+      const k = kids[i];
+      kidsTableRows += `
+        <tr>
+          <td style="border: 1px solid black; padding: 12px; height: 30px; font-size: 14px;">${k ? k.fullName : ''}</td>
+          <td style="border: 1px solid black; padding: 12px; height: 30px; font-size: 14px; text-align: center;">${k ? formatDate(k.dateNaissance) : ''}</td>
+        </tr>
+      `;
+    }
+
+    const currentDateStr = new Date().toLocaleDateString('fr-FR');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head>
+        <meta charset="UTF-8">
+        <title>Bulletin d'Adhésion - ${agentPrenom} ${agentName}</title>
+        <style>
+          @media print {
+            body {
+              margin: 0;
+              padding: 0;
+              -webkit-print-color-adjust: exact;
+            }
+            .page-break {
+              page-break-after: always;
+              break-after: page;
+            }
+          }
+          
+          body {
+            font-family: Arial, sans-serif;
+            color: #000;
+            line-height: 1.4;
+            padding: 20px;
+            box-sizing: border-box;
+          }
+
+          .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 25px;
+            position: relative;
+          }
+
+          .header-logo {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 60px;
+          }
+
+          .header-text {
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 70px;
+            margin-right: 70px;
+          }
+
+          .document-title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            text-decoration: underline;
+            margin: 30px 0;
+            letter-spacing: 1px;
+          }
+
+          .form-section {
+            margin-bottom: 15px;
+          }
+
+          .form-row {
+            display: flex;
+            margin-bottom: 12px;
+            font-size: 14px;
+          }
+
+          .field-label {
+            font-weight: bold;
+            white-space: nowrap;
+          }
+
+          .field-value {
+            border-bottom: 1px dotted #000;
+            width: 100%;
+            padding-left: 8px;
+            min-height: 18px;
+          }
+
+          .checkbox-container {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 15px;
+          }
+
+          .checkbox-box {
+            border: 1px solid #000;
+            width: 14px;
+            height: 14px;
+            margin-right: 6px;
+            display: inline-block;
+            text-align: center;
+            line-height: 14px;
+            font-size: 11px;
+            font-weight: bold;
+          }
+
+          .subsection-title {
+            font-weight: bold;
+            font-size: 14px;
+            text-decoration: underline;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+          }
+
+          .kids-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+          }
+
+          .kids-table th {
+            border: 1px solid #000;
+            padding: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            background-color: #f2f2f2;
+          }
+
+          .statement-text {
+            font-size: 13px;
+            font-weight: bold;
+            margin-top: 25px;
+            text-align: justify;
+          }
+
+          .footer-section {
+            margin-top: 20px;
+            border-top: 1.5px solid #000;
+            padding-top: 8px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+          }
+
+          .admin-box {
+            border: 1.5px solid #000;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            min-height: 250px;
+            box-sizing: border-box;
+          }
+
+          .admin-box-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 15px;
+            text-decoration: underline;
+          }
+
+          .dotted-lines {
+            margin: 15px 0;
+            line-height: 1.8;
+          }
+
+          .dotted-line {
+            border-bottom: 1px dotted #000;
+            height: 25px;
+            margin-bottom: 8px;
+          }
+
+          .signature-line {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 35px;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+
+        <!-- PAGE 1 -->
+        <div class="page-break">
+          <div class="header-container">
+            <img src="${window.location.origin}/srm-company-logo.png" alt="SRM" class="header-logo" onerror="this.style.display='none'" />
+            <div class="header-text">
+              CAISSE MUTUELLE DE SECURITE SOCIALE DU PERSONNEL DES REGIES<br>
+              AUTONOMES DES DISTRIBUTIONS D'EAU ET D'ELECTRICITE AU MAROC CMSS<br>
+              N°3, Rue Bouchaib Ferrad - CASABLANCA<br>
+              Tél: 05 22 31 06 54
+            </div>
+          </div>
+
+          <div class="document-title">BULLETIN D'ADHESION</div>
+
+          <div class="form-section">
+            <div class="form-row">
+              <div class="field-label" style="width: 140px;">Je soussigné, Nom:</div>
+              <div class="field-value" style="font-weight: bold; font-size: 15px;">${agentName}</div>
+              <div class="field-label" style="width: 150px; margin-left: 20px;">Prénom de l'agent:</div>
+              <div class="field-value" style="font-weight: bold; font-size: 15px;">${agentPrenom}</div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 80px;">Matricule:</div>
+              <div class="field-value" style="width: 150px; font-weight: bold;">${matricule}</div>
+              <div class="field-label" style="width: 70px; margin-left: 15px;">Service:</div>
+              <div class="field-value" style="width: 250px;">${service}</div>
+              <div class="field-label" style="width: 100px; margin-left: 15px;">Exploitation:</div>
+              <div class="field-value" style="width: 120px; font-weight: bold;">SRM-MS</div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 200px;">Date et lieu de naissance:</div>
+              <div class="field-value" style="width: 200px;">${birthDate}</div>
+              <div class="field-label" style="width: 20px; margin-left: 10px; margin-right: 5px;">à</div>
+              <div class="field-value">${agent.ville || ''}</div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 160px;">Situation de famille:</div>
+              <div class="field-value">${situation}</div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 110px;">Demeurant à:</div>
+              <div class="field-value"></div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 80px;">Contact:</div>
+              <div class="field-value">${contact}</div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 190px;">Date d'entrée à la Régie:</div>
+              <div class="field-value" style="width: 250px;">${entryDate}</div>
+              <div class="field-label" style="width: 170px; margin-left: 20px;">Date de titularisation:</div>
+              <div class="field-value"></div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 100px;">Classement:</div>
+              <div class="field-value"></div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 100px;">Demande de:</div>
+              <div class="field-value" style="font-weight: bold;">${typeDemande}</div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 170px;">Raison de changement:</div>
+              <div class="field-value" style="font-style: italic;">${raison}</div>
+            </div>
+            <div style="font-size: 11px; margin-top: -5px; margin-left: 170px; color: #333;">
+              (1) de Duplicata suite à déclaration de perte (dûment cacheté et signé par les autorités compétentes)
+            </div>
+          </div>
+
+          <div class="subsection-title">AYANTS DROIT</div>
+
+          <div style="margin-left: 15px;">
+            <div class="subsection-title" style="font-size: 13px; text-decoration: none; margin-top: 10px; margin-bottom: 8px;">1. CONJOINT:</div>
+            
+            <div class="form-row">
+              <div class="field-label" style="width: 110px;">Nom Complet:</div>
+              <div class="field-value" style="font-weight: bold;">${conjointName}</div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 190px;">Date et lieu de naissance:</div>
+              <div class="field-value" style="width: 200px;">${conjointBirth}</div>
+              <div class="field-label" style="width: 20px; margin-left: 10px; margin-right: 5px;">à</div>
+              <div class="field-value">${conjoint && conjoint.ville ? conjoint.ville : ''}</div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 140px;">Date de mariage:</div>
+              <div class="field-value" style="width: 250px;"></div>
+              <div class="field-label" style="width: 150px; margin-left: 20px;">Est-elle salariée? (1)</div>
+              <div class="checkbox-container" style="margin-left: 10px;">
+                <span class="checkbox-box"></span> OUI
+              </div>
+              <div class="checkbox-container">
+                <span class="checkbox-box"></span> NON
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 310px;">Nom et adresse de l'employeur du conjoint:</div>
+              <div class="field-value"></div>
+            </div>
+
+            <div class="form-row">
+              <div class="field-label" style="width: 240px;">Est-elle affiliée à une mutuelle?</div>
+              <div class="checkbox-container" style="margin-left: 10px;">
+                <span class="checkbox-box"></span> OUI
+              </div>
+              <div class="checkbox-container">
+                <span class="checkbox-box"></span> NON
+              </div>
+              <div style="font-size: 11px; margin-left: auto; font-style: italic;">(1) cocher la case utile</div>
+            </div>
+          </div>
+
+          <div style="margin-left: 15px; margin-top: 15px;">
+            <div class="subsection-title" style="font-size: 13px; text-decoration: none; margin-top: 10px; margin-bottom: 5px;">2. ENFANTS:</div>
+            
+            <table class="kids-table">
+              <thead>
+                <tr>
+                  <th style="width: 60%; text-align: left; padding-left: 12px;">PRENOM</th>
+                  <th style="width: 40%;">DATE DE NAISSANCE</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${kidsTableRows}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="statement-text">
+            *Je déclare sur l'honneur que les renseignements ci-dessus sont exacts et je m'engage à informer la CMSS de tout autre changement qui pourrait intervenir ultérieurement.
+          </div>
+
+          <div class="footer-section">
+            Réservé au mutualiste
+            <div class="signature-line">
+              <div style="width: 60%; text-align: left; font-size: 13px;">Nom, date et signature : <span style="font-weight: normal; border-bottom: 1px solid #000; display: inline-block; width: 200px; padding-left: 8px;">${agentPrenom} ${agentName}</span></div>
+              <div style="width: 40%; text-align: right; font-size: 13px;">Le: <span style="font-weight: normal; border-bottom: 1px solid #000; display: inline-block; width: 120px; text-align: center;">${currentDateStr}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAGE 2 -->
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 25px;">
+            <div>Nom, date et signature : <span style="border-bottom: 1px solid #000; display: inline-block; width: 180px; height: 18px;"></span></div>
+            <div>Le: <span style="border-bottom: 1px solid #000; display: inline-block; width: 120px; height: 18px; text-align: center;">${currentDateStr}</span></div>
+          </div>
+
+          <div class="admin-box">
+            <div class="admin-box-title">Réservé au delegué de la mutuelle</div>
+            <div class="dotted-lines">
+              <div style="font-weight: bold; margin-bottom: 10px;">Avis :</div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+            </div>
+            <div class="signature-line" style="margin-top: 40px;">
+              <div>Nom, date et signature :</div>
+              <div style="border-bottom: 1px solid #000; width: 250px; height: 1px;"></div>
+            </div>
+          </div>
+
+          <div class="admin-box" style="margin-top: 40px;">
+            <div class="admin-box-title">Réservé à la CMSS</div>
+            <div class="dotted-lines">
+              <div style="font-weight: bold; margin-bottom: 10px;">Avis :</div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+              <div class="dotted-line"></div>
+            </div>
+            <div class="signature-line" style="margin-top: 40px;">
+              <div>Nom, date et signature :</div>
+              <div style="border-bottom: 1px solid #000; width: 250px; height: 1px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
 
   const onAgentChange = (agentId) => {
     setForm((prev) => ({ ...prev, agentId, beneficiaryId: '' }));
@@ -478,6 +940,27 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
       addToast('error', e.message || 'Modèle carte mutuelle indisponible');
     }
   };
+
+  const showWarning = isAdherent && !effectiveAgentId;
+
+  if (showWarning) {
+    return (
+      <>
+        <div className="card" style={{ marginTop: '0' }}>
+          <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
+              <FaIcon name="triangle-exclamation" />
+            </div>
+            <h4>Compte non associé à un porteur</h4>
+            <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+              Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+              Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -716,17 +1199,18 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
         >
           <div className="form-grid">
             {!isAdherent && (
-              <label className="form-group">
-                <span>Agent (Matricule)</span>
-                <select className="form-control" value={form.agentId} onChange={(e) => onAgentChange(e.target.value)}>
-                  <option value="">Choisir un agent…</option>
-                  {agents.map((a) => (
-                    <option key={a.id} value={String(a.id)}>
-                      {a.matricule} — {a.prenom} {a.nom}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SearchableSelect
+                label="Agent (Matricule)"
+                placeholder="Choisir un agent…"
+                value={form.agentId}
+                onChange={onAgentChange}
+                required
+                options={agents.map((a) => ({
+                  value: String(a.id),
+                  label: `${a.matricule} — ${a.prenom} ${a.nom}`,
+                  subtitle: `CIN: ${a.cin || '—'}`
+                }))}
+              />
             )}
 
             <label className="form-group">
@@ -782,13 +1266,103 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
 
       {modal?.mode === 'view' && (
         <Modal title="Détail de la demande" onClose={closeModal} variant="detail">
-          <DetailItem label="Matricule" value={modal.row.matricule} />
-          <DetailItem label="Agent / Adhérent" value={modal.row.beneficiaire} />
-          <DetailItem label="Type de demande" value={modal.row.typeDemande} />
-          <DetailItem label="Date demande" value={modal.row.dateDemande || '—'} />
-          <DetailItem label="Statut" value={modal.row.statut} />
-          <DetailItem label="Raison" value={modal.row.raison || '—'} />
-          <DetailModalFooter onClose={closeModal} />
+          {viewData.loading ? (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-500)' }}>
+              <FaIcon name="spinner" className="fa-spin" style={{ fontSize: '2rem', marginBottom: '12px' }} />
+              <p>Chargement des détails de l'agent et des ayants droit...</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Section 1: Demande Details */}
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '700', color: 'var(--primary-600)', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                  <FaIcon name="file-invoice" style={{ marginRight: 8 }} />
+                  Informations sur la Demande
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                  <DetailItem label="Matricule">{modal.row.matricule}</DetailItem>
+                  <DetailItem label="Bénéficiaire">{modal.row.beneficiaire}</DetailItem>
+                  <DetailItem label="Type de demande">{modal.row.typeDemande}</DetailItem>
+                  <DetailItem label="Date de demande">{modal.row.dateDemande ? String(modal.row.dateDemande).split('-').reverse().join('/') : '—'}</DetailItem>
+                  <DetailItem label="Statut">{statusBadge(modal.row.statut)}</DetailItem>
+                  <DetailItem label="Motif / Raison" fullWidth={true}>{modal.row.raison || '—'}</DetailItem>
+                </div>
+              </div>
+
+              {/* Section 2: Agent Details */}
+              {viewData.agent && (
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '700', color: 'var(--primary-600)', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                    <FaIcon name="user" style={{ marginRight: 8 }} />
+                    Détails du Titulaire (Agent)
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                    <DetailItem label="Nom complet">{viewData.agent.prenom} {viewData.agent.nom}</DetailItem>
+                    <DetailItem label="CIN">{viewData.agent.cin || '—'}</DetailItem>
+                    <DetailItem label="Date de naissance">{viewData.agent.dateNaissance ? String(viewData.agent.dateNaissance).split('-').reverse().join('/') : '—'}</DetailItem>
+                    <DetailItem label="Situation de famille">{viewData.agent.situation || '—'}</DetailItem>
+                    <DetailItem label="Service / Entité">{viewData.agent.entite || '—'}</DetailItem>
+                    <DetailItem label="Téléphone">{viewData.agent.telephone || '—'}</DetailItem>
+                    <DetailItem label="Date d'entrée">{viewData.agent.dateRecrutement ? String(viewData.agent.dateRecrutement).split('-').reverse().join('/') : '—'}</DetailItem>
+                    <DetailItem label="Statut de l'agent">{viewData.agent.statut || '—'}</DetailItem>
+                  </div>
+                </div>
+              )}
+
+              {/* Section 3: Family Members Details */}
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '700', color: 'var(--primary-600)', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                  <FaIcon name="users" style={{ marginRight: 8 }} />
+                  Ayants Droit (Famille)
+                </h4>
+                {viewData.family && viewData.family.filter(m => m.beneficiaryId !== null).length > 0 ? (
+                  <div className="data-table-wrapper" style={{ marginTop: '8px' }}>
+                    <table className="data-table" style={{ width: '100%', fontSize: '13px' }}>
+                      <thead>
+                        <tr>
+                          <th>Lien de parenté</th>
+                          <th>Nom Complet</th>
+                          <th>CIN</th>
+                          <th>Date de Naissance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {viewData.family
+                          .filter(m => m.beneficiaryId !== null)
+                          .map((m, idx) => (
+                            <tr key={idx}>
+                              <td>{linkBadge(m.cardLabel)}</td>
+                              <td>{m.fullName}</td>
+                              <td>{m.cin || '—'}</td>
+                              <td>{m.dateNaissance ? String(m.dateNaissance).split('-').reverse().join('/') : '—'}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, padding: '8px 0', fontSize: '13px', color: 'var(--gray-500)', fontStyle: 'italic' }}>
+                    Aucun ayant droit enregistré pour cet agent.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="modal-footer" style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button type="button" className="btn btn-outline" onClick={closeModal}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={viewData.loading || !viewData.agent}
+              onClick={() => handlePrintBulletin(modal.row, viewData.agent, viewData.family)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            >
+              <FaIcon name="print" />
+              <span>Imprimer bulletin d'adhésion</span>
+            </button>
+          </div>
         </Modal>
       )}
     </>

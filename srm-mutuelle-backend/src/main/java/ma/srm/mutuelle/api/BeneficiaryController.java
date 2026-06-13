@@ -41,13 +41,13 @@ public class BeneficiaryController {
 	}
 
 	@PostMapping
-	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
+	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','ADHERENT')")
 	public BeneficiaryResponse create(@Valid @RequestBody BeneficiaryWriteRequest body, Authentication authentication) {
 		return beneficiaryService.create(body, AuthPrincipal.requireUser(authentication));
 	}
 
 	@PutMapping("/{id}")
-	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR')")
+	@PreAuthorize("hasAnyRole('ADMINISTRATEUR','OPERATEUR','ADHERENT')")
 	public BeneficiaryResponse update(
 			@PathVariable Long id, @Valid @RequestBody BeneficiaryWriteRequest body, Authentication authentication) {
 		return beneficiaryService.update(id, body, AuthPrincipal.requireUser(authentication));

@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { isAdherentRole, isStaffWriterRole } from '../authUtils';
-import AdherentSimulationBanner from '../components/AdherentSimulationBanner';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import SearchableSelect from '../components/SearchableSelect';
 import TablePageShell from '../components/TablePageShell';
 import DetailItem from '../components/DetailItem';
 import DetailView from '../components/DetailView';
@@ -147,20 +147,6 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
   const canStaffActions = isStaffWriterRole(user);
   const canCreate = isAdherent || canStaffActions;
 
-  const [simulatedAgentId, setSimulatedAgentId] = useState(() => {
-    const val = sessionStorage.getItem('simulated_agent_id');
-    return val ? Number(val) : null;
-  });
-
-  const handleSimulatedAgentChange = (id) => {
-    setSimulatedAgentId(id);
-    if (id) {
-      sessionStorage.setItem('simulated_agent_id', String(id));
-    } else {
-      sessionStorage.removeItem('simulated_agent_id');
-    }
-  };
-
   const [searchQuery, setSearchQuery] = useState('');
   const quoteTypes = getTypeOptions('quoteTypes');
 
@@ -198,9 +184,65 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
   const agentById = Object.fromEntries((agents || []).map((a) => [a.id, a]));
   const quoteRows = quotes.map((q) => mapQuoteRow(q, agentById));
 
-  const effectiveAgentId = personalMode ? (simulatedAgentId || user?.agentId) : (isRealAdherent ? user?.agentId : null);
+  const effectiveAgentId = user?.agentId || null;
   const myAgent = effectiveAgentId ? agents.find((a) => a.id === Number(effectiveAgentId)) : null;
   const agentsForForm = isAdherent && myAgent ? [myAgent] : agents;
+
+  const [formAgentId, setFormAgentId] = useState('');
+  const [formBeneficiaries, setFormBeneficiaries] = useState([]);
+  const [formBeneficiaryVal, setFormBeneficiaryVal] = useState('');
+
+  useEffect(() => {
+    if (modal?.mode === 'edit' && modal.quote) {
+      setFormAgentId(String(modal.quote.agentId));
+      setFormBeneficiaryVal(modal.quote.beneficiaire);
+    } else if (modal?.mode === 'create') {
+      if (isAdherent && effectiveAgentId) {
+        setFormAgentId(String(effectiveAgentId));
+      } else {
+        setFormAgentId('');
+      }
+      setFormBeneficiaryVal('');
+    }
+  }, [modal, isAdherent, effectiveAgentId]);
+
+  useEffect(() => {
+    if (!formAgentId) {
+      setFormBeneficiaries([]);
+      return;
+    }
+    let active = true;
+    apiFetch(`/api/beneficiaries?agentId=${formAgentId}`)
+      .then(parseJsonOrThrow)
+      .then((data) => {
+        if (active) setFormBeneficiaries(data);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) setFormBeneficiaries([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [formAgentId]);
+
+  const selectedAgent = agents.find((a) => String(a.id) === String(formAgentId));
+  const formBeneficiaryOptions = useMemo(() => {
+    const opts = [];
+    if (selectedAgent) {
+      opts.push({
+        value: `${selectedAgent.prenom} ${selectedAgent.nom}`,
+        label: `${selectedAgent.prenom} ${selectedAgent.nom} (Titulaire)`,
+      });
+    }
+    formBeneficiaries.forEach((b) => {
+      opts.push({
+        value: `${b.prenom} ${b.nom}`,
+        label: `${b.prenom} ${b.nom} (${b.linkType})`,
+      });
+    });
+    return opts;
+  }, [selectedAgent, formBeneficiaries]);
 
   let data = [...quoteRows];
   // In personal mode (or adherent role): restrict list to the user's own agent
@@ -251,8 +293,8 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
       return;
     }
     const fd = new FormData(formEl);
-    const agentLabel = isAdherent && myAgent ? `${myAgent.prenom} ${myAgent.nom}` : fd.get('beneficiaire');
-    const agent = agentsForForm.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
+    const selectedAgentIdVal = isAdherent ? (effectiveAgentId || user?.agentId) : fd.get('agentId');
+    const agent = agents.find((a) => String(a.id) === String(selectedAgentIdVal));
     if (!agent) {
       addToast(
         'error',
@@ -276,7 +318,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
     body.append('montant', String(montant));
     body.append('taux', '60');
     if (!isAdherent || user.roleCode !== 'ADHERENT') body.append('agentId', String(agent.id));
-    body.append('beneficiaire', agentLabel);
+    body.append('beneficiaire', fd.get('beneficiaire') || '');
     if (providerName) body.append('providerName', providerName);
     const today = new Date().toISOString().split('T')[0];
     const dateDevis = fd.get('dateDevis') || today;
@@ -309,8 +351,8 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
       return;
     }
 
-    const agentLabel = isAdherent && myAgent ? `${myAgent.prenom} ${myAgent.nom}` : fd.get('beneficiaire');
-    const agent = agentsForForm.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
+    const selectedAgentIdVal = isAdherent ? (effectiveAgentId || user?.agentId) : fd.get('agentId');
+    const agent = agents.find((a) => String(a.id) === String(selectedAgentIdVal));
     if (!agent) {
       addToast(
         'error',
@@ -337,7 +379,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
     body.append('montant', String(montant));
     body.append('taux', '60');
     if (!isAdherent || user.roleCode !== 'ADHERENT') body.append('agentId', String(agent.id));
-    body.append('beneficiaire', agentLabel);
+    body.append('beneficiaire', fd.get('beneficiaire') || '');
     if (providerName) body.append('providerName', providerName);
 
     const dateDevis = fd.get('dateDevis');
@@ -381,29 +423,55 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
               ))}
             </datalist>
           </div>
-          {isAdherent && myAgent && (
+          {!isAdherent ? (
             <>
-              <input type="hidden" name="beneficiaire" value={`${myAgent.prenom} ${myAgent.nom}`} />
-              <BeneficiaryField agents={agentsForForm} readOnly />
-            </>
-          )}
-          {!isAdherent && (
-            <div className="form-group">
-              <label>Bénéficiaire</label>
-              <input
-                name="beneficiaire"
-                list="beneficiaires-list"
-                className="form-control"
-                defaultValue={q ? q.beneficiaire : ''}
+              <SearchableSelect
+                label="Porteur (Agent)"
+                placeholder="Choisir un agent…"
+                value={formAgentId}
+                onChange={setFormAgentId}
                 required
-                placeholder="Rechercher ou saisir un bénéficiaire..."
+                options={agents.map((a) => ({
+                  value: String(a.id),
+                  label: `${a.matricule} — ${a.prenom} ${a.nom}`,
+                  subtitle: `CIN: ${a.cin || '—'}`
+                }))}
               />
-              <datalist id="beneficiaires-list">
-                {agentsForForm.map((a) => (
-                  <option key={a.id} value={`${a.prenom} ${a.nom}`} />
-                ))}
-              </datalist>
-            </div>
+              <input type="hidden" name="agentId" value={formAgentId} />
+
+              <SearchableSelect
+                label="Bénéficiaire"
+                placeholder="Choisir un bénéficiaire…"
+                value={formBeneficiaryVal}
+                onChange={setFormBeneficiaryVal}
+                required
+                options={formBeneficiaryOptions}
+                disabled={!formAgentId}
+              />
+              <input type="hidden" name="beneficiaire" value={formBeneficiaryVal} />
+            </>
+          ) : (
+            <>
+              <div className="form-group">
+                <label>Porteur (Agent)</label>
+                <input
+                  className="form-control"
+                  readOnly
+                  value={myAgent ? `${myAgent.prenom} ${myAgent.nom}` : ''}
+                />
+              </div>
+              <input type="hidden" name="agentId" value={formAgentId} />
+
+              <SearchableSelect
+                label="Bénéficiaire"
+                placeholder="Choisir un bénéficiaire…"
+                value={formBeneficiaryVal}
+                onChange={setFormBeneficiaryVal}
+                required
+                options={formBeneficiaryOptions}
+              />
+              <input type="hidden" name="beneficiaire" value={formBeneficiaryVal} />
+            </>
           )}
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label>Prestataire / Dentiste</label>
@@ -612,34 +680,16 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
   if (showWarning) {
     return (
       <>
-        {personalMode && !isRealAdherent && !user?.agentId && (
-          <AdherentSimulationBanner
-            agents={agents}
-            selectedAgentId={simulatedAgentId || user?.agentId}
-            onChangeAgent={handleSimulatedAgentChange}
-          />
-        )}
-        <div className="card" style={{ marginTop: personalMode && !isRealAdherent ? '16px' : '0' }}>
+        <div className="card" style={{ marginTop: '0' }}>
           <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
             <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
               <FaIcon name="triangle-exclamation" />
             </div>
-            {isRealAdherent ? (
-              <>
-                <h4>Compte non associé à un porteur</h4>
-                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
-                  Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
-                  Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
-                </p>
-              </>
-            ) : (
-              <>
-                <h4>Aucun agent sélectionné</h4>
-                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
-                  Veuillez sélectionner un agent dans la bannière de simulation ci-dessus pour visualiser son espace.
-                </p>
-              </>
-            )}
+            <h4>Compte non associé à un porteur</h4>
+            <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+              Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+              Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
+            </p>
           </div>
         </div>
       </>
@@ -648,13 +698,6 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
 
   return (
     <>
-      {personalMode && !isRealAdherent && !user?.agentId && (
-        <AdherentSimulationBanner
-          agents={agents}
-          selectedAgentId={simulatedAgentId || user?.agentId}
-          onChangeAgent={handleSimulatedAgentChange}
-        />
-      )}
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
           {modal.mode === 'create' || modal.mode === 'edit'

@@ -54,6 +54,7 @@ public class MutualCardService {
 				agent.getPrenom() + " " + agent.getNom(),
 				agent.getCin(),
 				agent.getDateNaissance(),
+				agent.getVille(),
 				titulaireCard));
 
 		for (Beneficiary b : beneficiaryRepository.findByAgent_IdAndDeletedFalseOrderById(agentId)) {
@@ -63,6 +64,7 @@ public class MutualCardService {
 					b.getPrenom() + " " + b.getNom(),
 					b.getCin(),
 					b.getDateNaissance(),
+					b.getVille(),
 					titulaireCard));
 		}
 		return out;
@@ -144,6 +146,7 @@ public class MutualCardService {
 			String fullName,
 			String cin,
 			java.time.LocalDate birth,
+			String ville,
 			MutualCard card) {
 		return new MutualCardFamilyMember(
 				beneficiaryId,
@@ -151,6 +154,7 @@ public class MutualCardService {
 				fullName,
 				cin,
 				birth,
+				ville,
 				card != null ? card.getId() : null,
 				card != null && card.getPdfStorageKey() != null && !card.getPdfStorageKey().isBlank(),
 				card != null && card.getIssuedAt() != null ? card.getIssuedAt().toString() : null);

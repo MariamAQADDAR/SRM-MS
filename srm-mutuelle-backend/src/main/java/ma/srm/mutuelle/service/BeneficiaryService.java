@@ -46,6 +46,7 @@ public class BeneficiaryService {
 	@Transactional
 	public BeneficiaryResponse create(BeneficiaryWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
+		AccessRules.assertAgentScope(user, req.agentId());
 		Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 		Beneficiary b = new Beneficiary();
 		b.setAgent(agent);
@@ -54,6 +55,7 @@ public class BeneficiaryService {
 		b.setLinkType(req.type());
 		b.setCin(req.cin());
 		b.setDateNaissance(req.dateNaissance());
+		b.setVille(req.ville());
 		return toDto(beneficiaryRepository.save(b));
 	}
 
@@ -61,6 +63,8 @@ public class BeneficiaryService {
 	public BeneficiaryResponse update(Long id, BeneficiaryWriteRequest req, AppUser user) {
 		AccessRules.assertStaffWrite(user);
 		Beneficiary b = beneficiaryRepository.findByIdAndDeletedFalse(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bénéficiaire introuvable"));
+		AccessRules.assertAgentScope(user, b.getAgent().getId());
+		AccessRules.assertAgentScope(user, req.agentId());
 		Agent agent = agentRepository.findById(req.agentId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Agent introuvable"));
 		b.setAgent(agent);
 		b.setNom(req.nom());
@@ -68,6 +72,7 @@ public class BeneficiaryService {
 		b.setLinkType(req.type());
 		b.setCin(req.cin());
 		b.setDateNaissance(req.dateNaissance());
+		b.setVille(req.ville());
 		return toDto(beneficiaryRepository.save(b));
 	}
 
@@ -100,6 +105,7 @@ public class BeneficiaryService {
 				b.getPrenom(),
 				b.getLinkType(),
 				b.getCin(),
-				b.getDateNaissance());
+				b.getDateNaissance(),
+				b.getVille());
 	}
 }

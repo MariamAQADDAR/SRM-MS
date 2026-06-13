@@ -13,7 +13,8 @@ public class BeneficiaryDtos {
 			String prenom,
 			String type,
 			String cin,
-			LocalDate dateNaissance) {}
+			LocalDate dateNaissance,
+			String ville) {}
 
 	public record BeneficiaryWriteRequest(
 			@NotNull Long agentId,
@@ -21,5 +22,6 @@ public class BeneficiaryDtos {
 			@NotBlank String prenom,
 			@NotBlank String type,
 			String cin,
-			LocalDate dateNaissance) {}
+			LocalDate dateNaissance,
+			String ville) {}
 }

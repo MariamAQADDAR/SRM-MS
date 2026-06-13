@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { usePagination } from '../hooks/usePagination';
 import TablePagination from '../components/TablePagination';
 import { canAdminDelete, isAdherentRole, isStaffWriterRole } from '../authUtils';
-import AdherentSimulationBanner from '../components/AdherentSimulationBanner';
 import WorkflowSteps from '../components/WorkflowSteps';
 import { REMBOURSEMENT_WORKFLOW_STEPS, resolveRemboursementWorkflow } from '../utils/workflowSteps';
 import DetailView from '../components/DetailView';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import SearchableSelect from '../components/SearchableSelect';
 import TablePageShell from '../components/TablePageShell';
 import ListPageToolbar from '../components/ListPageToolbar';
 import { matchesSearch } from '../utils/filterSearch';
@@ -99,20 +99,6 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   const isAdherent = effectiveAdherent;
   const canCreate = isAdherent || canMutate;
 
-  const [simulatedAgentId, setSimulatedAgentId] = useState(() => {
-    const val = sessionStorage.getItem('simulated_agent_id');
-    return val ? Number(val) : null;
-  });
-
-  const handleSimulatedAgentChange = (id) => {
-    setSimulatedAgentId(id);
-    if (id) {
-      sessionStorage.setItem('simulated_agent_id', String(id));
-    } else {
-      sessionStorage.removeItem('simulated_agent_id');
-    }
-  };
-
   const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState(null);
   const [rows, setRows] = useState([]);
@@ -136,7 +122,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   const [reviewObs, setReviewObs] = useState('');
   const careTypes = getTypeOptions('careTypes');
 
-  const effectiveAgentId = personalMode ? (simulatedAgentId || user?.agentId) : (isRealAdherent ? user?.agentId : null);
+  const effectiveAgentId = user?.agentId || null;
   const myAgent = effectiveAgentId ? Number(effectiveAgentId) : null;
 
   const reload = async () => {
@@ -171,23 +157,50 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
     ? (effectiveAgentId != null ? rowsView.filter((r) => String(r.agentId) === String(effectiveAgentId)) : [])
     : rowsView;
 
+  const [wizardBeneficiaries, setWizardBeneficiaries] = useState([]);
+
+  useEffect(() => {
+    const aid = isAdherent ? myAgent : wizardDraft.agentId;
+    if (!aid) {
+      setWizardBeneficiaries([]);
+      return;
+    }
+    let active = true;
+    apiFetch(`/api/beneficiaries?agentId=${aid}`)
+      .then(parseJsonOrThrow)
+      .then((data) => {
+        if (active) setWizardBeneficiaries(data);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) setWizardBeneficiaries([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [wizardDraft.agentId, myAgent, isAdherent]);
+
+  const selectedWizardAgent = useMemo(() => {
+    const aid = isAdherent ? myAgent : wizardDraft.agentId;
+    return agents.find((a) => String(a.id) === String(aid));
+  }, [agents, wizardDraft.agentId, myAgent, isAdherent]);
+
   const beneficiaryOptions = useMemo(() => {
     const opts = [];
-    if (isAdherent) {
-      const agent = myAgent ? agents.find((a) => a.id === myAgent) : null;
-      if (agent) {
-        opts.push({ label: `${agent.prenom} ${agent.nom} (Titulaire)`, value: `${agent.prenom} ${agent.nom}` });
-      }
-      beneficiaries.forEach((b) => {
-        opts.push({ label: `${b.prenom} ${b.nom} (${b.linkType})`, value: `${b.prenom} ${b.nom}` });
-      });
-    } else {
-      agents.forEach((a) => {
-        opts.push({ label: `${a.prenom} ${a.nom} (porteur)`, value: `${a.prenom} ${a.nom}` });
+    if (selectedWizardAgent) {
+      opts.push({
+        value: `${selectedWizardAgent.prenom} ${selectedWizardAgent.nom}`,
+        label: `${selectedWizardAgent.prenom} ${selectedWizardAgent.nom} (Titulaire)`,
       });
     }
+    wizardBeneficiaries.forEach((b) => {
+      opts.push({
+        value: `${b.prenom} ${b.nom}`,
+        label: `${b.prenom} ${b.nom} (${b.linkType})`,
+      });
+    });
     return opts;
-  }, [agents, beneficiaries, myAgent, isAdherent]);
+  }, [selectedWizardAgent, wizardBeneficiaries]);
 
   const data = useMemo(() => {
     let list = [...visibleRows];
@@ -342,38 +355,52 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
 
         {wizardStep === 1 && (
           <div className="form-grid">
-            {!isAdherent && (
-              <div className="form-group">
-                <label>Porteur</label>
-                <select
-                  className="form-control"
-                  required
+            {!isAdherent ? (
+              <>
+                <SearchableSelect
+                  label="Porteur (Agent)"
+                  placeholder="Choisir un agent…"
                   value={wizardDraft.agentId}
-                  onChange={(e) => patchDraft('agentId', e.target.value)}
-                >
-                  {agents.map((a) => (
-                    <option key={a.id} value={String(a.id)}>
-                      {a.matricule} — {a.prenom} {a.nom}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  onChange={(val) => {
+                    patchDraft('agentId', val);
+                    patchDraft('beneficiaire', '');
+                  }}
+                  required
+                  options={agents.map((a) => ({
+                    value: String(a.id),
+                    label: `${a.matricule} — ${a.prenom} ${a.nom}`,
+                  }))}
+                />
+                <SearchableSelect
+                  label="Bénéficiaire"
+                  placeholder="Choisir un bénéficiaire…"
+                  value={wizardDraft.beneficiaire}
+                  onChange={(val) => patchDraft('beneficiaire', val)}
+                  required
+                  options={beneficiaryOptions}
+                  disabled={!wizardDraft.agentId}
+                />
+              </>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label>Porteur (Agent)</label>
+                  <input
+                    className="form-control"
+                    readOnly
+                    value={selectedWizardAgent ? `${selectedWizardAgent.prenom} ${selectedWizardAgent.nom}` : ''}
+                  />
+                </div>
+                <SearchableSelect
+                  label="Bénéficiaire"
+                  placeholder="Choisir un bénéficiaire…"
+                  value={wizardDraft.beneficiaire}
+                  onChange={(val) => patchDraft('beneficiaire', val)}
+                  required
+                  options={beneficiaryOptions}
+                />
+              </>
             )}
-            <div className="form-group">
-              <label>Bénéficiaire</label>
-              <select
-                className="form-control"
-                required
-                value={wizardDraft.beneficiaire}
-                onChange={(e) => patchDraft('beneficiaire', e.target.value)}
-              >
-                {beneficiaryOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
             <div className="form-group">
               <label>Type de soin</label>
               <select
@@ -631,40 +658,21 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   }
 
   const myAgentObj = isAdherent && effectiveAgentId != null ? agents.find((a) => a.id === Number(effectiveAgentId)) : null;
-
   const showWarning = isAdherent && !myAgentObj;
 
   if (showWarning) {
     return (
       <>
-        {personalMode && !isRealAdherent && !user?.agentId && (
-          <AdherentSimulationBanner
-            agents={agents}
-            selectedAgentId={simulatedAgentId || user?.agentId}
-            onChangeAgent={handleSimulatedAgentChange}
-          />
-        )}
-        <div className="card" style={{ marginTop: personalMode && !isRealAdherent ? '16px' : '0' }}>
+        <div className="card" style={{ marginTop: '0' }}>
           <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
             <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
               <FaIcon name="triangle-exclamation" />
             </div>
-            {isRealAdherent ? (
-              <>
-                <h4>Compte non associé à un porteur</h4>
-                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
-                  Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
-                  Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
-                </p>
-              </>
-            ) : (
-              <>
-                <h4>Aucun agent sélectionné</h4>
-                <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
-                  Veuillez sélectionner un agent dans la bannière de simulation ci-dessus pour visualiser son espace.
-                </p>
-              </>
-            )}
+            <h4>Compte non associé à un porteur</h4>
+            <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+              Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+              Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
+            </p>
           </div>
         </div>
       </>
@@ -673,13 +681,6 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
 
   return (
     <>
-      {personalMode && !isRealAdherent && !user?.agentId && (
-        <AdherentSimulationBanner
-          agents={agents}
-          selectedAgentId={simulatedAgentId || user?.agentId}
-          onChangeAgent={handleSimulatedAgentChange}
-        />
-      )}
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
           {modal.mode === 'wizard' ? buildWizardForm() : modal.content}

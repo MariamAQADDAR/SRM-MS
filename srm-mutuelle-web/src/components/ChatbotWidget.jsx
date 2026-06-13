@@ -24,8 +24,8 @@ export default function ChatbotWidget({ user }) {
   if (!user) return null;
 
   return (
-    <>
-      {open ? (
+    <div className="chatbot-widget-container">
+      {open && (
         <div className="chat-fab-panel chat-fab-panel--smart">
           <div className="chat-fab-head">
             <div className="chat-fab-head-main">
@@ -85,10 +85,10 @@ export default function ChatbotWidget({ user }) {
             </button>
           </div>
         </div>
-      ) : null}
+      )}
       <button type="button" className="chat-fab-btn" onClick={() => setOpen((v) => !v)} title="Assistant SRM" aria-label="Ouvrir l’assistant SRM">
         <i className="fa-solid fa-comment-dots" aria-hidden />
       </button>
-    </>
+    </div>
   );
 }

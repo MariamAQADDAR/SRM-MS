@@ -24,6 +24,7 @@ public class MutualCardDtos {
 			String fullName,
 			String cin,
 			LocalDate dateNaissance,
+			String ville,
 			Long cardId,
 			boolean hasPdf,
 			String issuedAt) {}

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { isConsultateurRole, canAdminDelete, canStaffMutate } from '../authUtils';
 import Modal from '../components/Modal';
 import FaIcon from '../components/FaIcon';
+import SearchableSelect from '../components/SearchableSelect';
 import TablePageShell from '../components/TablePageShell';
 import ListPageToolbar from '../components/ListPageToolbar';
 import TablePagination from '../components/TablePagination';
@@ -65,6 +66,51 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
   const [loading, setLoading] = useState(true);
   const ordonnanceTypes = getTypeOptions('ordonnanceTypes');
   const radioTypes = getTypeOptions('radioTypes');
+
+  const [formAgentId, setFormAgentId] = useState('');
+  const [formBeneficiaries, setFormBeneficiaries] = useState([]);
+  const [formBeneficiaryVal, setFormBeneficiaryVal] = useState('');
+
+  useEffect(() => {
+    if (!formAgentId) {
+      setFormBeneficiaries([]);
+      return;
+    }
+    let active = true;
+    apiFetch(`/api/beneficiaries?agentId=${formAgentId}`)
+      .then(parseJsonOrThrow)
+      .then((data) => {
+        if (active) setFormBeneficiaries(data);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) setFormBeneficiaries([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [formAgentId]);
+
+  const selectedAgent = useMemo(() => {
+    return agents.find((a) => String(a.id) === String(formAgentId));
+  }, [agents, formAgentId]);
+
+  const formBeneficiaryOptions = useMemo(() => {
+    const opts = [];
+    if (selectedAgent) {
+      opts.push({
+        value: `${selectedAgent.prenom} ${selectedAgent.nom}`,
+        label: `${selectedAgent.prenom} ${selectedAgent.nom} (Titulaire)`,
+      });
+    }
+    formBeneficiaries.forEach((b) => {
+      opts.push({
+        value: `${b.prenom} ${b.nom}`,
+        label: `${b.prenom} ${b.nom} (${b.linkType})`,
+      });
+    });
+    return opts;
+  }, [selectedAgent, formBeneficiaries]);
 
   const reload = async () => {
     setLoading(true);
@@ -250,22 +296,32 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
 
     return (
       <>
-        <div className="form-group">
-          <label>Bénéficiaire</label>
-          <input
-            name="beneficiaire"
-            list="beneficiaires-list"
-            className="form-control"
-            defaultValue={meta._beneficiaire ?? ''}
-            required
-            placeholder="Rechercher ou saisir un bénéficiaire..."
-          />
-          <datalist id="beneficiaires-list">
-            {agents.map((a) => (
-              <option key={a.id} value={`${a.prenom} ${a.nom}`} />
-            ))}
-          </datalist>
-        </div>
+        <SearchableSelect
+          label="Porteur (Agent)"
+          placeholder="Choisir un agent…"
+          value={formAgentId}
+          onChange={(val) => {
+            setFormAgentId(val);
+            setFormBeneficiaryVal('');
+          }}
+          required
+          options={agents.map((a) => ({
+            value: String(a.id),
+            label: `${a.matricule} — ${a.prenom} ${a.nom}`,
+          }))}
+        />
+        <input type="hidden" name="agentId" value={formAgentId} />
+
+        <SearchableSelect
+          label="Bénéficiaire"
+          placeholder="Choisir un bénéficiaire…"
+          value={formBeneficiaryVal}
+          onChange={setFormBeneficiaryVal}
+          required
+          options={formBeneficiaryOptions}
+          disabled={!formAgentId}
+        />
+        <input type="hidden" name="beneficiaire" value={formBeneficiaryVal} />
         <div className="form-group">
           <label>Médecin</label>
           <input
@@ -402,8 +458,8 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
     const submit = async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const agentLabel = fd.get('beneficiaire');
-      const agent = agents.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
+      const selectedAgentIdVal = fd.get('agentId');
+      const agent = agents.find((a) => String(a.id) === String(selectedAgentIdVal));
       if (!agent) {
         addToast('error', 'Agent invalide');
         return;
@@ -413,7 +469,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
       const body = {
         date: fd.get('date') || new Date().toISOString().split('T')[0],
         agentId: agent.id,
-        beneficiaire: agentLabel,
+        beneficiaire: fd.get('beneficiaire') || '',
         typePrestation: wantedType,
         montant,
         montantRemboursable: (montant * taux) / 100,
@@ -456,8 +512,8 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
     const submit = async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const agentLabel = fd.get('beneficiaire');
-      const agent = agents.find((a) => `${a.prenom} ${a.nom}` === agentLabel);
+      const selectedAgentIdVal = fd.get('agentId');
+      const agent = agents.find((a) => String(a.id) === String(selectedAgentIdVal));
       if (!agent) {
         addToast('error', 'Agent invalide');
         return;
@@ -467,7 +523,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
       const body = {
         date: fd.get('date') || o.date,
         agentId: agent.id,
-        beneficiaire: agentLabel,
+        beneficiaire: fd.get('beneficiaire') || '',
         typePrestation: o.typePrestation,
         montant,
         montantRemboursable: (montant * taux) / 100,
@@ -521,48 +577,49 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
 
   const viewOrdonnance = (o) => {
     const kind = kindFromPrestation(o.typePrestation);
-    setModal({
-      title: `Dossier ${o.numero || o.beneficiaire}`,
-      content: (
-        <div className="detail-grid">
-          <DetailItem label="Matricule">{o.matricule}</DetailItem>
-          <DetailItem label="Agent">{o.nomPrenomAgent}</DetailItem>
-          <DetailItem label="Bénéficiaire">{o.beneficiaire}</DetailItem>
-          <DetailItem label="Médecin">{o.medecin}</DetailItem>
-          {kind === 'analyse' && (
-            <>
-              <DetailItem label="Laboratoire">{o.laboratoire}</DetailItem>
-              <DetailItem label="Date analyse">{formatDate(o.dateAnalyse)}</DetailItem>
-              <DetailItem label="Scan analyse">{o.scanAnalyse}</DetailItem>
-            </>
-          )}
-          {kind === 'ordonnance' && (
-            <>
-              <DetailItem label="Pharmacie">{o.pharmacie}</DetailItem>
-              <DetailItem label="Date ordonnance">{formatDate(o.dateOrdonnance)}</DetailItem>
-              <DetailItem label="N° instance">{o.numInstance}</DetailItem>
-              <DetailItem label="Scan ordonnance">{o.scanOrdonnance}</DetailItem>
-            </>
-          )}
-          {kind === 'radio' && (
-            <>
-              <DetailItem label="Centre radiologie">{o.centreRadiologie}</DetailItem>
-              <DetailItem label="Date radio">{formatDate(o.dateRadio)}</DetailItem>
-              <DetailItem label="Type radio">{o.typeRadio}</DetailItem>
-              <DetailItem label="Scan radio">{o.scanRadio}</DetailItem>
-            </>
-          )}
-          <DetailItem label="Montant">{Number(o.montant).toLocaleString('fr-FR')} DH</DetailItem>
-          <DetailItem label="Statut">{o.statut}</DetailItem>
-          <DetailItem label="Observation">{o.observation}</DetailItem>
-          <DetailModalFooter
-            onClose={closeModal}
-            canEdit={canMutate}
-            onEdit={() => setModal({ title: `Modifier — ${o.numero || o.beneficiaire}`, content: buildEditForm(o) })}
-          />
-        </div>
-      ),
-    });
+    return (
+      <div className="detail-grid">
+        <DetailItem label="Matricule">{o.matricule}</DetailItem>
+        <DetailItem label="Agent">{o.nomPrenomAgent}</DetailItem>
+        <DetailItem label="Bénéficiaire">{o.beneficiaire}</DetailItem>
+        <DetailItem label="Médecin">{o.medecin}</DetailItem>
+        {kind === 'analyse' && (
+          <>
+            <DetailItem label="Laboratoire">{o.laboratoire}</DetailItem>
+            <DetailItem label="Date analyse">{formatDate(o.dateAnalyse)}</DetailItem>
+            <DetailItem label="Scan analyse">{o.scanAnalyse}</DetailItem>
+          </>
+        )}
+        {kind === 'ordonnance' && (
+          <>
+            <DetailItem label="Pharmacie">{o.pharmacie}</DetailItem>
+            <DetailItem label="Date ordonnance">{formatDate(o.dateOrdonnance)}</DetailItem>
+            <DetailItem label="N° instance">{o.numInstance}</DetailItem>
+            <DetailItem label="Scan ordonnance">{o.scanOrdonnance}</DetailItem>
+          </>
+        )}
+        {kind === 'radio' && (
+          <>
+            <DetailItem label="Centre radiologie">{o.centreRadiologie}</DetailItem>
+            <DetailItem label="Date radio">{formatDate(o.dateRadio)}</DetailItem>
+            <DetailItem label="Type radio">{o.typeRadio}</DetailItem>
+            <DetailItem label="Scan radio">{o.scanRadio}</DetailItem>
+          </>
+        )}
+        <DetailItem label="Montant">{Number(o.montant).toLocaleString('fr-FR')} DH</DetailItem>
+        <DetailItem label="Statut">{o.statut}</DetailItem>
+        <DetailItem label="Observation">{o.observation}</DetailItem>
+        <DetailModalFooter
+          onClose={closeModal}
+          canEdit={canMutate}
+          onEdit={() => {
+            setFormAgentId(String(o.agentId));
+            setFormBeneficiaryVal(o.beneficiaire);
+            setModal({ title: `Modifier — ${o.numero || o.beneficiaire}`, mode: 'edit', ord: o });
+          }}
+        />
+      </div>
+    );
   };
   if (loading) {
     return <div className="card"><div className="card-body">Chargement…</div></div>;
@@ -572,7 +629,9 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
     <>
       {modal && (
         <Modal title={modal.title} onClose={closeModal}>
-          {modal.content}
+          {modal.mode === 'create' && buildForm()}
+          {modal.mode === 'edit' && buildEditForm(modal.ord)}
+          {modal.mode === 'view' && viewOrdonnance(modal.ord)}
         </Modal>
       )}
 
@@ -615,7 +674,11 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
             exportFilename={`ordonnances-${viewType}`}
             showNew={canMutate}
             newLabel="Créer"
-            onNew={() => setModal({ title: 'Nouveau', content: buildForm() })}
+            onNew={() => {
+              setFormAgentId('');
+              setFormBeneficiaryVal('');
+              setModal({ title: 'Nouveau', mode: 'create' });
+            }}
           />
         }
       >
@@ -704,7 +767,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
                       </>
                     )}
                     <td className="actions-cell">
-                      <button className="btn btn-icon btn-view" title="Voir" type="button" onClick={() => viewOrdonnance(o)}>
+                      <button className="btn btn-icon btn-view" title="Voir" type="button" onClick={() => setModal({ title: `Dossier ${o.numero || o.beneficiaire}`, mode: 'view', ord: o })}>
                         <FaIcon name="eye" />
                       </button>
                       {canMutate && (
@@ -712,7 +775,11 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
                           className="btn btn-icon btn-edit"
                           type="button"
                           title="Modifier"
-                          onClick={() => setModal({ title: `Modifier — ${o.numero || o.beneficiaire}`, content: buildEditForm(o) })}
+                          onClick={() => {
+                            setFormAgentId(String(o.agentId));
+                            setFormBeneficiaryVal(o.beneficiaire);
+                            setModal({ title: `Modifier — ${o.numero || o.beneficiaire}`, mode: 'edit', ord: o });
+                          }}
                         >
                           <FaIcon name="pen-to-square" />
                         </button>

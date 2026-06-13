@@ -65,6 +65,7 @@ function mapBenefToProche(b) {
     type: b.type,
     cin: b.cin || '',
     dateNaissance: b.dateNaissance,
+    ville: b.ville || '',
   };
 }
 
@@ -78,6 +79,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
     nom: agent?.nom || '',
     prenom: agent?.prenom || '',
     dateNaissance: agent?.dateNaissance || '',
+    ville: agent?.ville || '',
     situation: agent?.situation || 'Célibataire',
     entiteId: defaultServiceEntityId(orgEntities, agent),
     telephone: agent?.telephone || '',
@@ -94,7 +96,8 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
     prenom: '',
     type: 'Enfant',
     dateNaissance: '',
-    cin: ''
+    cin: '',
+    ville: ''
   });
 
   const validateStep1 = () => {
@@ -138,9 +141,10 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
       prenom: '',
       type: 'Enfant',
       dateNaissance: '',
-      cin: ''
+      cin: '',
+      ville: ''
     });
-    addToast('success', 'Bénéficiaire ajouté temporairement');
+    addToast('success', "Bénéficiaire ajouté à la liste d'adhésion");
   };
 
   const removeBeneficiary = (index) => {
@@ -163,7 +167,8 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
         prenom: b.prenom,
         type: b.type,
         cin: b.cin || '',
-        dateNaissance: b.dateNaissance || null
+        dateNaissance: b.dateNaissance || null,
+        ville: b.ville || ''
       }))
     };
 
@@ -217,7 +222,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
 
       <div className="stepper-content">
         {step === 1 && (
-          <div className="step-panel animate-slide-in">
+          <div key="step-1" className="step-panel animate-slide-in">
             <h4 className="step-title"><FaIcon name="user" /> Informations générales de l'Agent</h4>
             <div className="form-grid">
               <div className={`form-group ${errors.matricule ? 'has-error' : ''}`}>
@@ -272,6 +277,17 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
                   className="form-control"
                   value={agentData.dateNaissance}
                   onChange={(e) => setAgentData({ ...agentData, dateNaissance: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Lieu de naissance / Ville</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Ex. Marrakech"
+                  value={agentData.ville || ''}
+                  onChange={(e) => setAgentData({ ...agentData, ville: e.target.value })}
                 />
               </div>
 
@@ -361,7 +377,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
         )}
 
         {step === 2 && (
-          <div className="step-panel animate-slide-in">
+          <div key="step-2" className="step-panel animate-slide-in">
             <h4 className="step-title"><FaIcon name="user-group" /> Bénéficiaires (Famille)</h4>
             
             <div className="benefs-list">
@@ -392,6 +408,12 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
                           <div className="benef-meta-item">
                             <FaIcon name="calendar" />
                             <span>Né(e) le : {formatDate(b.dateNaissance)}</span>
+                          </div>
+                        )}
+                        {b.ville && (
+                          <div className="benef-meta-item">
+                            <FaIcon name="location-dot" />
+                            <span>Lieu : {b.ville}</span>
                           </div>
                         )}
                         {b.cin && (
@@ -462,6 +484,16 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
                     onChange={(e) => setNewBenef({ ...newBenef, cin: e.target.value })}
                   />
                 </div>
+                <div className="form-group">
+                  <label>Lieu de naissance / Ville</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Ex. Marrakech"
+                    value={newBenef.ville}
+                    onChange={(e) => setNewBenef({ ...newBenef, ville: e.target.value })}
+                  />
+                </div>
                 <div className="form-group add-btn-group">
                   <button type="button" className="btn btn-outline-primary" onClick={addBeneficiary}>
                     <FaIcon name="plus" className="fa-inline-icon" /> Ajouter à la liste
@@ -473,7 +505,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
         )}
 
         {step === 3 && (
-          <div className="step-panel animate-slide-in">
+          <div key="step-3" className="step-panel animate-slide-in">
             <h4 className="step-title"><FaIcon name="square-check" /> Récapitulatif et Validation</h4>
             
             <div className="recap-container">
@@ -501,6 +533,10 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
                     <span className="recap-val">{formatDate(agentData.dateNaissance)}</span>
                   </div>
                   <div className="recap-item">
+                    <span className="recap-label">Lieu Naissance / Ville :</span>
+                    <span className="recap-val">{agentData.ville || '—'}</span>
+                  </div>
+                  <div className="recap-item">
                     <span className="recap-label">Service :</span>
                     <span className="recap-val">{orgEntityPath(orgEntities, agentData.entiteId) || agentData.entiteId || '—'}</span>
                   </div>
@@ -526,17 +562,16 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
               </div>
 
               <div className="recap-section">
-                <h5>Bénéficiaires Rattachés ({benefs.length})</h5>
-                {benefs.length === 0 ? (
-                  <p className="recap-empty-msg">Aucun bénéficiaire enregistré pour cet agent.</p>
-                ) : (
-                  <div className="data-table-wrapper">
+                <h5>Proches / Bénéficiaires</h5>
+                {benefs.length > 0 && (
+                  <div className="data-table-wrapper" style={{ marginTop: '12px' }}>
                     <table className="data-table recap-table">
                       <thead>
                         <tr>
                           <th>Nom Complet</th>
                           <th>Relation</th>
                           <th>Date de naissance</th>
+                          <th>Lieu de naissance</th>
                           <th>CIN</th>
                         </tr>
                       </thead>
@@ -546,6 +581,7 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
                             <td>{b.prenom} {b.nom}</td>
                             <td><span className="badge badge-info">{b.type}</span></td>
                             <td>{formatDate(b.dateNaissance)}</td>
+                            <td>{b.ville || '—'}</td>
                             <td>{b.cin || '—'}</td>
                           </tr>
                         ))}
@@ -588,11 +624,12 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
   const isEdit = !!p;
   
   const [agentId, setAgentId] = useState(p ? String(p.agentId) : '');
-  const [singleNom, setSingleNom] = useState(p ? p.nom : '');
+   const [singleNom, setSingleNom] = useState(p ? p.nom : '');
   const [singlePrenom, setSinglePrenom] = useState(p ? p.prenom : '');
   const [singleType, setSingleType] = useState(p ? p.type : 'Enfant');
   const [singleCin, setSingleCin] = useState(p ? (p.cin || '') : '');
   const [singleDateNaissance, setSingleDateNaissance] = useState(p ? (p.dateNaissance ?? '') : '');
+  const [singleVille, setSingleVille] = useState(p ? (p.ville || '') : '');
 
   const [benefs, setBenefs] = useState([]);
   const [newBenef, setNewBenef] = useState({
@@ -600,7 +637,8 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
     prenom: '',
     type: 'Enfant',
     dateNaissance: '',
-    cin: ''
+    cin: '',
+    ville: ''
   });
 
   const addBeneficiaryToList = () => {
@@ -623,9 +661,10 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
       prenom: '',
       type: 'Enfant',
       dateNaissance: '',
-      cin: ''
+      cin: '',
+      ville: ''
     });
-    addToast('success', 'Bénéficiaire ajouté à la liste temporaire');
+    addToast('success', "Bénéficiaire ajouté à la liste");
   };
 
   const removeBeneficiaryFromList = (index) => {
@@ -643,6 +682,7 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
         type: singleType,
         cin: singleCin || '',
         dateNaissance: singleDateNaissance || null,
+        ville: singleVille || '',
       };
       try {
         await parseJsonOrThrow(await apiFetch(`/api/beneficiaries/${p.id}`, { method: 'PUT', body }));
@@ -650,7 +690,7 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
         addToast('success', 'Bénéficiaire mis à jour');
         reload();
       } catch (err) {
-        addToast('error', err.message || 'Erreur');
+        addToast('error', err.message || 'Erreur lors de la mise à jour');
       }
     } else {
       if (benefs.length === 0) {
@@ -668,7 +708,8 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
                 prenom: b.prenom,
                 type: b.type,
                 cin: b.cin || '',
-                dateNaissance: b.dateNaissance || null
+                dateNaissance: b.dateNaissance || null,
+                ville: b.ville || ''
               })
             }).then(parseJsonOrThrow)
           )
@@ -719,6 +760,10 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
           <div className="form-group">
             <label>Date de naissance</label>
             <input name="dateNaissance" type="date" className="form-control" value={singleDateNaissance} onChange={(e) => setSingleDateNaissance(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Lieu de naissance / Ville</label>
+            <input name="ville" className="form-control" value={singleVille} onChange={(e) => setSingleVille(e.target.value)} placeholder="Ex. Marrakech" />
           </div>
         </div>
         <div className="modal-footer" style={{ padding: '16px 0 0' }}>
@@ -778,7 +823,14 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
                   </button>
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                  {b.dateNaissance && <div>Né(e) le : {formatDate(b.dateNaissance)}</div>}
+                  {(b.dateNaissance || b.ville) && (
+                    <div>
+                      {b.dateNaissance && `Né(e) le : ${formatDate(b.dateNaissance)}`}
+                      {b.dateNaissance && b.ville && ' à '}
+                      {!b.dateNaissance && b.ville && 'Lieu de naissance : '}
+                      {b.ville}
+                    </div>
+                  )}
                   {b.cin && <div>CIN : {b.cin}</div>}
                 </div>
               </div>
@@ -829,6 +881,16 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
               className="form-control"
               value={newBenef.dateNaissance}
               onChange={(e) => setNewBenef({ ...newBenef, dateNaissance: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Lieu de naissance / Ville</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Ex. Marrakech"
+              value={newBenef.ville}
+              onChange={(e) => setNewBenef({ ...newBenef, ville: e.target.value })}
             />
           </div>
           <div className="form-group">
@@ -979,6 +1041,7 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user, forced
             }
           >
             <DetailItem label="Date de naissance">{formatDate(a.dateNaissance)}</DetailItem>
+            <DetailItem label="Lieu de naissance">{a.ville || '—'}</DetailItem>
             <DetailItem label="Situation">{a.situation || '—'}</DetailItem>
             <DetailItem label="Entité">{a.entite || '—'}</DetailItem>
             <DetailItem label="Téléphone">{a.telephone || '—'}</DetailItem>
@@ -1019,7 +1082,15 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user, forced
                         <td>{p.nom}</td>
                         <td>{p.prenom}</td>
                         <td>{procheTypeBadge(p.type)}</td>
-                        <td>{formatDate(p.dateNaissance)}</td>
+                        <td>
+                          {p.dateNaissance && p.ville
+                            ? `${formatDate(p.dateNaissance)} à ${p.ville}`
+                            : p.dateNaissance
+                            ? formatDate(p.dateNaissance)
+                            : p.ville
+                            ? `À ${p.ville}`
+                            : '—'}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -1078,6 +1149,7 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user, forced
           <DetailItem label="Agent rattaché">{agent ? `${agent.prenom} ${agent.nom}` : '—'}</DetailItem>
           <DetailItem label="CIN">{p.cin || '—'}</DetailItem>
           <DetailItem label="Date naissance">{formatDate(p.dateNaissance)}</DetailItem>
+          <DetailItem label="Lieu de naissance">{p.ville || '—'}</DetailItem>
         </DetailView>
       ),
     });

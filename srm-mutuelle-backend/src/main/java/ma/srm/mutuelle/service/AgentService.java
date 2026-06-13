@@ -66,6 +66,7 @@ public class AgentService {
 				b.setLinkType(br.type());
 				b.setCin(br.cin());
 				b.setDateNaissance(br.dateNaissance());
+				b.setVille(br.ville());
 				beneficiaryRepository.save(b);
 			}
 		}
@@ -102,6 +103,7 @@ public class AgentService {
 					b.setLinkType(br.type());
 					b.setCin(br.cin());
 					b.setDateNaissance(br.dateNaissance());
+					b.setVille(br.ville());
 					beneficiaryRepository.save(b);
 				} else {
 					Beneficiary b = beneficiaryRepository.findById(br.id())
@@ -111,6 +113,7 @@ public class AgentService {
 					b.setLinkType(br.type());
 					b.setCin(br.cin());
 					b.setDateNaissance(br.dateNaissance());
+					b.setVille(br.ville());
 					beneficiaryRepository.save(b);
 				}
 			}
@@ -152,6 +155,7 @@ public class AgentService {
 		a.setEmail(req.email());
 		a.setDateRecrutement(req.dateRecrutement());
 		a.setStatut(req.statut() != null ? req.statut() : "Actif");
+		a.setVille(req.ville());
 	}
 
 	private OrganizationalEntity resolveServiceEntity(Long entiteId) {
@@ -181,6 +185,7 @@ public class AgentService {
 				a.getTelephone(),
 				a.getEmail(),
 				a.getDateRecrutement(),
-				a.getStatut());
+				a.getStatut(),
+				a.getVille());
 	}
 }

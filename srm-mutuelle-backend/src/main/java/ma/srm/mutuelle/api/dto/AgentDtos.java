@@ -12,7 +12,8 @@ public class AgentDtos {
 			@NotBlank String prenom,
 			@NotBlank String type,
 			String cin,
-			LocalDate dateNaissance) {}
+			LocalDate dateNaissance,
+			String ville) {}
 
 	public record AgentResponse(
 			Long id,
@@ -27,7 +28,8 @@ public class AgentDtos {
 			String telephone,
 			String email,
 			LocalDate dateRecrutement,
-			String statut) {}
+			String statut,
+			String ville) {}
 
 	public record AgentWriteRequest(
 			@NotBlank String matricule,
@@ -41,5 +43,6 @@ public class AgentDtos {
 			String email,
 			LocalDate dateRecrutement,
 			String statut,
+			String ville,
 			List<AgentBeneficiaryRequest> beneficiaries) {}
 }

@@ -62,6 +62,9 @@ public class Agent {
 	@Column(length = 64)
 	private String statut;
 
+	@Column(length = 120)
+	private String ville;
+
 	@Column(nullable = false)
 	private boolean deleted = false;
 }

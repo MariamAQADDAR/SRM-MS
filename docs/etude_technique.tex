@@ -1,0 +1,191 @@
+\chapter{Étude Technique}
+\begin{spacing}{1.2}
+\minitoc
+\thispagestyle{MyStyle}
+\end{spacing}
+\newpage
+
+\section{Introduction}
+Ce chapitre est consacré à l'étude technique détaillée de la plateforme de gestion de la mutuelle SRM-MS. Il expose les choix d'architecture réseau et applicative, les protocoles de communication sécurisés mis en œuvre, ainsi que la modélisation logique de la solution. Enfin, il dresse un panorama complet des langages, frameworks et outils de développement exploités pour sa réalisation matérielle.
+
+\section{Architecture Technique de l'Application}
+\label{sec:architecture_technique_application}
+
+L'application SRM-MS repose sur une architecture moderne de type client-serveur découplée, séparant la logique de présentation de la logique métier. Elle s'articule autour des composants techniques suivants :
+\begin{itemize}
+    \item \textbf{Le Client Web (React / Vite) :} Portail administratif hautement réactif destiné aux rôles de gestion interne (Administrateur, Opérateur, Consultateur).
+    \item \textbf{Le Client Mobile (React Native / Expo) :} Application fluide destinée aux adhérents pour la soumission et le suivi de leurs dossiers personnels.
+    \item \textbf{Le Serveur Backend (Spring Boot) :} API REST centralisant les services métier, le traitement transactionnel des dossiers et la logique de sécurité.
+    \item \textbf{La Base de Données (PostgreSQL) :} Système de gestion de base de données relationnelle assurant la persistance et l'intégrité des informations.
+    \item \textbf{Le Serveur SMTP (Gmail) :} Service externe d'envoi automatique d'e-mails pour les notifications de statut et la réinitialisation des accès.
+\end{itemize}
+
+\section{Protocole de Communication et Sécurité}
+\label{sec:protocole_communication_securite}
+
+Les échanges entre les clients (web et mobile) et le serveur d'API s'effectuent de manière asynchrone via le protocole HTTP en respectant l'architecture REST. Les flux de données sont sécurisés par l'implémentation du protocole d'authentification sans état (stateless) JWT (JSON Web Tokens) géré par Spring Security.
+
+\subsection{Structure générique d'une requête REST}
+Chaque requête envoyée par le frontend comporte les éléments structurels suivants :
+\begin{itemize}
+    \item \textbf{La méthode HTTP} : \texttt{GET} (lecture), \texttt{POST} (création), \texttt{PUT} (modification) ou \texttt{DELETE} (suppression).
+    \item \textbf{Les En-têtes (Headers)} : Contiennent le format de données (\texttt{Content-Type: application/json}) et le jeton d'authentification (\texttt{Authorization: Bearer <Token>}).
+    \item \textbf{Le Corps (Body)} : Payload au format JSON contenant les données de l'entité concernée.
+\end{itemize}
+
+\subsection{Structure générique d'une réponse REST et Token JWT}
+Le serveur retourne un code de statut HTTP standard (ex. \texttt{200 OK}, \texttt{201 Created}, \texttt{401 Unauthorized}, \texttt{403 Forbidden}) accompagné de données JSON ou d'un message d'erreur. 
+Le jeton JWT généré lors de la connexion se compose de trois parties encodées en Base64Url séparées par des points :
+\begin{itemize}
+    \item \textbf{Header (En-tête)} : Spécifie le type de jeton et l'algorithme de chiffrement et de signature (ex. HS256).
+    \item \textbf{Payload (Charge utile)} : Contient les claims (identifiant, rôles de l'utilisateur, dates d'émission et d'expiration).
+    \item \textbf{Signature} : Clé de validation signée par le serveur backend à l'aide d'une clé secrète.
+\end{itemize}
+
+\subsection{Explication du Processus d'Authentification et d'Échange}
+Le processus d'authentification et d'accès sécurisé se déroule selon la cinématique suivante :
+\begin{enumerate}
+    \item L'utilisateur soumet ses identifiants depuis le client (Web ou Mobile).
+    \item Le serveur backend valide le compte et ses rôles associés via \texttt{AuthService.java}.
+    \item Si les identifiants sont corrects, le serveur génère un jeton JWT signé avec sa clé secrète.
+    \item Le jeton est renvoyé au client, qui le stocke localement (dans le \texttt{localStorage} ou le \texttt{AsyncStorage}).
+    \item Pour chaque requête ultérieure, le client injecte automatiquement le jeton dans l'en-tête \texttt{Authorization}.
+    \item Le filtre Spring Security (\texttt{JwtAuthenticationFilter.java}) intercepte la requête, valide le jeton et autorise ou refuse l'accès aux ressources.
+\end{enumerate}
+
+\section{Architecture de la solution}
+\label{sec:architecture_solution}
+
+\subsection{Architecture fonctionnelle de la solution}
+La solution SRM-MS s'organise en plusieurs modules fonctionnels interdépendants :
+\begin{itemize}
+    \item \textbf{Module d'Authentification et Session} : Gestion des connexions, renouvellements et réinitialisations de mots de passe.
+    \item \textbf{Module de Gestion des Affiliés} : Gestion du registre des agents et de leurs bénéficiaires directs.
+    \item \textbf{Module des Cartes Mutuelles} : Suivi des demandes de cartes et génération de bulletins d'adhésion PDF.
+    \item \textbf{Module des Ordonnances et Soins} : Enregistrement des ordonnances, examens biologiques et radiographies.
+    \item \textbf{Module des Devis} : Traitement et décision d'acceptation de devis de soins dentaires ou optiques.
+    \item \textbf{Module des Remboursements} : Cycle complet de traitement des demandes d'indemnisation de soins de santé.
+    \item \textbf{Module des Prises en charge (PEC)} : Gestion des demandes d'entente préalable avec tiers payant.
+    \item \textbf{Module d'Administration} : Centre d'archivage (corbeille Soft Delete), paramétrage système et gestion des comptes utilisateurs.
+    \item \textbf{Module Assistant Interactif (Chatbot)} : Guide interactif répondant aux interrogations des adhérents en langage naturel.
+\end{itemize}
+
+\subsection{Architecture technique de la solution}
+D'un point de vue physique, la solution adopte un déploiement modulaire :
+\begin{itemize}
+    \item \textbf{Tier Client (Présentation) :} Les clients React et React Native s'exécutent sur le navigateur web de l'utilisateur ou sur son terminal mobile.
+    \item \textbf{Tier Application (Logique Métier) :} L'application Spring Boot s'exécute dans un conteneur d'applications ou serveur d'API (port d'écoute \texttt{8082}).
+    \item \textbf{Tier Données (Stockage) :} Le serveur de base de données PostgreSQL gère la persistance (port \texttt{5432}), avec Flyway configuré pour les scripts de migration de schéma.
+\end{itemize}
+
+\subsection{Architecture logique}
+
+\subsubsection{Architecture MVC (Model-View-Controller)}
+Le système utilise le pattern logique MVC pour structurer le code applicatif :
+\begin{itemize}
+    \item \textbf{Model (Modèle) :} Représenté par les entités JPA (ex. \texttt{Agent.java}, \texttt{Reimbursement.java}) qui mappent les tables de la base de données.
+    \item \textbf{View (Vue) :} Implémentée côté client via des composants graphiques React (pour le web) et React Native (pour le mobile).
+    \item \textbf{Controller (Contrôleur) :} Les classes de contrôleurs REST (ex. \texttt{AgentController.java}, \texttt{ReimbursementController.java}) qui exposent les routes d'API, interceptent les requêtes et retournent les réponses.
+\end{itemize}
+
+\subsubsection{Architecture trois tiers}
+La séparation logique est renforcée par une architecture à trois niveaux distincts :
+\begin{enumerate}
+    \item \textbf{La couche Présentation} : Contient l'interface utilisateur web et mobile (React, React Native, Tailwind CSS, Axios).
+    \item \textbf{La couche Service (Logique métier)} : Regroupe les classes de service (ex. \texttt{CareEpisodeService.java}, \texttt{EmailService.java}) qui exécutent les règles métier, validations et calculs financiers.
+    \item \textbf{La couche Accès aux Données} : Gérée par les interfaces de dépôt (ex. \texttt{ReimbursementRepository.java}) étendant Spring Data JPA pour les requêtes vers PostgreSQL.
+\end{enumerate}
+
+\section{Outils et technologies utilisés}
+\label{sec:outils_technologies_utilises}
+
+Le développement de l'application SRM-MS a mis à contribution des technologies modernes, choisies pour leur performance, leur sécurité et leur maintenabilité.
+
+\subsection{Technologies Backend}
+\begin{itemize}
+    \item \textbf{Java 17} : Langage de programmation robuste, orienté objet et typé statiquement pour assurer la sécurité logicielle.
+    \item \textbf{Spring Boot 4} : Framework facilitant la création d'applications Java de niveau production autonomes et configurées par défaut.
+    \item \textbf{Spring Security} : Framework de sécurité de référence gérant l'authentification et les habilitations RBAC (Role-Based Access Control).
+    \item \textbf{Spring Data JPA (Hibernate)} : Facilite l'accès aux données avec gestion des transactions et support des suppressions douces (Soft Delete).
+    \item \textbf{PostgreSQL} : Système de gestion de base de données relationnelle puissant, sécurisé et hautement performant pour le stockage structuré.
+    \item \textbf{Flyway} : Outil de migration de base de données permettant de versionner et déployer de manière fiable les modifications de schéma.
+    \item \textbf{OpenPDF (1.3.39)} : Bibliothèque Java utilisée pour générer dynamiquement les bulletins officiels et cartes d'adhésion au format PDF.
+    \item \textbf{Maven} : Outil de gestion et de build de projet gérant le cycle de vie de l'application backend et ses dépendances.
+\end{itemize}
+
+\subsection{Technologies Frontend}
+\begin{itemize}
+    \item \textbf{React (19)} & \textbf{Vite} : Bibliothèque JavaScript et outil de build ultrarapide pour le développement du portail d'administration web.
+    \item \textbf{React Native (0.81)} & \textbf{Expo (54)} : Framework et écosystème permettant de concevoir une application mobile native performante à partir d'une base de code unique.
+    \item \textbf{Tailwind CSS (4)} : Framework CSS utilitaire permettant de concevoir rapidement des interfaces modernes, responsive et personnalisées.
+    \item \textbf{Axios} : Client HTTP utilisé pour effectuer les requêtes de données asynchrones vers le serveur backend Spring Boot.
+    \item \textbf{React Hook Form} & \textbf{Yup} : Outils de gestion de formulaires et de validation de schémas en temps réel pour optimiser l'expérience de saisie.
+    \item \textbf{ExcelJS} : Bibliothèque permettant de générer instantanément des rapports tabulaires au format Excel (\texttt{.xlsx}) côté client.
+    \item \textbf{FontAwesome (7)} : Registre d'icônes vectorielles modernes structurant la charte graphique de la plateforme.
+    \item \textbf{Framer Motion (12)} : Bibliothèque d'animations pour React, permettant d'ajouter des micro-transitions fluides à l'interface d'administration.
+\end{itemize}
+
+\subsection{Environnement de Travail}
+
+\paragraph{Visual Studio Code}
+Visual Studio Code (VS Code) est un éditeur de code source extensible développé par Microsoft. Il a été privilégié pour le développement de l'interface utilisateur frontend (React et React Native) en raison de sa rapidité, de sa légèreté et de son vaste catalogue d'extensions (telles que Prettier, ESLint et GitLens) facilitant grandement la saisie et garantissant la qualité du code.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Environnement/vscode.PNG}
+    \caption{Interface de l'éditeur de code Visual Studio Code}
+    \label{fig:env_vscode}
+\end{figure}
+
+\paragraph{IntelliJ IDEA}
+IntelliJ IDEA est un environnement de développement intégré (IDE) conçu par JetBrains, réputé pour son excellente prise en charge de l'écosystème Java et du framework Spring Boot. Il a été exploité pour le développement backend de notre API REST, offrant des outils avancés d'auto-complétion, de débogage pas à pas, de refactoring de code et de gestion de projet avec Maven.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Environnement/intellij.PNG}
+    \caption{Interface de l'environnement de développement IntelliJ IDEA}
+    \label{fig:env_intellij}
+\end{figure}
+
+\paragraph{pgAdmin 4}
+pgAdmin 4 est la plateforme d'administration et de développement la plus populaire pour le système de gestion de bases de données relationnelles PostgreSQL. Il a permis d'administrer graphiquement notre base de données locale, d'exécuter des scripts de requêtage SQL, de visualiser l'état des tables issues des migrations Flyway, et d'optimiser l'organisation de nos schémas.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Environnement/pgadmin.PNG}
+    \caption{Interface d'administration de la base de données pgAdmin 4}
+    \label{fig:env_pgadmin}
+\end{figure}
+
+\paragraph{Git \& GitHub}
+Git est un système de contrôle de version distribué permettant de suivre l'historique des modifications du code source au cours du développement. GitHub, en tant que plateforme d'hébergement cloud, a été exploité pour centraliser le dépôt de code, sauvegarder les différentes versions de la solution (Frontend, Backend et Mobile) et faciliter le travail de collaboration.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Environnement/github.PNG}
+    \caption{Dépôt de code du projet sur la plateforme GitHub}
+    \label{fig:env_github}
+\end{figure}
+
+\paragraph{Postman}
+Postman est une plateforme de collaboration pour le développement et le test d'API REST. Il a été utilisé pour simuler l'envoi de requêtes HTTP (GET, POST, PUT, DELETE) vers nos contrôleurs Spring Boot, valider la structure des payloads JSON, tester les filtres de sécurité JWT et s'assurer du bon comportement des endpoints avant leur intégration frontend.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Environnement/postman.PNG}
+    \caption{Interface de test et de débogage d'API sur Postman}
+    \label{fig:env_postman}
+\end{figure}
+
+\paragraph{Expo Go}
+Expo Go est une application mobile cliente qui permet aux développeurs de tester en temps réel leurs projets React Native développés avec le framework Expo. En scannant un QR Code généré par le terminal de développement, l'application mobile est compilée à la volée et s'exécute directement sur le terminal physique ou l'émulateur, facilitant grandement la phase de test.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.45\linewidth]{chapter/pictures/capture/Environnement/expogo.PNG}
+    \caption{Interface de l'application mobile de test Expo Go}
+    \label{fig:env_expogo}
+\end{figure}
+
+\section{Conclusion}
+En somme, l'étude technique a permis de concevoir une architecture logicielle découplée, sécurisée et évolutive. L'alliance de Spring Boot au backend pour sa rigueur métier, et de React/React Native au frontend pour la fluidité des interfaces web et mobiles, offre une solution performante pour répondre efficacement aux besoins de la mutuelle SRM-MS. Ce socle technique solide pose les bases nécessaires à la phase de réalisation concrète et de validation de l'application.

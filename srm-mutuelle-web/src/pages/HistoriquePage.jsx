@@ -54,8 +54,8 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
   const [cardsList, setCardsList] = useState([]);
   const [agents, setAgents] = useState([]);
   const isAdherent = effectiveAdherent;
-
-  const agentId = user?.agentId;
+  const isRealAdherent = isAdherentRole(user);
+  const agentId = user?.agentId || null;
 
   const fetchData = async () => {
     setLoading(true);
@@ -393,6 +393,27 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
     }
   };
 
+  const showWarning = isAdherent && !agentId;
+
+  if (showWarning) {
+    return (
+      <>
+        <div className="card" style={{ marginTop: '0' }}>
+          <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ fontSize: '48px', color: 'var(--warning-500)', marginBottom: '16px' }}>
+              <FaIcon name="triangle-exclamation" />
+            </div>
+            <h4>Compte non associé à un porteur</h4>
+            <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
+              Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+              Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {modal && (
@@ -692,7 +713,7 @@ export default function HistoriquePage({ setPageTitle, addToast, user, personalM
                     <article key={c.beneficiaryId ?? 'titulaire'} className="carte-member-card" style={{ background: '#fff', borderRadius: '16px', border: '1px solid var(--gray-200)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', padding: '20px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                       <div className="carte-member-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                         <img src="/srm-company-logo.png" alt="SRM-MS" className="carte-member-logo" style={{ height: '24px', objectFit: 'contain' }} />
-                        <span className={`badge ${c.cardLabel === 'Titulaire' ? 'badge-primary' : c.cardLabel === 'Conjoint' ? 'badge-info' : 'badge-success'}`}>{c.cardLabel}</span>
+                        <span className={`badge ${c.cardLabel === 'Titulaire' ? 'badge-primary' : (c.cardLabel === 'Conjoint' || c.cardLabel === 'Conjoint(e)') ? 'badge-info' : 'badge-success'}`}>{c.cardLabel}</span>
                       </div>
                       <h3 className="carte-member-name" style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 12px', color: 'var(--gray-900)' }}>{c.fullName}</h3>
                       <ul className="carte-member-meta" style={{ listStyle: 'none', padding: 0, margin: '0 0 20px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '6px' }}>

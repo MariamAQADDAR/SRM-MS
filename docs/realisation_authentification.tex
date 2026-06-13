@@ -1,0 +1,624 @@
+\chapter{Réalisation}
+\begin{spacing}{1.2}
+\minitoc
+\thispagestyle{MyStyle}
+\end{spacing}
+\newpage
+
+\section{Introduction}
+Ce chapitre est consacré à la mise en œuvre pratique de la plateforme de gestion de la mutuelle SRM-MS. Il décrit l'environnement de développement, les technologies utilisées, ainsi que les différentes étapes de réalisation allant du développement des interfaces à l'intégration des fonctionnalités essentielles telles que la gestion des agents, des remboursements, des devis et de l'assistant interactif. Il expose également les tests effectués afin de garantir la fiabilité et la conformité du système par rapport aux besoins définis.
+
+\section{Réalisation du projet}
+\label{sec:realisation_projet}
+
+Cette section présente la phase concrète de réalisation technique de notre application de gestion de la mutuelle \textbf{SRM-MS}, détaillant l'architecture des interfaces, les flux d'authentification, les cas d'utilisation clés et le contrôle d'accès sécurisé.
+
+\section{Interfaces et Mécanismes de l'application}
+\label{subsec:authentification}
+
+Cette section présente les interfaces et mécanismes développés pour SRM-MS. L'accès est sécurisé par Spring Security et des jetons JWT au backend, protégeant ainsi les flux de données. Les sessions utilisateur sont gérées dynamiquement avec React (web) et React Native (mobile). L'application offre deux portails d'authentification distincts et indépendants selon le rôle de l'utilisateur.
+
+\subsection{Distinction des Portails de Connexion}
+
+L'architecture sépare les accès selon le profil de l'utilisateur :
+\begin{itemize}
+    \item \textbf{Le Portail Administratif (Espace Professionnel)} : Destiné aux rôles internes (Administrateur, Opérateur, Consultateur) via une adresse e-mail professionnelle et un mot de passe.
+    \item \textbf{Le Portail Adhérent (Espace Connecté / Mobile)} : Destiné aux collaborateurs adhérents via leur Matricule et leur CIN.
+\end{itemize}
+
+Deux dispositions d'interfaces (Layouts) sont implémentées en React (voir figures~\ref{fig:login_admin_light} et~\ref{fig:login_adherent}) :
+\begin{itemize}
+    \item \textbf{Cas 1 : La disposition en écran partagé (Split-Screen)} : Panneau bleu identitaire à gauche et formulaire à droite (Espace Professionnel).
+    \item \textbf{Cas 2 : La disposition centrée} : Design épuré, centré et responsive, idéal pour tablettes et mobiles (Espace Adhérent).
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.60\linewidth]{chapter/pictures/capture/Administartion/login/authentifiication invalide(authentification administratif ).PNG}
+    \caption{Page d'authentification de l'Espace Professionnel (Mode Clair)}
+    \small Espace Professionnel : Connexion par e-mail et mot de passe
+    \label{fig:login_admin_light}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.60\linewidth]{chapter/pictures/capture/adherent/login adherent.PNG}
+    \caption{Page d'authentification de l'Espace Adhérent}
+    \small Espace Adhérent : Connexion par matricule et CIN
+    \label{fig:login_adherent}
+\end{figure}
+
+\subsection{Fonctionnalités Avancées : Mode Sombre et Traduction en Arabe}
+
+L'authentification intègre deux fonctions d'accessibilité (voir figure~\ref{fig:login_admin_dark}) :
+\begin{itemize}
+    \item \textbf{Le Mode Sombre (Dark Mode)} : Bascule instantanée du thème graphique via une icône dédiée.
+    \item \textbf{Le Support Bilingue (Français / Arabe)} : Traduction de l'interface avec inversion dynamique du sens de lecture (\texttt{dir="rtl"}).
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.70\linewidth]{chapter/pictures/capture/Administartion/login/page login mode sombre (authentification administratif ).PNG}
+    \caption{Page d'authentification de l'Espace Professionnel (Mode Sombre)}
+    \small Espace Professionnel en mode sombre avec bouton de bascule
+    \label{fig:login_admin_dark}
+\end{figure}
+
+\subsection{Processus de Gestion des Mots de Passe et Réinitialisation}
+\label{subsubsec:reset_password}
+
+Le système gère un flux complet de sécurisation et de réinitialisation des accès (voir figures~\ref{fig:forgot_password_1} à~\ref{fig:forgot_password_4}) :
+\begin{enumerate}
+    \item \textbf{Demande de réinitialisation} : L'utilisateur saisit son identifiant. S'il s'agit d'un adhérent, il est invité à contacter la mutuelle pour une réinitialisation manuelle.
+    \item \textbf{Jeton temporaire} : Le serveur génère un jeton UUID unique et envoie un e-mail de récupération via \texttt{EmailService.java}.
+    \item \textbf{Mise à jour} : L'utilisateur accède au formulaire sécurisé pour changer son mot de passe (6 caractères minimum).
+    \item \textbf{Changement obligatoire} : Un indicateur \texttt{force\_password\_change} impose la modification du mot de passe par défaut lors de la première connexion.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.60\linewidth]{chapter/pictures/capture/Administartion/login/page mot de passe oublie1.PNG}
+    \caption{Interface de demande de réinitialisation (Étape 1 -- Saisie de l'e-mail ou matricule)}
+    \label{fig:forgot_password_1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.60\linewidth]{chapter/pictures/capture/Administartion/login/page mot de passe oublie2.PNG}
+    \caption{Message de succès d'envoi du lien de réinitialisation (Étape 2)}
+    \label{fig:forgot_password_2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.60\linewidth]{chapter/pictures/capture/Administartion/login/page mot de passe oublie3.PNG}
+    \caption{Interface de saisie du nouveau mot de passe (Étape 3)}
+    \label{fig:forgot_password_3}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.60\linewidth]{chapter/pictures/capture/Administartion/login/page mot de passe oublie4.PNG}
+    \caption{Changement obligatoire du mot de passe lors de la première connexion (Étape 4)}
+    \label{fig:forgot_password_4}
+\end{figure}
+
+\subsection{Sélection de l'Espace de Travail}
+\label{subsec:selection_espace}
+
+Après connexion, le personnel administratif choisit son espace via un écran d'orientation (voir figures~\ref{fig:portail_selection} et~\ref{fig:portail_selection2}) :
+\begin{itemize}
+    \item \textbf{Mon Espace} : Consultation personnelle du profil (voir figure~\ref{fig:portail_selection3}).
+    \item \textbf{Espace Gestion} : Accès aux outils métiers d'administration.
+\end{itemize}
+L'Espace Gestion (voir figure~\ref{fig:mon_profil_sidebar}) affiche une barre latérale structurée en quatre blocs : \textbf{Principal} (tableau de bord), \textbf{Gestion} (actions métiers), \textbf{Référentiel} (données pivots) et \textbf{Administration} (droits système).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/interface adminstrateur.PNG}
+    \caption{Portail d'orientation (Option Espace Administrateur)}
+    \label{fig:portail_selection}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/adherent/interface adherent.PNG}
+    \caption{Portail d'orientation (Option Espace Adhérent)}
+    \label{fig:portail_selection2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Historique)).PNG}
+    \caption{Consultation personnelle (Historique d'activités de l'espace personnel)}
+    \label{fig:portail_selection3}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/adminstrateur (tableau de bord).PNG}
+    \caption{Interface principale de l'Espace Gestion}
+    \label{fig:mon_profil_sidebar}
+\end{figure}
+
+\subsection{Gestion des Agents et Collaborateurs}
+\label{subsec:gestion_agents}
+
+Ce module de l'onglet \textbf{GESTION} pilote le cycle de vie des adhérents.
+
+\paragraph{Interface de Listing et Actions CRUD}
+Un tableau dynamique présente les informations des agents (voir figure~\ref{fig:liste_agents}). L'administrateur peut créer (formulaire multi-étapes), visualiser, modifier ou supprimer un compte (suppression logique \textit{Soft Delete} préservant l'historique financier).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(Agent)).PNG}
+    \caption{Interface de listing des agents de la mutuelle}
+    \label{fig:liste_agents}
+\end{figure}
+
+\paragraph{Assistant de Création (Wizard)}
+L'ajout d'un nouvel agent s'effectue en 3 étapes (voir figure~\ref{fig:ajouter_agent_etape1}) :
+\begin{enumerate}
+    \item \textbf{Informations} : Saisie des données civiles validées par \textbf{React Hook Form} et \textbf{Yup}.
+    \item \textbf{Bénéficiaires} : Ajout dynamique des proches (conjoint, enfants, parents).
+    \item \textbf{Récapitulatif} : Validation globale et envoi POST vers \texttt{/api/agents}.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(ajouter_Agent)).PNG}
+    \caption{Assistant d'ajout d'un agent -- Étape 1 : Informations générales}
+    \label{fig:ajouter_agent_etape1}
+\end{figure}
+
+\paragraph{Fiche de Synthèse}
+L'icône de visualisation affiche le dossier détaillé de l'agent (voir figure~\ref{fig:detail_agent}) et son statut d'intégration (Enregistrement, Vérification, Intégration).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(ajouter_Agent2)).PNG}
+    \caption{Visualisation détaillée du dossier d'un agent}
+    \label{fig:detail_agent}
+\end{figure}
+
+\subsection{Gestion des Bénéficiaires}
+\label{subsec:gestion_beneficiaires}
+
+Ce module gère les proches rattachés aux porteurs de mutuelle.
+
+\paragraph{Listing et CRUD}
+Le tableau liste les proches avec des badges de couleur distincts selon le lien de parenté (Conjoint, Enfant) (voir figure~\ref{fig:liste_beneficiaires}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(beneficiaire)).PNG}
+    \caption{Interface de listing des bénéficiaires de la mutuelle}
+    \label{fig:liste_beneficiaires}
+\end{figure}
+
+\paragraph{Modale d'Ajout}
+L'administrateur ajoute les proches via une modale interactive (voir figure~\ref{fig:ajouter_beneficiaire}) :
+\begin{enumerate}
+    \item Sélection de l'agent rattaché.
+    \item Saisie des proches dans une liste d'attente temporaire sous forme de cartes d'informations.
+    \item Validation et persistance en base de données.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.70\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(ajouter_beneficiaire)).PNG}
+    \caption{Interface modale d'ajout de bénéficiaires}
+    \label{fig:ajouter_beneficiaire}
+\end{figure}
+
+\subsection{Gestion des Cartes Mutuelles}
+\label{subsec:gestion_cartes_mutuelles}
+
+Ce module pilote l'émission des cartes de soins des affiliés.
+
+\paragraph{Onglets et Formulaire}
+L'interface se divise en deux onglets :
+\begin{itemize}
+    \item \textbf{Demandes} : Suivi des demandes de cartes (première adhésion, duplicata, changement, voir figure~\ref{fig:cartes_demandes}) créées par formulaire modal (voir figure~\ref{fig:cartes_modal}).
+    \item \textbf{Émission PDF} : Listing des cartes avec génération et téléchargement du PDF officiel ou du modèle Word (voir figure~\ref{fig:cartes_pdf}).
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(carte mutuelle_demande)).PNG}
+    \caption{Interface de suivi des demandes de cartes mutuelles}
+    \label{fig:cartes_demandes}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(carte mutuelle_emissions PDF)).PNG}
+    \caption{Interface d'émission et de téléchargement des cartes en PDF}
+    \label{fig:cartes_pdf}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(ajouter_carte mutuelle)).PNG}
+    \caption{Fenêtre modale de création d'une nouvelle demande de carte}
+    \label{fig:cartes_modal}
+\end{figure}
+
+\subsection{Gestion des Ordonnances et Soins}
+\label{subsec:gestion_ordonnances}
+
+Ce module centralise la saisie des ordonnances et actes de diagnostic.
+
+\paragraph{Listing et Saisie}
+L'interface propose trois tables thématiques : \textbf{Analyser} (analyses biologiques), \textbf{Ordonnance} (médicaments) et \textbf{Radio} (radiologies) (voir figure~\ref{fig:ordonnances_listing}). La création s'effectue via une modale adaptative (voir figure~\ref{fig:ordonnances_modal}) qui ajuste ses champs selon la catégorie de soins choisie.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(Ordonnace)).PNG}
+    \caption{Interface de listing des ordonnances (onglet Analyser actif)}
+    \label{fig:ordonnances_listing}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.60\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(ajouter_Ordonnace)).PNG}
+    \caption{Interface d'ajout d'une ordonnance (type Analyse)}
+    \label{fig:ordonnances_modal}
+\end{figure}
+
+\subsection{Gestion des Devis}
+\label{subsec:gestion_devis}
+
+Ce module permet d'évaluer et de valider les estimations financières avant les traitements coûteux.
+
+\paragraph{Registre et Workflow}
+Le registre répertorie les dossiers (dentaire, optique) avec des indicateurs de statut (voir figure~\ref{fig:devis_listing}). Le cycle de vie d'un devis s'organise en trois étapes clés :
+\begin{enumerate}
+    \item \textbf{Dépôt} : L'adhérent enregistre sa demande et téléverse le devis PDF (voir figures~\ref{fig:devis_workflow_1} à~\ref{fig:devis_workflow_3}).
+    \item \textbf{Transmission} : Envoi de la demande, qui passe au statut \texttt{Soumis} (voir figures~\ref{fig:devis_workflow_4} et~\ref{fig:devis_workflow_5}).
+    \item \textbf{Instruction et Décision} : Le gestionnaire instruit le dossier, saisit le montant pris en charge et valide (\texttt{Approuvé} ou \texttt{Rejeté}, voir figures~\ref{fig:devis_workflow_6} à~\ref{fig:devis_workflow_9}).
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(devis)).PNG}
+    \caption{Interface de listing et indicateurs de gestion des devis}
+    \label{fig:devis_listing}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(devis(workflow))).PNG}
+    \caption{Interface de suivi du cycle de vie et de validation d'un devis}
+    \label{fig:devis_workflow}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Workflow_Devis)).PNG}
+    \caption{Cycle de vie et du dépôt d'un devis -- Étape Dépôt (Partie Adhérent 1)}
+    \label{fig:devis_workflow_1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Workflow_Devis_2)).PNG}
+    \caption{Cycle de vie et du dépôt d'un devis -- Étape Dépôt (Partie Adhérent 2)}
+    \label{fig:devis_workflow_2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Workflow_Devis_4)).PNG}
+    \caption{Cycle de vie et du dépôt d'un devis -- Étape Dépôt (Partie Adhérent 3)}
+    \label{fig:devis_workflow_3}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.80\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Workflow_Devis_5)).PNG}
+    \caption{Cycle de vie et du dépôt d'un devis -- Étape Transmission (Partie Adhérent 4)}
+    \label{fig:devis_workflow_4}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Workflow_Devis_6)).PNG}
+    \caption{Cycle de vie et du dépôt d'un devis -- Étape Transmission (Partie Adhérent 5)}
+    \label{fig:devis_workflow_5}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.60\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Workflow_Devis_7)).PNG}
+    \caption{Notification de l'Administrateur pour décision}
+    \label{fig:devis_workflow_6}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Workflow_Devis_8)).PNG}
+    \caption{Formulaire de décision (Approuver ou rejeter)}
+    \label{fig:devis_workflow_7}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Workflow_Devis_9)).PNG}
+    \caption{Validation finale et montant de prise en charge (Partie Administrateur 1)}
+    \label{fig:devis_workflow_8}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon espace/adminstrateur (mon espace(Workflow_Devis_10)).PNG}
+    \caption{Détails et décision finale validée (Partie Administrateur 2)}
+    \label{fig:devis_workflow_9}
+\end{figure}
+
+\subsection{Gestion des Remboursements}
+\label{subsec:gestion_remboursements}
+
+Le module \textbf{Remboursements} (onglet \textbf{GESTION}) permet de suivre les demandes d'indemnisation de frais de santé des adhérents et de leurs proches.
+
+\paragraph{Statistiques et Tableau de Suivi}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(remboursements)).PNG}
+    \caption{Interface de listing et indicateurs de suivi des remboursements}
+    \label{fig:remb_listing}
+\end{figure}
+
+\paragraph{Processus d'Ajout en 3 Étapes}
+Le dépôt d'une demande s'effectue via un assistant en 3 étapes (voir figure~\ref{fig:remb_wizard}) :
+\begin{enumerate}
+    \item \textbf{Étape 1 -- Informations} : Choix de l'agent, du bénéficiaire rattaché, du prestataire et de la date.
+    \item \textbf{Étape 2 -- Justificatif} : Saisie du montant, sélection du médicament, téléversement du PDF et observations.
+    \item \textbf{Étape 3 -- Confirmation} : Récapitulatif et validation de la demande.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.60\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(ajouter_remboursements(workflow))).PNG}
+    \caption{Étape 1 de l'assistant de demande de remboursement}
+    \label{fig:remb_wizard}
+\end{figure}
+
+\paragraph{Workflow de Traitement}
+Le cycle de traitement d'un dossier comprend quatre statuts :
+\begin{itemize}
+    \item \textbf{Dépôt (En attente)} : Enregistrement initial avec justificatif PDF joint.
+    \item \textbf{Transmission (En cours)} : Envoi à la mutuelle pour instruction.
+    \item \textbf{Instruction (Scanned)} : Vérification de conformité des pièces de soins par le gestionnaire.
+    \item \textbf{Décision (Traité / Rejeté)} : Validation du montant final remboursé ou rejet motivé par l'administrateur.
+\end{itemize}
+
+\subsection{Gestion des Prises en Charge (PEC)}
+\label{subsec:gestion_pec}
+Le module \textbf{Prises en charge} (onglet \textbf{GESTION}) gère le paiement direct par le tiers payant auprès des établissements de soins. D'un point de vue architectural et ergonomique, ce module est \textbf{identique au module de remboursement} présenté précédemment.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(Prise en charge)).PNG}
+    \caption{Interface de listing et indicateurs des demandes de prises en charge (PEC)}
+    \label{fig:pec_listing}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(Prise en charge(workflow))).PNG}
+    \caption{Étape 1 de l'assistant de demande de prise en charge (PEC)}
+    \label{fig:pec_wizard}
+\end{figure}
+
+\subsection{Gestion des Maladies Spéciales}
+\label{subsec:gestion_maladies_speciales}
+Ce module gère les demandes d'exonération pour les affections de longue durée (ALD), permettant d'ajuster automatiquement les taux de remboursement.
+L'interface de listing (voir figure~\ref{fig:maladies_listing}) présente le dossier (MLD-AUTO-...), la maladie déclarée, le bénéficiaire et le statut (\texttt{Validé}, \texttt{En attente}). L'ajout s'effectue par une modale associant l'agent, sa pathologie et la date de dépôt.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(maladie speciale)).PNG}
+    \caption{Interface de listing des maladies spéciales}
+    \label{fig:maladies_listing}
+\end{figure}
+
+\subsection{Gestion des Établissements et Médecins Conventionnés}
+\label{subsec:gestion_etablissements_medecins}
+Ces modules du menu \textbf{RÉFÉRENTIEL} maintiennent l'annuaire interconnecté des partenaires de santé et de leurs praticiens résidents.
+
+\paragraph{Registre des Établissements Médicaux}
+Les structures de santé sont présentées sous forme de cartes d'informations (voir figure~\ref{fig:referentiel_etablissements}) détaillant leurs coordonnées et la liste des médecins conventionnés associés.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(referentiel(etablissements))).PNG}
+    \caption{Interface de listing des établissements médicaux conventionnés}
+    \label{fig:referentiel_etablissements}
+\end{figure}
+
+\paragraph{Annuaire des Médecins Conventionnés}
+L'annuaire affiche les médecins sous forme de cartes simplifiées (voir figure~\ref{fig:referentiel_medecins}) précisant leur spécialité et leur établissement de rattachement principal.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(referentiel(medcins conventionnes))).PNG}
+    \caption{Interface de listing des médecins conventionnés}
+    \label{fig:referentiel_medecins}
+\end{figure}
+
+\subsection{Gestion des Entités Organisationnelles}
+\label{subsec:gestion_entites_org}
+Ce module du menu \textbf{RÉFÉRENTIEL} configure l'organigramme administratif de la SRM (hiérarchie : \textit{Direction générale $\rightarrow$ Direction $\rightarrow$ Département $\rightarrow$ Division $\rightarrow$ Service}).
+
+\paragraph{Visualisation Arborescence et Tableau}
+L'organigramme propose deux modes d'affichage interchangeables (voir figures~\ref{fig:referentiel_entites_tree} et~\ref{fig:referentiel_entites_table}) :
+\begin{itemize}
+    \item \textbf{Mode Arborescence} : Vue graphique dépliable illustrant la pyramide structurelle.
+    \item \textbf{Mode Tableau} : Liste tabulaire répertoriant le code, la catégorie et le parent direct de chaque entité.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(referentiel(entite organisationnelle_Arborescence_))).PNG}
+    \caption{Interface de l'organigramme en mode Arborescence}
+    \label{fig:referentiel_entites_tree}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(referentiel(entite organisationnelle_Tableau_))).PNG}
+    \caption{Interface de l'organigramme en mode Tableau}
+    \label{fig:referentiel_entites_table}
+\end{figure}
+
+\subsection{Gestion du Référentiel des Médicaments}
+\label{subsec:gestion_medicaments}
+Ce module gère le catalogue de 5~000 médicaments de la mutuelle pour valider la remboursabilité des prescriptions. L'interface de listing (voir figure~\ref{fig:referentiel_medicaments}) affiche le code EAN13, la classe thérapeutique, la forme et le statut Princeps/Générique.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(referentiel(medicaments))).PNG}
+    \caption{Interface de listing du référentiel des médicaments}
+    \label{fig:referentiel_medicaments}
+\end{figure}
+
+\subsection{Gestion des Utilisateurs et Contrôle d'Accès}
+\label{subsec:gestion_utilisateurs}
+Ce module du menu \textbf{ADMINISTRATION} gère l'attribution des rôles applicatifs et l'état des comptes utilisateurs.
+
+\paragraph{Listing et Formulaires Adaptatifs}
+Le tableau liste les comptes avec leur rôle, statut d'activation et historique (voir figure~\ref{fig:utilisateurs_listing}). Le formulaire de saisie s'adapte au rôle sélectionné :
+\begin{itemize}
+    \item \textbf{Profils administratifs} (Administrateur, Opérateur, Consultateur) : Saisie manuelle de l'e-mail et du mot de passe (voir figure~\ref{fig:utilisateurs_modal_staff}).
+    \item \textbf{Profil Adhérent} : Lié à un agent, les champs d'identifiants se verrouillent en héritant du Matricule et de la CIN (voir figure~\ref{fig:utilisateurs_modal_adherent}).
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.80\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(administration(utilisateur))).PNG}
+    \caption{Interface de listing des comptes utilisateurs}
+    \label{fig:utilisateurs_listing}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(administration(utilisateur(ajouter_administrateur_operateur_consultateur)))).PNG}
+    \caption{Modale de création d'un compte administratif}
+    \label{fig:utilisateurs_modal_staff}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(administration(utilisateur(ajouter_adherent)))).PNG}
+    \caption{Modale de modification d'un compte adhérent}
+    \label{fig:utilisateurs_modal_adherent}
+\end{figure}
+
+\paragraph{Habilitations et Sécurité (RBAC)}
+Le contrôle d'accès définit la visibilité et les actions autorisées :
+\begin{itemize}
+    \item \textbf{Accès à l'interface} : Limité à l'Administrateur et à l'Opérateur (masqué pour le Consultateur).
+    \item \textbf{Droits de suppression} : Restreints exclusivement à l'Administrateur (l'Opérateur ne dispose pas du bouton de suppression).
+\end{itemize}
+
+\subsection{Gestion du Paramétrage Système}
+\label{subsec:gestion_parametrage}
+Ce module centralise la configuration des listes de valeurs via sept onglets thématiques (voir figure~\ref{fig:parametrage_listing}). L'administrateur peut y effectuer des actions CRUD rapides via modales pour mettre à jour les tables pivots du système.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.80\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(administration(parametrage))).PNG}
+    \caption{Interface de gestion du paramétrage}
+    \label{fig:parametrage_listing}
+\end{figure}
+
+\subsection{Gestion de la Corbeille et des Archives}
+\label{subsec:gestion_archives}
+Le module \textbf{Archives} centralise la corbeille système pour la restauration des données supprimées logiquement (voir figure~\ref{fig:archives_listing}). L'administrateur peut y filtrer les dossiers par onglet thématique et restaurer instantanément un élément (requête POST vers l'endpoint de restauration dédié).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\linewidth]{chapter/pictures/capture/Administartion/administrateur/gestion/adminstrateur (Gestion(administration(archive))).PNG}
+    \caption{Interface du centre de gestion des archives (onglet Agents actif)}
+    \label{fig:archives_listing}
+\end{figure}
+
+\subsection{Assistant Virtuel Intelligent (Chatbot)}
+\label{subsec:assistant_chatbot}
+L'application intègre un assistant interactif flottant (voir figure~\ref{fig:assistant_srm}) connecté aux données réelles de l'adhérent. Le service (\texttt{ChatbotService.java}) exploite un instantané de session (\texttt{UserSnapshot}) et propose des raccourcis pour répondre en langage naturel :
+\begin{itemize}
+    \item \textbf{Synthèse globale} : Bilan chiffré de la situation personnelle (devis, remboursements, notifications).
+    \item \textbf{Suivi par référence} : Saisie d'une référence dossier (ex. \texttt{DEV-2026-...}) pour afficher directement sa fiche de statut.
+    \item \textbf{Guides de procédure} : Explication des étapes pour soumettre de nouvelles demandes de soins ou de cartes.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.45\linewidth]{chapter/pictures/capture/Administartion/administrateur/chatbot.PNG}
+    \caption{Interface de l'assistant virtuel SRM (Chatbot)}
+    \label{fig:assistant_srm}
+\end{figure}
+
+\subsection{Menu Utilisateur de l'En-tête}
+\label{subsec:menu_utilisateur}
+L'avatar utilisateur ouvre un menu déroulant contextuel (voir figure~\ref{fig:user_dropdown}) qui permet un accès direct au profil personnel, à la liste des utilisateurs, ainsi qu'à la déconnexion de l'application.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.35\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon profil/menu profil.PNG}
+    \caption{Menu contextuel déroulant de l'utilisateur connecté}
+    \label{fig:user_dropdown}
+\end{figure}
+
+\subsection{Gestion du Profil Personnel}
+\label{subsec:gestion_profil}
+La page \textbf{Mon profil} (voir figure~\ref{fig:mon_profil}) affiche de manière lisible les informations civiles et professionnelles de l'utilisateur connecté.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.80\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon profil/profil.PNG}
+    \caption{Interface de consultation du profil utilisateur}
+    \label{fig:mon_profil}
+\end{figure}
+
+\subsection{Modification du Mot de Passe}
+\label{subsec:changement_mot_de_passe}
+Le profil comprend un formulaire de changement de mot de passe (voir figure~\ref{fig:changement_mdp}). La validation transmet une requête sécurisée à l'API backend (\texttt{/api/auth/change-password}) pour chiffrer et persister la nouvelle clé.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.80\linewidth]{chapter/pictures/capture/Administartion/administrateur/mon profil/modification mot de passe.PNG}
+    \caption{Formulaire de modification sécurisée du mot de passe}
+    \label{fig:changement_mdp}
+\end{figure}
+
+\subsection{Module d'Exportation des Rapports Excel}
+\label{subsec:export_excel}
+Le bouton \texttt{Exporter Excel} extrait les données de la table active et génère instantanément un document \texttt{.xlsx} structuré pour les besoins d'analyse externes (voir figure~\ref{fig:export_excel_medicaments}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\linewidth]{chapter/pictures/capture/Administartion/administrateur/export excel/medicaments (1).PNG}
+    \caption{Fichier Excel généré par le module d'exportation de la mutuelle}
+    \label{fig:export_excel_medicaments}
+\end{figure}
+
+\subsection{Synthèse des Habilitations et Espaces par Rôle}
+\label{subsec:rbac_synthese}
+Pour garantir la traçabilité et la sécurité, le système applique un modèle de contrôle d'accès basé sur les rôles (RBAC) configuré comme suit :
+\begin{itemize}
+    \item \textbf{L'Administrateur} : Accède à l'ensemble du système et détient l'autorisation exclusive de suppression définitive et d'archivage.
+    \item \textbf{L'Opérateur} : Droits identiques à l'Administrateur pour l'ajout et la modification, mais dépourvu de tout droit de suppression.
+    \item \textbf{Le Consultateur} : Consultation en lecture seule des dossiers, sans accès aux fonctions d'administration.
+    \item \textbf{L'Adhérent} : Accède uniquement à l'interface de consultation de ses propres demandes.
+\end{itemize}
+
+Le routage initial après authentification s'adapte à l'utilisateur :
+\begin{itemize}
+    \item \textbf{Adhérent simple} : Redirigé automatiquement vers son espace personnel unique \textbf{« Mon Espace »}.
+    \item \textbf{Personnel administratif} : Accueilli par l'écran d'orientation pour choisir entre \textbf{Mon Espace} (données personnelles) et \textbf{Espace Gestion} (métier).
+\end{itemize}
+
+\subsection*{Conclusion du Chapitre}
+\addcontentsline{toc}{subsection}{Conclusion du Chapitre}
+
+Ce chapitre a présenté la mise en œuvre de la plateforme de gestion de la mutuelle, depuis le développement technique jusqu’aux tests de validation, en passant par l’intégration des principales fonctionnalités.
