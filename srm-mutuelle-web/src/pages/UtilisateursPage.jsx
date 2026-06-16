@@ -78,6 +78,7 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
   const [role, setRole] = useState('OPERATEUR');
   const [fullName, setFullName] = useState('');
   const [agentId, setAgentId] = useState('');
+  const [agentSearch, setAgentSearch] = useState('');
 
   // Seuls les agents sans compte adhérent sont proposés pour Adhérent
   const freeAgents = agents.filter((a) => !agentAdherentByAgentId?.has(a.id));
@@ -87,21 +88,28 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
     setRole(nextRole);
     setAgentId('');
     setFullName('');
+    setAgentSearch('');
   };
 
-  const handleAgentChange = (nextAgentId) => {
-    setAgentId(nextAgentId);
-    const agent = findAgentById(agents, nextAgentId);
-    const name = agentFullName(agent);
-    if (name) setFullName(name);
+  const handleAgentSearchChange = (val) => {
+    setAgentSearch(val);
+    const optionsList = role === 'ADHERENT' ? freeAgents : agents;
+    const matched = optionsList.find(a => formatAgentOption(a) === val);
+    if (matched) {
+      setAgentId(String(matched.id));
+      const name = agentFullName(matched);
+      if (name) setFullName(name);
+    } else {
+      setAgentId('');
+      setFullName('');
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const roleVal = fd.get('role');
-    const agentRaw = fd.get('agentId');
-    const resolvedAgentId = agentRaw && String(agentRaw).trim() !== '' ? Number(agentRaw) : null;
+    const resolvedAgentId = agentId && String(agentId).trim() !== '' ? Number(agentId) : null;
     const selectedAgent = resolvedAgentId ? findAgentById(agents, resolvedAgentId) : null;
 
     let resolvedEmail = '';
@@ -170,24 +178,20 @@ function UserCreateForm({ agents, agentAdherentByAgentId, onClose, reload, addTo
           <label>
             Agent lié {role === 'ADHERENT' ? <span className="required">*</span> : <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>(optionnel)</span>}
           </label>
-          <select
-            name="agentId"
+          <input
+            list="create-user-agents-list"
             className="form-control"
+            placeholder={role === 'ADHERENT' ? '— Sélectionner un porteur —' : '— Écrire pour lier un porteur (optionnel) —'}
+            value={agentSearch}
+            onChange={(e) => handleAgentSearchChange(e.target.value)}
             required={role === 'ADHERENT'}
-            value={agentId}
-            onChange={(e) => handleAgentChange(e.target.value)}
-          >
-            {role === 'ADHERENT' ? (
-              <option value="" disabled>— Sélectionner un porteur —</option>
-            ) : (
-              <option value="">— Aucun porteur lié —</option>
-            )}
+          />
+          <input type="hidden" name="agentId" value={agentId} />
+          <datalist id="create-user-agents-list">
             {(role === 'ADHERENT' ? freeAgents : agents).map((a) => (
-              <option key={a.id} value={String(a.id)}>
-                {formatAgentOption(a)}
-              </option>
+              <option key={a.id} value={formatAgentOption(a)} />
             ))}
-          </select>
+          </datalist>
           {role === 'ADHERENT' && agents.length === 0 ? (
             <p style={{ fontSize: '0.8125rem', color: 'var(--danger-600)', marginTop: 6, marginBottom: 0 }}>
               Aucun porteur enregistré. Créez d'abord un agent dans le menu Agents.
@@ -283,6 +287,10 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
   const [role, setRole] = useState(urow.role || 'OPERATEUR');
   const [fullName, setFullName] = useState(urow.fullName || '');
   const [agentId, setAgentId] = useState(urow.agentId != null ? String(urow.agentId) : '');
+  const [agentSearch, setAgentSearch] = useState(() => {
+    const initialAgent = urow.agentId != null ? findAgentById(agents, urow.agentId) : null;
+    return initialAgent ? formatAgentOption(initialAgent) : '';
+  });
 
   // Agents disponibles : libres + celui actuellement attribué à cet utilisateur
   const availableAgents = agents.filter((a) => !agentAdherentByAgentId?.has(a.id) || a.id === urow.agentId);
@@ -291,13 +299,21 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
     setRole(nextRole);
     setAgentId('');
     setFullName('');
+    setAgentSearch('');
   };
 
-  const handleAgentChange = (nextAgentId) => {
-    setAgentId(nextAgentId);
-    const agent = findAgentById(agents, nextAgentId);
-    const name = agentFullName(agent);
-    if (name) setFullName(name);
+  const handleAgentSearchChange = (val) => {
+    setAgentSearch(val);
+    const optionsList = role === 'ADHERENT' ? availableAgents : agents;
+    const matched = optionsList.find(a => formatAgentOption(a) === val);
+    if (matched) {
+      setAgentId(String(matched.id));
+      const name = agentFullName(matched);
+      if (name) setFullName(name);
+    } else {
+      setAgentId('');
+      setFullName('');
+    }
   };
 
   if (!allowAdminRole && urow.role === 'ADMINISTRATEUR') {
@@ -381,25 +397,20 @@ function UserEditForm({ urow, agents, agentAdherentByAgentId, onClose, reload, a
           <label>
             Agent lié {role === 'ADHERENT' ? <span className="required">*</span> : <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>(optionnel)</span>}
           </label>
-          <select
-            name="agentId"
+          <input
+            list="edit-user-agents-list"
             className="form-control"
+            placeholder={role === 'ADHERENT' ? '— Choisir dans la liste —' : '— Écrire pour lier un porteur (optionnel) —'}
+            value={agentSearch}
+            onChange={(e) => handleAgentSearchChange(e.target.value)}
             required={role === 'ADHERENT'}
-            value={agentId}
-            onChange={(e) => handleAgentChange(e.target.value)}
-          >
-            {role === 'ADHERENT' ? (
-              <option value="">— Choisir dans la liste —</option>
-            ) : (
-              <option value="">— Aucun porteur lié —</option>
-            )}
+          />
+          <input type="hidden" name="agentId" value={agentId} />
+          <datalist id="edit-user-agents-list">
             {(role === 'ADHERENT' ? availableAgents : agents).map((a) => (
-              <option key={a.id} value={String(a.id)}>
-                {formatAgentOption(a)}
-                {a.id === urow.agentId ? ' — (porteur actuel)' : ''}
-              </option>
+              <option key={a.id} value={formatAgentOption(a)} />
             ))}
-          </select>
+          </datalist>
         </div>
 
         {/* Nom complet */}

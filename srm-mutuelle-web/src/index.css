@@ -2758,6 +2758,16 @@ textarea.form-control {
   background: color-mix(in srgb, var(--info-400) 30%, white);
 }
 
+.btn-icon.btn-print {
+  color: var(--primary-600);
+  border: 1px solid color-mix(in srgb, var(--primary-400) 45%, white);
+  background: color-mix(in srgb, var(--primary-400) 20%, white);
+}
+
+.btn-icon.btn-print:hover {
+  background: color-mix(in srgb, var(--primary-400) 30%, white);
+}
+
 /* ============================================
    CHATBOT — Assistant SRM
    ============================================ */

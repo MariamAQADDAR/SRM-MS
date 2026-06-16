@@ -36,4 +36,15 @@ class SrmMutuelleBackendApplicationTests {
 		System.out.println("=== END DUMPING AGENTS ===");
 	}
 
+	@Test
+	void disableForcePasswordChangeForAll() {
+		System.out.println("=== DISABLING FORCE PASSWORD CHANGE FOR ALL USERS ===");
+		appUserRepository.findAll().forEach(user -> {
+			user.setForcePasswordChange(false);
+			appUserRepository.save(user);
+			System.out.printf("Updated user %s: forcePasswordChange = false%n", user.getEmail());
+		});
+		System.out.println("=== FINISHED DISABLING FORCE PASSWORD CHANGE ===");
+	}
+
 }

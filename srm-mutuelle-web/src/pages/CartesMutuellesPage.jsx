@@ -65,6 +65,8 @@ function EmissionPdfSection({
   generateCardForAgent,
   downloadCardById,
   downloadMembershipTemplate,
+  openCreate,
+  canCreate,
 }) {
   const [search, setSearch] = useState('');
 
@@ -85,6 +87,18 @@ function EmissionPdfSection({
     });
     return map;
   }, [allCards]);
+
+  const EMISSION_EXPORT_COLS = [
+    { key: 'matricule', label: 'Matricule' },
+    { key: 'agent', label: 'Agent', value: (a) => `${a.nom} ${a.prenom}` },
+    { key: 'statut', label: 'Statut de la carte', value: (a) => cardsByAgentId[a.id]?.hasPdf ? 'Carte émise' : 'Non générée' },
+    {
+      key: 'dateEmission', label: "Date d'émission", value: (a) => {
+        const issuedAt = cardsByAgentId[a.id]?.issuedAt;
+        return issuedAt ? new Date(issuedAt).toLocaleString('fr-FR') : '—';
+      }
+    }
+  ];
 
   if (isAdherent) {
     const myCard = family.find((m) => m.beneficiaryId === null);
@@ -156,7 +170,7 @@ function EmissionPdfSection({
 
   return (
     <>
-      <div className="table-page-toolbar-row" style={{ marginBottom: 16 }}>
+      <div className="table-page-toolbar-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16 }}>
         <input
           type="text"
           className="form-control"
@@ -165,10 +179,25 @@ function EmissionPdfSection({
           onChange={(e) => setSearch(e.target.value)}
           style={{ maxWidth: '360px' }}
         />
-        <span className="toolbar-spacer" />
-        <button type="button" className="btn btn-outline" onClick={downloadMembershipTemplate}>
-          <FaIcon name="file-word" className="fa-inline-icon" /> Bulletin d&apos;adhésion
-        </button>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <ExportExcelButton
+            columns={EMISSION_EXPORT_COLS}
+            rows={filteredAgents}
+            filename="emission-cartes-mutuelle"
+            sheetName="Émission"
+          />
+          {canCreate && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={openCreate}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: '40px', padding: '0 16px', borderRadius: 'var(--radius-md)', fontWeight: '600' }}
+            >
+              <FaIcon name="plus" />
+              <span>Ajouter une carte</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="data-table-wrapper">
@@ -953,7 +982,7 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
             </div>
             <h4>Compte non associé à un porteur</h4>
             <p style={{ color: 'var(--gray-500)', maxWidth: '480px', margin: '8px auto 0' }}>
-              Votre compte utilisateur n'est pas associé à une fiche agent (porteur). 
+              Votre compte utilisateur n'est pas associé à une fiche agent (porteur).
               Veuillez contacter un administrateur pour lier votre compte dans la gestion des utilisateurs.
             </p>
           </div>
@@ -1100,8 +1129,8 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
                     <div className="request-card" key={r.id}>
                       <div className="request-card-header" style={{
                         background: r.statut === 'Accordée' ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' :
-                                    r.statut === 'Refusée' ? 'linear-gradient(135deg, #fef2f2, #fee2e2)' :
-                                    'linear-gradient(135deg, #fffbeb, #fef3c7)',
+                          r.statut === 'Refusée' ? 'linear-gradient(135deg, #fef2f2, #fee2e2)' :
+                            'linear-gradient(135deg, #fffbeb, #fef3c7)',
                         borderBottom: '1px solid var(--gray-200)'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1112,13 +1141,13 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
                         </div>
                         {statusBadge(r.statut)}
                       </div>
-                      
+
                       <div className="request-card-body">
                         <div>
                           <div className="request-card-title">
                             {r.beneficiaire}
                           </div>
-                          
+
                           <div className="request-card-meta">
                             <div className="request-card-meta-row">
                               <span className="request-card-meta-label">Type de demande :</span>
@@ -1188,6 +1217,8 @@ export default function CartesMutuellesPage({ setPageTitle, addToast, user, pers
             generateCardForAgent={generateCardForAgent}
             downloadCardById={downloadCardById}
             downloadMembershipTemplate={downloadMembershipTemplate}
+            openCreate={openCreate}
+            canCreate={canCreate}
           />
         )}
       </TablePageShell>

@@ -74,21 +74,27 @@ export default function MedecinsPage({ setPageTitle, addToast, user }) {
 
   const { pageData, page, setPage, totalPages } = usePagination(filteredDoctors, searchQuery);
 
-  const buildForm = (doctor = null) => {
+  const DoctorForm = ({ doctor = null, onClose }) => {
     const isEdit = !!doctor;
+    const initialFacility = doctor?.medicalFacilityId ? facilities.find(f => f.id === doctor.medicalFacilityId) : null;
+    const [facilitySearch, setFacilitySearch] = useState(initialFacility ? `${initialFacility.nom} (${initialFacility.type})` : '');
+    const [medicalFacilityId, setMedicalFacilityId] = useState(doctor?.medicalFacilityId != null ? String(doctor.medicalFacilityId) : '');
 
     const submit = async (e) => {
       e.preventDefault();
-      const fd = new FormData(e.target);
       const body = {
-        fullName: fd.get('fullName'),
-        medicalFacilityId: Number(fd.get('medicalFacilityId')),
+        fullName: e.target.fullName.value,
+        medicalFacilityId: Number(medicalFacilityId),
       };
+      if (!medicalFacilityId) {
+        addToast('error', 'Veuillez sélectionner un établissement rattaché existant dans la liste.');
+        return;
+      }
       try {
         const url = isEdit ? `/api/contracted-doctors/${doctor.id}` : '/api/contracted-doctors';
         const method = isEdit ? 'PUT' : 'POST';
         await parseJsonOrThrow(await apiFetch(url, { method, body }));
-        closeModal();
+        onClose();
         addToast('success', isEdit ? 'Médecin mis à jour' : 'Médecin ajouté');
         reload();
       } catch (err) {
@@ -105,18 +111,29 @@ export default function MedecinsPage({ setPageTitle, addToast, user }) {
           </div>
           <div className="form-group">
             <label>Établissement rattaché</label>
-            <select name="medicalFacilityId" className="form-control" defaultValue={doctor?.medicalFacilityId ?? ''} required>
-              <option value="" disabled>— Choisir un établissement —</option>
+            <input
+              list="doctor-facilities-list"
+              className="form-control"
+              placeholder="Écrire pour rechercher et sélectionner..."
+              value={facilitySearch}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFacilitySearch(val);
+                const matched = facilities.find(f => `${f.nom} (${f.type})` === val || f.nom === val);
+                setMedicalFacilityId(matched ? String(matched.id) : '');
+              }}
+              required
+            />
+            <input type="hidden" name="medicalFacilityId" value={medicalFacilityId} />
+            <datalist id="doctor-facilities-list">
               {facilities.map((f) => (
-                <option key={f.id} value={String(f.id)}>
-                  {f.nom} ({f.type})
-                </option>
+                <option key={f.id} value={`${f.nom} (${f.type})`} />
               ))}
-            </select>
+            </datalist>
           </div>
         </div>
         <div className="modal-footer" style={{ padding: '16px 0 0' }}>
-          <button type="button" className="btn btn-outline" onClick={closeModal}>
+          <button type="button" className="btn btn-outline" onClick={onClose}>
             Annuler
           </button>
           <button type="submit" className="btn btn-primary">
@@ -164,7 +181,7 @@ export default function MedecinsPage({ setPageTitle, addToast, user }) {
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => setModal({ title: `Modifier — ${d.fullName}`, content: buildForm(d) })}
+                onClick={() => setModal({ title: `Modifier — ${d.fullName}`, content: <DoctorForm doctor={d} onClose={closeModal} /> })}
               >
                 <FaIcon name="pen-to-square" className="fa-inline-icon" /> Modifier
               </button>
@@ -204,7 +221,7 @@ export default function MedecinsPage({ setPageTitle, addToast, user }) {
             exportFilename="medecins"
             showNew={canMutate}
             newLabel="Nouveau médecin"
-            onNew={() => setModal({ title: 'Nouveau médecin', content: buildForm() })}
+            onNew={() => setModal({ title: 'Nouveau médecin', content: <DoctorForm doctor={null} onClose={closeModal} /> })}
           />
         }
       >
@@ -224,7 +241,7 @@ export default function MedecinsPage({ setPageTitle, addToast, user }) {
                       className="btn btn-icon btn-edit"
                       type="button"
                       title="Modifier"
-                      onClick={() => setModal({ title: `Modifier — ${d.fullName}`, content: buildForm(d) })}
+                      onClick={() => setModal({ title: `Modifier — ${d.fullName}`, content: <DoctorForm doctor={d} onClose={closeModal} /> })}
                     >
                       <FaIcon name="pen-to-square" />
                     </button>

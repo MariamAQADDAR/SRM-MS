@@ -91,6 +91,13 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
   const [errors, setErrors] = useState({});
   const [benefs, setBenefs] = useState(agent ? beneficiaries.filter(b => b.agentId === agent.id) : []);
 
+  const initialEntity = useMemo(() => {
+    const matched = serviceOptions.find(opt => String(opt.id) === String(agentData.entiteId));
+    return matched ? matched.label : '';
+  }, [serviceOptions, agentData.entiteId]);
+
+  const [entiteSearch, setEntiteSearch] = useState(initialEntity);
+
   const [newBenef, setNewBenef] = useState({
     nom: '',
     prenom: '',
@@ -308,18 +315,23 @@ function AgentWorkflowModal({ agent, onClose, orgEntities, beneficiaries, addToa
 
               <div className={`form-group ${errors.entiteId ? 'has-error' : ''}`}>
                 <label>Service de rattachement (SRM-MS) <span className="required">*</span></label>
-                <select
+                <input
+                  list="services-list"
                   className="form-control"
-                  value={String(agentData.entiteId || '')}
-                  onChange={(e) => setAgentData({ ...agentData, entiteId: e.target.value })}
-                >
-                  <option value="">— Choisir un service —</option>
+                  placeholder="Écrire pour rechercher et sélectionner..."
+                  value={entiteSearch}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEntiteSearch(val);
+                    const matched = serviceOptions.find(opt => opt.label === val);
+                    setAgentData({ ...agentData, entiteId: matched ? String(matched.id) : '' });
+                  }}
+                />
+                <datalist id="services-list">
                   {serviceOptions.map((e) => (
-                    <option key={e.id} value={String(e.id)}>
-                      {e.label}
-                    </option>
+                    <option key={e.id} value={e.label} />
                   ))}
-                </select>
+                </datalist>
                 {errors.entiteId && <span className="field-error">{errors.entiteId}</span>}
                 <p className="form-hint" style={{ fontSize: 12, marginTop: 6, color: 'var(--gray-500)' }}>
                   Chaque agent est affecté à un <strong>Service</strong> (niveau 5 de l&apos;organigramme).
@@ -631,6 +643,20 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
   const [singleDateNaissance, setSingleDateNaissance] = useState(p ? (p.dateNaissance ?? '') : '');
   const [singleVille, setSingleVille] = useState(p ? (p.ville || '') : '');
 
+  const agentOptions = useMemo(() => {
+    return agents.map(a => ({
+      id: a.id,
+      label: `${a.prenom} ${a.nom} (${a.matricule})`
+    }));
+  }, [agents]);
+
+  const initialAgent = useMemo(() => {
+    const matched = agentOptions.find(opt => String(opt.id) === String(agentId));
+    return matched ? matched.label : '';
+  }, [agentOptions, agentId]);
+
+  const [agentSearch, setAgentSearch] = useState(initialAgent);
+
   const [benefs, setBenefs] = useState([]);
   const [newBenef, setNewBenef] = useState({
     nom: '',
@@ -702,7 +728,7 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
           benefs.map((b) =>
             apiFetch('/api/beneficiaries', {
               method: 'POST',
-              body: JSON.stringify({
+              body: {
                 agentId: Number(agentId),
                 nom: b.nom,
                 prenom: b.prenom,
@@ -710,7 +736,7 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
                 cin: b.cin || '',
                 dateNaissance: b.dateNaissance || null,
                 ville: b.ville || ''
-              })
+              }
             }).then(parseJsonOrThrow)
           )
         );
@@ -729,13 +755,24 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
         <div className="form-grid">
           <div className="form-group">
             <label>Agent rattaché</label>
-            <select name="agentId" className="form-control" value={agentId} onChange={(e) => setAgentId(e.target.value)} required>
-              {agents.map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {a.prenom} {a.nom} ({a.matricule})
-                </option>
+            <input
+              list="agents-list"
+              className="form-control"
+              placeholder="Écrire pour rechercher et sélectionner..."
+              value={agentSearch}
+              onChange={(e) => {
+                const val = e.target.value;
+                setAgentSearch(val);
+                const matched = agentOptions.find(opt => opt.label === val);
+                setAgentId(matched ? String(matched.id) : '');
+              }}
+              required
+            />
+            <datalist id="agents-list">
+              {agentOptions.map((opt) => (
+                <option key={opt.id} value={opt.label} />
               ))}
-            </select>
+            </datalist>
           </div>
           <div className="form-group">
             <label>Nom</label>
@@ -782,19 +819,24 @@ function BeneficiaryFormModal({ p = null, agents, onClose, addToast, reload }) {
     <div className="benefs-creation-wizard">
       <div className="form-group" style={{ marginBottom: '20px' }}>
         <label style={{ fontWeight: 'bold' }}>Sélectionner l'Agent rattaché <span className="required">*</span></label>
-        <select
+        <input
+          list="agents-list"
           className="form-control"
-          value={agentId}
-          onChange={(e) => setAgentId(e.target.value)}
+          placeholder="Écrire pour rechercher et sélectionner..."
+          value={agentSearch}
+          onChange={(e) => {
+            const val = e.target.value;
+            setAgentSearch(val);
+            const matched = agentOptions.find(opt => opt.label === val);
+            setAgentId(matched ? String(matched.id) : '');
+          }}
           required
-        >
-          <option value="" disabled>— Choisir un agent —</option>
-          {agents.map((a) => (
-            <option key={a.id} value={String(a.id)}>
-              {a.prenom} {a.nom} ({a.matricule})
-            </option>
+        />
+        <datalist id="agents-list">
+          {agentOptions.map((opt) => (
+            <option key={opt.id} value={opt.label} />
           ))}
-        </select>
+        </datalist>
       </div>
 
       <div className="benefs-list" style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '20px', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px' }}>
@@ -1031,15 +1073,7 @@ export default function BeneficiairesPage({ setPageTitle, addToast, user, forced
             <span>{a.matricule}</span>
             <span>{a.cin}</span>
           </div>
-          <DetailView
-            footer={
-              <DetailModalFooter
-                onClose={closeModal}
-                canEdit={canMutate}
-                onEdit={() => setModal({ title: `Modifier : ${a.prenom} ${a.nom}`, content: buildAgentForm(a) })}
-              />
-            }
-          >
+          <DetailView>
             <DetailItem label="Date de naissance">{formatDate(a.dateNaissance)}</DetailItem>
             <DetailItem label="Lieu de naissance">{a.ville || '—'}</DetailItem>
             <DetailItem label="Situation">{a.situation || '—'}</DetailItem>

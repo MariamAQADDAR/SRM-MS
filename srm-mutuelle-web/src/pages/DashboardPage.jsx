@@ -5,6 +5,7 @@ import ListPageToolbar from '../components/ListPageToolbar';
 import { apiFetch, parseJsonOrThrow } from '../api/client';
 import { isAdherentRole } from '../authUtils';
 import { matchesSearch } from '../utils/filterSearch';
+import { motion } from 'framer-motion';
 
 function statusBadge(statut) {
   const map = {
@@ -43,6 +44,8 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
   const adherent = isAdherentRole(user);
   const [summary, setSummary] = useState(null);
   const [reimb, setReimb] = useState([]);
+  const [quotes, setQuotes] = useState([]);
+  const [careEpisodes, setCareEpisodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -51,10 +54,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
     (async () => {
       setLoading(true);
       try {
-        const rRes = await apiFetch('/api/reimbursements');
+        const [rRes, qRes, pRes] = await Promise.all([
+          apiFetch('/api/reimbursements'),
+          apiFetch('/api/quotes'),
+          apiFetch('/api/care-episodes'),
+        ]);
         const rList = await parseJsonOrThrow(rRes);
+        const qList = await parseJsonOrThrow(qRes);
+        const pList = await parseJsonOrThrow(pRes);
         if (cancelled) return;
         setReimb(rList);
+        setQuotes(qList);
+        setCareEpisodes(pList);
         if (!adherent) {
           const sRes = await apiFetch('/api/stats/summary');
           if (sRes.ok) {
@@ -85,6 +96,99 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
       matchesSearch(searchQuery, r.numero, r.beneficiaire, r.statut, formatDate(r.date), r.montant),
     );
   }, [reimb, searchQuery]);
+
+  const monthlyQuoteStats = useMemo(() => {
+    const frenchMonths = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+    const now = new Date();
+    const stats = [];
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const targetYear = d.getFullYear();
+      const targetMonth = d.getMonth() + 1; // 1-indexed
+      const label = frenchMonths[d.getMonth()];
+      
+      let totalMontant = 0;
+      let totalPec = 0;
+      
+      for (const q of quotes) {
+        if (!q.date) continue;
+        const [y, m] = q.date.split('-');
+        if (Number(y) === targetYear && Number(m) === targetMonth) {
+          totalMontant += Number(q.montant) || 0;
+          totalPec += Number(q.montantPrisEnCharge) || 0;
+        }
+      }
+      
+      stats.push({
+        month: label,
+        montant: totalMontant,
+        montantPrisEnCharge: totalPec,
+      });
+    }
+    return stats;
+  }, [quotes]);
+
+  const monthlyPecStats = useMemo(() => {
+    const frenchMonths = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+    const now = new Date();
+    const stats = [];
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const targetYear = d.getFullYear();
+      const targetMonth = d.getMonth() + 1; // 1-indexed
+      const label = frenchMonths[d.getMonth()];
+      
+      let totalDemande = 0;
+      let totalValide = 0;
+      
+      for (const p of careEpisodes) {
+        const dateStr = p.dateDebut || p.depositDate;
+        if (!dateStr) continue;
+        const [y, m] = dateStr.split('-');
+        if (Number(y) === targetYear && Number(m) === targetMonth) {
+          totalDemande += Number(p.montantDemande) || 0;
+          totalValide += Number(p.montantPrisEnCharge) || 0;
+        }
+      }
+      
+      stats.push({
+        month: label,
+        montantDemande: totalDemande,
+        montantValide: totalValide,
+      });
+    }
+    return stats;
+  }, [careEpisodes]);
+
+  const quotesStatusStats = useMemo(() => {
+    let attente = 0;
+    let valide = 0;
+    let refuse = 0;
+    (quotes || []).forEach((q) => {
+      const s = q.etat || q.statut || '';
+      if (s === 'En attente' || s === 'En cours' || s === 'Soumis' || s === 'Brouillon') attente++;
+      else if (s === 'Approuvé' || s === 'Validé' || s === 'Accordée') valide++;
+      else if (s === 'Rejeté' || s === 'Refusé' || s === 'Refusée') refuse++;
+    });
+    const total = attente + valide + refuse;
+    return { attente, valide, refuse, total };
+  }, [quotes]);
+
+  const pecStatusStats = useMemo(() => {
+    let attente = 0;
+    let valide = 0;
+    let refuse = 0;
+    (careEpisodes || []).forEach((p) => {
+      const s = p.statut || p.status || '';
+      if (s === 'En attente' || s === 'En cours') attente++;
+      else if (s === 'Approuvé' || s === 'Clôturé' || s === 'Validé') valide++;
+      else if (s === 'Rejeté' || s === 'Refusé') refuse++;
+    });
+    const total = attente + valide + refuse;
+    return { attente, valide, refuse, total };
+  }, [careEpisodes]);
 
   if (loading) {
     return (
@@ -133,11 +237,27 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
   const radius = 50;
   const circumference = 2 * Math.PI * radius;
 
-  // Max value for Double Bar Chart
-  const maxVal = Math.max(
+  // Max value for Double Bar Chart (Quotes)
+  const maxValQuotes = Math.max(
     1,
-    ...monthlyStats.map(d => Math.max(Number(d.montantDemande) || 0, Number(d.montantValide) || 0))
+    ...monthlyQuoteStats.map(d => Math.max(Number(d.montant) || 0, Number(d.montantPrisEnCharge) || 0))
   );
+
+  const yTicksQuotes = [];
+  for (let i = 4; i >= 0; i--) {
+    yTicksQuotes.push((maxValQuotes * i) / 4);
+  }
+
+  // Max value for Double Bar Chart (Care Episodes - PEC)
+  const maxValPec = Math.max(
+    1,
+    ...monthlyPecStats.map(d => Math.max(Number(d.montantDemande) || 0, Number(d.montantValide) || 0))
+  );
+
+  const yTicksPec = [];
+  for (let i = 4; i >= 0; i--) {
+    yTicksPec.push((maxValPec * i) / 4);
+  }
 
   return (
     <>
@@ -283,63 +403,58 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
           color: var(--gray-400);
         }
 
-        /* SVG Double-Bar Chart Styling */
-        .double-chart-container {
-          height: 220px;
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          padding-top: 20px;
-          padding-bottom: 10px;
-          border-bottom: 1px solid var(--gray-200);
-        }
-        .double-chart-column {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          flex-grow: 1;
-          height: 100%;
-          justify-content: flex-end;
-          position: relative;
-        }
-        .double-bar-pair {
-          display: flex;
-          align-items: flex-end;
-          gap: 4px;
-          height: 100%;
-          justify-content: center;
-          width: 100%;
-        }
+        /* Double-Bar Chart Tooltip & Interactivity */
         .double-bar {
-          width: 18px;
-          border-radius: 4px 4px 0 0;
           position: relative;
-          transition: height 0.5s ease;
           cursor: pointer;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .double-bar.requested {
-          background: #818cf8;
-        }
-        .double-bar.validated {
-          background: #34d399;
+        .double-bar:hover {
+          filter: brightness(1.1) contrast(1.05);
+          transform: scaleX(1.05);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
         .double-bar:hover .chart-tooltip {
           opacity: 1;
           visibility: visible;
           transform: translate(-50%, -8px);
         }
-        .double-chart-label {
-          margin-top: 8px;
+        .chart-tooltip {
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translate(-50%, 0);
+          background: rgba(15, 23, 42, 0.96);
+          color: #fff;
+          padding: 8px 12px;
+          border-radius: 6px;
           font-size: 11px;
           font-weight: 600;
-          color: var(--gray-500);
+          box-shadow: var(--shadow-lg);
+          opacity: 0;
+          visibility: hidden;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          pointer-events: none;
+          z-index: 100;
+          text-align: center;
+          line-height: 1.45;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          white-space: nowrap;
         }
       `}</style>
 
       {/* KPI Cards Grid */}
       <div className="stats-grid">
         {/* 1. Agents */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('agents')}>
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('agents')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.0 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--primary-300)' }}
+        >
           <div className="stat-icon blue">
             <FaIcon name="users" />
           </div>
@@ -348,10 +463,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{totalAgentsCount}</div>
             <span className="stat-change up" style={{ color: 'var(--primary-600)', fontWeight: 600 }}>Gérer les dossiers</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* 2. Ordonnances */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('ordonnances')}>
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('ordonnances')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--info-300)' }}
+        >
           <div className="stat-icon cyan">
             <FaIcon name="clipboard-list" />
           </div>
@@ -360,10 +483,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{totalOrdonnances}</div>
             <span className="stat-change up" style={{ color: 'var(--info-600)', fontWeight: 600 }}>Total enregistrées</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* 3. Remboursements en attente */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('remboursements')}>
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('remboursements')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--warning-300)' }}
+        >
           <div className="stat-icon orange">
             <FaIcon name="hourglass-half" />
           </div>
@@ -372,10 +503,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{remboursementsEnAttente}</div>
             <span className="stat-change down" style={{ color: 'var(--warning-600)', fontWeight: 600 }}>À instruire</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* 4. Devis en attente */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('devis')}>
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('devis')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--primary-300)' }}
+        >
           <div className="stat-icon purple">
             <FaIcon name="file-invoice-dollar" />
           </div>
@@ -384,10 +523,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{devisEnAttente}</div>
             <span className="stat-change down" style={{ color: 'var(--primary-700)', fontWeight: 600 }}>À valider</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* 5. PEC en attente */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('prises-en-charge')}>
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('prises-en-charge')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--danger-300)' }}
+        >
           <div className="stat-icon red">
             <FaIcon name="hospital" />
           </div>
@@ -396,10 +543,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{pendingCareEpisodesCount}</div>
             <span className="stat-change down" style={{ color: 'var(--danger-600)', fontWeight: 600 }}>PEC hospitalières</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* 6. Cartes en attente */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('cartes-mutuelles')}>
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('cartes-mutuelles')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.25 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--warning-300)' }}
+        >
           <div className="stat-icon orange">
             <FaIcon name="address-card" />
           </div>
@@ -408,10 +563,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{pendingMutualCardRequestsCount}</div>
             <span className="stat-change down" style={{ color: 'var(--warning-600)', fontWeight: 600 }}>Demandes cartes</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* 7. Médicaments */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('medicaments')}>
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('medicaments')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.3 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--success-300)' }}
+        >
           <div className="stat-icon green">
             <FaIcon name="pills" />
           </div>
@@ -420,10 +583,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{medicinesCount}</div>
             <span className="stat-change up" style={{ color: 'var(--accent-600)', fontWeight: 600 }}>Référentiel</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* 8. Établissements */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('etablissements')}>
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('etablissements')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.35 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--info-300)' }}
+        >
           <div className="stat-icon cyan">
             <FaIcon name="house-chimney-medical" />
           </div>
@@ -432,10 +603,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{facilitiesCount}</div>
             <span className="stat-change up" style={{ color: 'var(--info-600)', fontWeight: 600 }}>Cliniques / Hôpitaux</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* 9. Entités */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('entites')}>
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('entites')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.4 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--primary-300)' }}
+        >
           <div className="stat-icon purple">
             <FaIcon name="sitemap" />
           </div>
@@ -444,22 +623,18 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{entitiesCount}</div>
             <span className="stat-change up" style={{ color: 'var(--primary-700)', fontWeight: 600 }}>Organisation</span>
           </div>
-        </div>
+        </motion.div>
 
-        {/* 10. Maladies spéciales */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('maladies')}>
-          <div className="stat-icon red">
-            <FaIcon name="heart-pulse" />
-          </div>
-          <div className="stat-info">
-            <h4>Maladies spéciales</h4>
-            <div className="stat-value">{diseasesCount}</div>
-            <span className="stat-change up" style={{ color: 'var(--danger-600)', fontWeight: 600 }}>Déclarations</span>
-          </div>
-        </div>
-
-        {/* 11. Médecins conventionnés */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.('medecins')}>
+        {/* 10. Médecins conventionnés */}
+        <motion.div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate?.('medecins')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.45 }}
+          whileHover={{ y: -5, boxShadow: 'var(--shadow-md)', borderColor: 'var(--primary-300)' }}
+        >
           <div className="stat-icon blue">
             <FaIcon name="user-doctor" />
           </div>
@@ -468,73 +643,121 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
             <div className="stat-value">{doctorsCount}</div>
             <span className="stat-change up" style={{ color: 'var(--primary-600)', fontWeight: 600 }}>Référentiel médical</span>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Charts (Monthly costs & Donut stats) */}
       <div className="charts-timeline-row">
         {/* Monthly Expenses Chart */}
-        <div className="card">
+        <motion.div
+          className="card"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        >
           <div className="card-header">
             <h3 style={{ margin: 0 }}>
-              <FaIcon name="chart-line" className="fa-inline-icon" /> Coûts mensuels (demandes vs validations, DH)
+              <FaIcon name="chart-simple" className="fa-inline-icon" /> Statistiques des devis (montant total vs accordé, DH)
             </h3>
           </div>
           <div className="card-body" style={{ minHeight: '320px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-            {monthlyStats.length === 0 ? (
+            {monthlyQuoteStats.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--gray-400)' }}>
-                Aucune donnée mensuelle disponible
+                Aucune donnée de devis disponible
               </div>
             ) : (
               <>
-                <div className="double-chart-container">
-                  {monthlyStats.map((d, i) => {
-                    const heightDemande = ((Number(d.montantDemande) || 0) / maxVal) * 100;
-                    const heightValide = ((Number(d.montantValide) || 0) / maxVal) * 100;
-                    return (
-                      <div key={i} className="double-chart-column">
-                        <div className="double-bar-pair">
-                          <div 
-                            className="double-bar requested" 
-                            style={{ height: `${heightDemande}%` }}
-                          >
-                            <div className="chart-tooltip">
-                              <strong>Demandé :</strong><br/>
-                              {(Number(d.montantDemande) || 0).toLocaleString('fr-FR')} DH
+                <div style={{ position: 'relative', height: '240px', paddingLeft: '55px', paddingRight: '10px', marginTop: '10px' }}>
+                  {/* Grid Lines & Y-Axis Scale */}
+                  <div style={{ position: 'absolute', top: 0, bottom: '30px', left: '55px', right: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pointerEvents: 'none' }}>
+                    {yTicksQuotes.map((tick, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', width: '100%', height: 0, position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '-55px', width: '48px', textAlign: 'right', fontSize: '10px', color: 'var(--gray-400)', fontWeight: '700' }}>
+                          {tick >= 1000000 ? `${(tick / 1000000).toFixed(1)}M` : tick >= 1000 ? `${(tick / 1000).toFixed(0)}k` : tick.toFixed(0)}
+                        </span>
+                        <div style={{ flexGrow: 1, borderBottom: '1px dashed var(--gray-200)', width: '100%' }}></div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Bars Container */}
+                  <div style={{ position: 'absolute', top: 0, bottom: '30px', left: '55px', right: 0, display: 'flex', alignItems: 'end', justifyContent: 'space-around', zIndex: 1 }}>
+                    {monthlyQuoteStats.map((d, i) => {
+                      const heightDemande = ((Number(d.montant) || 0) / maxValQuotes) * 100;
+                      const heightValide = ((Number(d.montantPrisEnCharge) || 0) / maxValQuotes) * 100;
+                      return (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'end', width: `${100 / monthlyQuoteStats.length}%` }}>
+                          <div style={{ display: 'flex', alignItems: 'end', gap: '6px', height: '100%', justifyContent: 'center', position: 'relative', width: '100%' }}>
+                            {/* Requested Bar */}
+                            <div 
+                              className="double-bar requested" 
+                              style={{ 
+                                height: `${Math.max(1, heightDemande)}%`,
+                                width: '20px',
+                                background: 'linear-gradient(to top, var(--primary-500), var(--primary-300))',
+                                borderRadius: '4px 4px 0 0',
+                                position: 'relative',
+                                transition: 'height 0.4s ease-out'
+                              }}
+                            >
+                              <div className="chart-tooltip">
+                                <div style={{ color: 'var(--primary-300)', fontWeight: '700', marginBottom: '2px' }}>Total Devis ({d.month})</div>
+                                <div style={{ fontSize: '13px' }}>{Number(d.montant || 0).toLocaleString('fr-FR')} DH</div>
+                              </div>
+                            </div>
+
+                            {/* Validated Bar */}
+                            <div 
+                              className="double-bar validated" 
+                              style={{ 
+                                height: `${Math.max(1, heightValide)}%`,
+                                width: '20px',
+                                background: 'linear-gradient(to top, var(--accent-600), var(--accent-400))',
+                                borderRadius: '4px 4px 0 0',
+                                position: 'relative',
+                                transition: 'height 0.4s ease-out'
+                              }}
+                            >
+                              <div className="chart-tooltip">
+                                <div style={{ color: 'var(--accent-400)', fontWeight: '700', marginBottom: '2px' }}>Accordé ({d.month})</div>
+                                <div style={{ fontSize: '13px' }}>{Number(d.montantPrisEnCharge || 0).toLocaleString('fr-FR')} DH</div>
+                              </div>
                             </div>
                           </div>
-                          <div 
-                            className="double-bar validated" 
-                            style={{ height: `${heightValide}%` }}
-                          >
-                            <div className="chart-tooltip" style={{ background: 'var(--accent-600)' }}>
-                              <strong>Validé :</strong><br/>
-                              {(Number(d.montantValide) || 0).toLocaleString('fr-FR')} DH
-                            </div>
+                          <div style={{ marginTop: '8px', fontSize: '11px', fontWeight: '700', color: 'var(--gray-500)' }}>
+                            {d.month}
                           </div>
                         </div>
-                        <div className="double-chart-label">{d.month}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--gray-600)' }}>
-                    <div style={{ width: '12px', height: '12px', background: '#818cf8', borderRadius: '3px' }}></div>
-                    <span>Montant demandé (DH)</span>
+                      );
+                    })}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--gray-600)' }}>
-                    <div style={{ width: '12px', height: '12px', background: '#34d399', borderRadius: '3px' }}></div>
-                    <span>Montant validé (DH)</span>
+                </div>
+
+                {/* Legend */}
+                <div style={{ display: 'flex', gap: '24px', justifyContent: 'center', marginTop: '16px', borderTop: '1px solid var(--gray-100)', paddingTop: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--gray-600)', fontWeight: '600' }}>
+                    <div style={{ width: '12px', height: '12px', background: 'linear-gradient(to top, var(--primary-500), var(--primary-300))', borderRadius: '3px' }}></div>
+                    <span>Montant total devis (DH)</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--gray-600)', fontWeight: '600' }}>
+                    <div style={{ width: '12px', height: '12px', background: 'linear-gradient(to top, var(--accent-600), var(--accent-400))', borderRadius: '3px' }}></div>
+                    <span>Montant accordé (DH)</span>
                   </div>
                 </div>
               </>
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* Circular Donut Chart */}
-        <div className="card">
+        <motion.div
+          className="card"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.35 }}
+          whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        >
           <div className="card-header">
             <h3 style={{ margin: 0 }}>
               <FaIcon name="chart-pie" className="fa-inline-icon" /> Statuts des remboursements
@@ -599,13 +822,21 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Activities & Care types */}
-      <div className="charts-timeline-row">
+      <motion.div 
+        className="charts-timeline-row"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
         {/* Unified Activities Log */}
-        <div className="card">
+        <motion.div 
+          className="card"
+          whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        >
           <div className="card-header">
             <h3 style={{ margin: 0 }}><FaIcon name="clock-rotate-left" className="fa-inline-icon" /> Flux des activités récentes</h3>
           </div>
@@ -654,10 +885,13 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* Care types breakdown */}
-        <div className="card">
+        <motion.div 
+          className="card"
+          whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        >
           <div className="card-header">
             <h3 style={{ margin: 0 }}><FaIcon name="stethoscope" className="fa-inline-icon" /> Répartition par soins</h3>
           </div>
@@ -686,58 +920,179 @@ export default function DashboardPage({ setPageTitle, addToast, user, onNavigate
               Statistiques basées sur les remboursements actifs enregistrés dans le système.
             </p>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
-      {/* Bottom Table view (Reimbursement table search & export) */}
-      <TablePageShell
-        title="Recherche générale des remboursements"
-        icon="magnifying-glass"
-        toolbar={
-          <ListPageToolbar
-            searchValue={searchQuery}
-            onSearchChange={(e) => setSearchQuery(e.target.value)}
-            searchPlaceholder="Rechercher (n°, bénéficiaire, statut, date…)"
-            exportColumns={[
-              { key: 'numero', label: 'N°' },
-              { key: 'type', label: 'Type' },
-              { key: 'beneficiaire', label: 'Bénéficiaire' },
-              { key: 'montant', label: 'Montant' },
-              { key: 'statut', label: 'Statut' },
-              { key: 'date', label: 'Date', value: (r) => formatDate(r.date) },
-            ]}
-            exportRows={activityRows}
-            exportFilename="remboursements"
-          />
-        }
-      >
-        <div className="data-table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>N°</th>
-                <th>Type</th>
-                <th>Bénéficiaire</th>
-                <th>Montant</th>
-                <th>Statut</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activityRows.slice(0, searchQuery.trim() ? 20 : 5).map((r) => (
-                <tr key={r.id}>
-                  <td>{r.numero}</td>
-                  <td>{r.type}</td>
-                  <td>{r.beneficiaire}</td>
-                  <td>{r.montant}</td>
-                  <td>{statusBadge(r.statut)}</td>
-                  <td>{formatDate(r.date)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </TablePageShell>
+      {/* Bottom Charts view (Devis & PEC Donut Charts) */}
+      <div className="charts-timeline-row" style={{ marginTop: '24px' }}>
+        {/* Devis Donut Chart */}
+        <motion.div
+          className="card"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.45 }}
+          whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        >
+          <div className="card-header">
+            <h3 style={{ margin: 0 }}>
+              <FaIcon name="chart-pie" className="fa-inline-icon" /> Statut des devis
+            </h3>
+          </div>
+          <div className="card-body" style={{ minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            {quotesStatusStats.total === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--gray-400)' }}>
+                Aucun devis disponible
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: '16px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                  <svg width="150" height="150" viewBox="0 0 160 160">
+                    <circle cx="80" cy="80" r={radius} fill="transparent" stroke="#f1f5f9" strokeWidth="16" />
+                    {(() => {
+                      const slices = [
+                        { label: 'Validés', value: quotesStatusStats.valide, color: 'var(--accent-500)' },
+                        { label: 'En attente', value: quotesStatusStats.attente, color: 'var(--warning-500)' },
+                        { label: 'Refusés', value: quotesStatusStats.refuse, color: 'var(--danger-500)' },
+                      ].filter(s => s.value > 0);
+                      
+                      let currentAcc = 0;
+                      return slices.map((slice, idx) => {
+                        const percent = (slice.value / quotesStatusStats.total) * 100;
+                        const strokeLength = (slice.value / quotesStatusStats.total) * circumference;
+                        const strokeOffset = circumference - (currentAcc / 100) * circumference;
+                        currentAcc += percent;
+                        return (
+                          <circle
+                            key={idx}
+                            cx="80"
+                            cy="80"
+                            r={radius}
+                            fill="transparent"
+                            stroke={slice.color}
+                            strokeWidth="16"
+                            strokeDasharray={`${strokeLength} ${circumference - strokeLength}`}
+                            strokeDashoffset={strokeOffset}
+                            transform="rotate(-90 80 80)"
+                            style={{ transition: 'stroke-dashoffset 0.5s ease', cursor: 'pointer' }}
+                          />
+                        );
+                      });
+                    })()}
+                    <text x="80" y="75" textAnchor="middle" style={{ fontSize: '18px', fontWeight: 800, fill: 'var(--gray-900)' }}>
+                      {quotesStatusStats.total}
+                    </text>
+                    <text x="80" y="93" textAnchor="middle" style={{ fontSize: '10px', fontWeight: 600, fill: 'var(--gray-400)', textTransform: 'uppercase' }}>
+                      Devis
+                    </text>
+                  </svg>
+                </div>
+                
+                <div className="donut-legend">
+                  {[
+                    { label: 'Validés', value: quotesStatusStats.valide, color: 'var(--accent-500)' },
+                    { label: 'En attente', value: quotesStatusStats.attente, color: 'var(--warning-500)' },
+                    { label: 'Refusés', value: quotesStatusStats.refuse, color: 'var(--danger-500)' },
+                  ].map((slice, idx) => {
+                    const percent = quotesStatusStats.total > 0 ? ((slice.value / quotesStatusStats.total) * 100).toFixed(0) : 0;
+                    return (
+                      <div key={idx} className="legend-item">
+                        <div className="legend-color-dot" style={{ background: slice.color }}></div>
+                        <span>{slice.label}</span>
+                        <span className="legend-percent">({percent}%)</span>
+                        <span className="legend-value">{slice.value}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* PEC Donut Chart */}
+        <motion.div
+          className="card"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        >
+          <div className="card-header">
+            <h3 style={{ margin: 0 }}>
+              <FaIcon name="chart-pie" className="fa-inline-icon" /> Statut des prises en charge (PEC)
+            </h3>
+          </div>
+          <div className="card-body" style={{ minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            {pecStatusStats.total === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--gray-400)' }}>
+                Aucune prise en charge disponible
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: '16px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                  <svg width="150" height="150" viewBox="0 0 160 160">
+                    <circle cx="80" cy="80" r={radius} fill="transparent" stroke="#f1f5f9" strokeWidth="16" />
+                    {(() => {
+                      const slices = [
+                        { label: 'Validées', value: pecStatusStats.valide, color: 'var(--accent-500)' },
+                        { label: 'En attente', value: pecStatusStats.attente, color: 'var(--warning-500)' },
+                        { label: 'Refusées', value: pecStatusStats.refuse, color: 'var(--danger-500)' },
+                      ].filter(s => s.value > 0);
+                      
+                      let currentAcc = 0;
+                      return slices.map((slice, idx) => {
+                        const percent = (slice.value / pecStatusStats.total) * 100;
+                        const strokeLength = (slice.value / pecStatusStats.total) * circumference;
+                        const strokeOffset = circumference - (currentAcc / 100) * circumference;
+                        currentAcc += percent;
+                        return (
+                          <circle
+                            key={idx}
+                            cx="80"
+                            cy="80"
+                            r={radius}
+                            fill="transparent"
+                            stroke={slice.color}
+                            strokeWidth="16"
+                            strokeDasharray={`${strokeLength} ${circumference - strokeLength}`}
+                            strokeDashoffset={strokeOffset}
+                            transform="rotate(-90 80 80)"
+                            style={{ transition: 'stroke-dashoffset 0.5s ease', cursor: 'pointer' }}
+                          />
+                        );
+                      });
+                    })()}
+                    <text x="80" y="75" textAnchor="middle" style={{ fontSize: '18px', fontWeight: 800, fill: 'var(--gray-900)' }}>
+                      {pecStatusStats.total}
+                    </text>
+                    <text x="80" y="93" textAnchor="middle" style={{ fontSize: '10px', fontWeight: 600, fill: 'var(--gray-400)', textTransform: 'uppercase' }}>
+                      PEC
+                    </text>
+                  </svg>
+                </div>
+                
+                <div className="donut-legend">
+                  {[
+                    { label: 'Validées', value: pecStatusStats.valide, color: 'var(--accent-500)' },
+                    { label: 'En attente', value: pecStatusStats.attente, color: 'var(--warning-500)' },
+                    { label: 'Refusées', value: pecStatusStats.refuse, color: 'var(--danger-500)' },
+                  ].map((slice, idx) => {
+                    const percent = pecStatusStats.total > 0 ? ((slice.value / pecStatusStats.total) * 100).toFixed(0) : 0;
+                    return (
+                      <div key={idx} className="legend-item">
+                        <div className="legend-color-dot" style={{ background: slice.color }}></div>
+                        <span>{slice.label}</span>
+                        <span className="legend-percent">({percent}%)</span>
+                        <span className="legend-value">{slice.value}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
     </>
   );
 }

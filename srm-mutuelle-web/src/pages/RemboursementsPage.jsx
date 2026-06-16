@@ -103,6 +103,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   const [modal, setModal] = useState(null);
   const [rows, setRows] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [facilities, setFacilities] = useState([]);
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pdfFile, setPdfFile] = useState(null);
@@ -128,13 +129,18 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   const reload = async () => {
     setLoading(true);
     try {
-      const reqs = [apiFetch('/api/reimbursements'), apiFetch('/api/agents')];
+      const reqs = [
+        apiFetch('/api/reimbursements'),
+        apiFetch('/api/agents'),
+        apiFetch('/api/medical-facilities')
+      ];
       if (myAgent) reqs.push(apiFetch(`/api/beneficiaries?agentId=${myAgent}`));
       const out = await Promise.all(reqs.map((p) => p.then((r) => parseJsonOrThrow(r))));
       setRows(out[0]);
       setAgents(out[1]);
-      if (myAgent && out[2]) {
-        setBeneficiaries(out[2]);
+      setFacilities(out[2]);
+      if (myAgent && out[3]) {
+        setBeneficiaries(out[3]);
       } else {
         setBeneficiaries([]);
       }
@@ -420,11 +426,17 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
             <div className="form-group">
               <label>Établissement / pharmacie</label>
               <input
+                list="reimb-facilities-list"
                 className="form-control"
                 placeholder="Nom de l'établissement"
                 value={wizardDraft.establishmentName}
                 onChange={(e) => patchDraft('establishmentName', e.target.value)}
               />
+              <datalist id="reimb-facilities-list">
+                {facilities.map((f) => (
+                  <option key={f.id} value={f.nom} />
+                ))}
+              </datalist>
             </div>
             <div className="form-group">
               <label>Date de dépôt</label>

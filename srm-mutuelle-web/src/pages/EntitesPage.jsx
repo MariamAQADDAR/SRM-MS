@@ -174,16 +174,18 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
       return ent.type === requiredParentType;
     });
 
+    const [parentId, setParentId] = React.useState(entity?.parentId != null ? String(entity.parentId) : '');
+    const initialParent = entity?.parentId != null ? parentOptions.find(p => p.id === entity.parentId) : null;
+    const [parentSearch, setParentSearch] = React.useState(initialParent ? `${initialParent.code} — ${initialParent.nom}` : '');
+
     const submit = async (e) => {
       e.preventDefault();
-      const fd = new FormData(e.target);
-      const parentRaw = fd.get('parentId');
-      const parentId = parentRaw && String(parentRaw).trim() !== '' ? Number(parentRaw) : null;
+      const resolvedParentId = parentId && String(parentId).trim() !== '' ? Number(parentId) : null;
       const body = {
-        code: fd.get('code'),
-        nom: fd.get('nom'),
+        code: e.target.code.value,
+        nom: e.target.nom.value,
         type: selectedType,
-        parentId,
+        parentId: resolvedParentId,
       };
       try {
         const url = isEdit ? `/api/organizational-entities/${entity.id}` : '/api/organizational-entities';
@@ -221,7 +223,11 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
               name="type"
               className="form-control"
               value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
+              onChange={(e) => {
+                setSelectedType(e.target.value);
+                setParentId('');
+                setParentSearch('');
+              }}
               required
             >
               {entityTypes.map((t) => (
@@ -233,20 +239,26 @@ export default function EntitesPage({ setPageTitle, addToast, user }) {
           </div>
           <div className="form-group">
             <label>Entité mère {requiredParentType ? `(${requiredParentType})` : ''}</label>
-            <select
-              name="parentId"
+            <input
+              list="parent-entities-list"
               className="form-control"
-              defaultValue={entity?.parentId != null ? String(entity.parentId) : ''}
+              placeholder={requiredParentType ? 'Écrire pour rechercher et sélectionner...' : '— Racine (DG) —'}
+              value={parentSearch}
               disabled={!requiredParentType}
               key={selectedType}
-            >
-              <option value="">{requiredParentType ? '— Choisir —' : '— Racine (DG) —'}</option>
+              onChange={(e) => {
+                const val = e.target.value;
+                setParentSearch(val);
+                const matched = parentOptions.find(ent => `${ent.code} — ${ent.nom}` === val || ent.nom === val);
+                setParentId(matched ? String(matched.id) : '');
+              }}
+            />
+            <input type="hidden" name="parentId" value={parentId} />
+            <datalist id="parent-entities-list">
               {parentOptions.map((ent) => (
-                <option key={ent.id} value={String(ent.id)}>
-                  {ent.code} — {ent.nom}
-                </option>
+                <option key={ent.id} value={`${ent.code} — ${ent.nom}`} />
               ))}
-            </select>
+            </datalist>
           </div>
         </div>
         <div className="modal-footer" style={{ padding: '16px 0 0' }}>

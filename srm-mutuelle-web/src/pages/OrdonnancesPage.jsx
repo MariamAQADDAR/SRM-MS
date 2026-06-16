@@ -25,6 +25,35 @@ function formatDate(d) {
   return `${day}/${m}/${y}`;
 }
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (error) => reject(error);
+  });
+}
+
+function renderScanLink(scanVal) {
+  if (!scanVal || scanVal === '—') return '—';
+  if (scanVal.startsWith('data:')) {
+    const isPdf = scanVal.startsWith('data:application/pdf');
+    return (
+      <a
+        href={scanVal}
+        download={isPdf ? "scan-document.pdf" : "scan-document"}
+        target="_blank"
+        rel="noreferrer"
+        className="btn btn-sm btn-outline"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', fontSize: '11px', textDecoration: 'none' }}
+      >
+        <FaIcon name="download" /> Télécharger
+      </a>
+    );
+  }
+  return scanVal;
+}
+
 function readMeta() {
   try {
     const raw = localStorage.getItem(META_KEY);
@@ -177,7 +206,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
     if (searchQuery.trim()) {
       list = list.filter((o) => {
         const rawDate =
-          viewType === 'analyse' ? o.dateAnalyse : viewType === 'ordonnance' ? o.dateOrdonnance : o.dateRadio;
+          viewType === 'analyse' ? o.date : viewType === 'ordonnance' ? o.dateOrdonnance : o.dateRadio;
         return matchesSearch(
           searchQuery,
           o.matricule,
@@ -218,7 +247,6 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
           { key: 'beneficiaire', label: 'Bénéficiaire' },
           { key: 'medecin', label: 'Médecin' },
           { key: 'laboratoire', label: 'Laboratoire' },
-          { key: 'dateAnalyse', label: 'Date analyse' },
           { key: 'montant', label: 'Montant' },
           { key: 'statut', label: 'Statut' },
         ]
@@ -247,7 +275,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
 
   const closeModal = () => setModal(null);
 
-  const metaFromForm = (fd) => {
+  const metaFromForm = (fd, fileBase64 = {}, existingMeta = {}) => {
     const doctorLabel = String(fd.get('doctorId') || '').trim();
     const doc = doctors.find((d) => d.fullName === doctorLabel);
     const doctorIdVal = doc ? String(doc.id) : doctorLabel;
@@ -269,14 +297,14 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
       laboratoireId: labIdVal,
       pharmacieId: pharmIdVal,
       centreRadiologieId: centreIdVal,
-      dateAnalyse: String(fd.get('dateAnalyse') || '').trim(),
+      dateAnalyse: '',
       dateOrdonnance: String(fd.get('dateOrdonnance') || '').trim(),
       dateRadio: String(fd.get('dateRadio') || '').trim(),
       numInstance: String(fd.get('numInstance') || '').trim(),
       typeRadio: String(fd.get('typeRadio') || '').trim(),
-      scanAnalyse: String(fd.get('scanAnalyse') || '').trim(),
-      scanOrdonnance: String(fd.get('scanOrdonnance') || '').trim(),
-      scanRadio: String(fd.get('scanRadio') || '').trim(),
+      scanAnalyse: fileBase64.scanAnalyse || existingMeta.scanAnalyse || '—',
+      scanOrdonnance: fileBase64.scanOrdonnance || existingMeta.scanOrdonnance || '—',
+      scanRadio: fileBase64.scanRadio || existingMeta.scanRadio || '—',
       observation: String(fd.get('observation') || '').trim(),
     };
   };
@@ -355,12 +383,13 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
               </datalist>
             </div>
             <div className="form-group">
-              <label>Date analyse</label>
-              <input name="dateAnalyse" type="date" className="form-control" defaultValue={meta.dateAnalyse || ''} />
-            </div>
-            <div className="form-group">
               <label>Scan analyse</label>
-              <input name="scanAnalyse" className="form-control" defaultValue={meta.scanAnalyse || ''} />
+              <input type="file" accept="application/pdf,image/*" className="form-control" />
+              {meta.scanAnalyse && meta.scanAnalyse !== '—' && (
+                <p style={{ marginTop: '4px' }}>
+                  {renderScanLink(meta.scanAnalyse)}
+                </p>
+              )}
             </div>
           </>
         )}
@@ -391,7 +420,12 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
             </div>
             <div className="form-group">
               <label>Scan ordonnance</label>
-              <input name="scanOrdonnance" className="form-control" defaultValue={meta.scanOrdonnance || ''} />
+              <input type="file" accept="application/pdf,image/*" className="form-control" />
+              {meta.scanOrdonnance && meta.scanOrdonnance !== '—' && (
+                <p style={{ marginTop: '4px' }}>
+                  {renderScanLink(meta.scanOrdonnance)}
+                </p>
+              )}
             </div>
           </>
         )}
@@ -433,12 +467,17 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
             </div>
             <div className="form-group">
               <label>Scan Radio</label>
-              <input name="scanRadio" className="form-control" defaultValue={meta.scanRadio || ''} />
+              <input type="file" accept="application/pdf,image/*" className="form-control" />
+              {meta.scanRadio && meta.scanRadio !== '—' && (
+                <p style={{ marginTop: '4px' }}>
+                  {renderScanLink(meta.scanRadio)}
+                </p>
+              )}
             </div>
           </>
         )}
         <div className="form-group">
-          <label>Date (API)</label>
+          <label>Date de dépôt de dossier</label>
           <input name="date" type="date" className="form-control" defaultValue={meta._date || new Date().toISOString().split('T')[0]} />
         </div>
         <div className="form-group">
@@ -464,6 +503,21 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
         addToast('error', 'Agent invalide');
         return;
       }
+      const fileInput = e.target.querySelector('input[type="file"]');
+      let fileBase64 = '';
+      if (fileInput && fileInput.files && fileInput.files[0]) {
+        try {
+          fileBase64 = await fileToBase64(fileInput.files[0]);
+        } catch (err) {
+          console.error("Erreur de conversion du fichier", err);
+        }
+      }
+      const fileBase64Obj = {
+        scanAnalyse: kind === 'analyse' ? fileBase64 : '',
+        scanOrdonnance: kind === 'ordonnance' ? fileBase64 : '',
+        scanRadio: kind === 'radio' ? fileBase64 : '',
+      };
+
       const montant = Number(fd.get('montant'));
       const taux = 80;
       const body = {
@@ -476,7 +530,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
         taux,
         statut: 'En attente',
       };
-      const meta = metaFromForm(fd);
+      const meta = metaFromForm(fd, fileBase64Obj);
       try {
         const created = await parseJsonOrThrow(await apiFetch('/api/ordonnances', { method: 'POST', body }));
         if (created?.id != null) {
@@ -518,6 +572,21 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
         addToast('error', 'Agent invalide');
         return;
       }
+      const fileInput = e.target.querySelector('input[type="file"]');
+      let fileBase64 = '';
+      if (fileInput && fileInput.files && fileInput.files[0]) {
+        try {
+          fileBase64 = await fileToBase64(fileInput.files[0]);
+        } catch (err) {
+          console.error("Erreur de conversion du fichier", err);
+        }
+      }
+      const fileBase64Obj = {
+        scanAnalyse: kind === 'analyse' && fileBase64 ? fileBase64 : '',
+        scanOrdonnance: kind === 'ordonnance' && fileBase64 ? fileBase64 : '',
+        scanRadio: kind === 'radio' && fileBase64 ? fileBase64 : '',
+      };
+
       const montant = Number(fd.get('montant'));
       const taux = 80;
       const body = {
@@ -530,7 +599,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
         taux,
         statut: fd.get('statut') || o.statut,
       };
-      const nextMeta = metaFromForm(fd);
+      const nextMeta = metaFromForm(fd, fileBase64Obj, meta);
       try {
         await parseJsonOrThrow(await apiFetch(`/api/ordonnances/${o.id}`, { method: 'PUT', body }));
         const next = { ...metaById, [o.id]: nextMeta };
@@ -586,8 +655,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
         {kind === 'analyse' && (
           <>
             <DetailItem label="Laboratoire">{o.laboratoire}</DetailItem>
-            <DetailItem label="Date analyse">{formatDate(o.dateAnalyse)}</DetailItem>
-            <DetailItem label="Scan analyse">{o.scanAnalyse}</DetailItem>
+            <DetailItem label="Scan analyse">{renderScanLink(o.scanAnalyse)}</DetailItem>
           </>
         )}
         {kind === 'ordonnance' && (
@@ -595,7 +663,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
             <DetailItem label="Pharmacie">{o.pharmacie}</DetailItem>
             <DetailItem label="Date ordonnance">{formatDate(o.dateOrdonnance)}</DetailItem>
             <DetailItem label="N° instance">{o.numInstance}</DetailItem>
-            <DetailItem label="Scan ordonnance">{o.scanOrdonnance}</DetailItem>
+            <DetailItem label="Scan ordonnance">{renderScanLink(o.scanOrdonnance)}</DetailItem>
           </>
         )}
         {kind === 'radio' && (
@@ -603,7 +671,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
             <DetailItem label="Centre radiologie">{o.centreRadiologie}</DetailItem>
             <DetailItem label="Date radio">{formatDate(o.dateRadio)}</DetailItem>
             <DetailItem label="Type radio">{o.typeRadio}</DetailItem>
-            <DetailItem label="Scan radio">{o.scanRadio}</DetailItem>
+            <DetailItem label="Scan radio">{renderScanLink(o.scanRadio)}</DetailItem>
           </>
         )}
         <DetailItem label="Montant">{Number(o.montant).toLocaleString('fr-FR')} DH</DetailItem>
@@ -692,7 +760,6 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
                     <th>Bénéficiaire</th>
                     <th>Médecin</th>
                     <th>Laboratoire</th>
-                    <th>Date_analyse</th>
                     <th>Montant total (DH)</th>
                     <th>Scan_analyse</th>
                     <th>Observation</th>
@@ -740,9 +807,8 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
                     {viewType === 'analyse' && (
                       <>
                         <td>{o.laboratoire}</td>
-                        <td>{formatDate(o.dateAnalyse)}</td>
                         <td>{Number(o.montant).toLocaleString('fr-FR')} DH</td>
-                        <td>{o.scanAnalyse}</td>
+                        <td>{renderScanLink(o.scanAnalyse)}</td>
                         <td>{o.observation}</td>
                       </>
                     )}
@@ -752,7 +818,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
                         <td>{formatDate(o.dateOrdonnance)}</td>
                         <td>{o.numInstance}</td>
                         <td>{Number(o.montant).toLocaleString('fr-FR')} DH</td>
-                        <td>{o.scanOrdonnance}</td>
+                        <td>{renderScanLink(o.scanOrdonnance)}</td>
                         <td>{o.observation}</td>
                       </>
                     )}
@@ -762,7 +828,7 @@ export default function OrdonnancesPage({ setPageTitle, addToast, user }) {
                         <td>{formatDate(o.dateRadio)}</td>
                         <td>{Number(o.montant).toLocaleString('fr-FR')} DH</td>
                         <td>{o.typeRadio}</td>
-                        <td>{o.scanRadio}</td>
+                        <td>{renderScanLink(o.scanRadio)}</td>
                         <td>{o.observation}</td>
                       </>
                     )}

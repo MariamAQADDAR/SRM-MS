@@ -32,35 +32,41 @@ public class DevUserDataInitializer implements ApplicationRunner {
 				.findById(1L)
 				.orElseThrow(() -> new IllegalStateException("Seed agent id=1 introuvable (Flyway V2 exécuté ?)"));
 
-		Agent adminAgent = new Agent();
-		adminAgent.setMatricule("AGT-ADMIN");
-		adminAgent.setNom("AQADDAR");
-		adminAgent.setPrenom("Marieme");
-		adminAgent.setCin("BK000001");
-		adminAgent.setSituation("Mariée");
-		adminAgent.setEntiteName("Direction SI & Transformation Digitale");
-		adminAgent.setEmail("admin@srm-ms.ma");
-		adminAgent = agentRepository.save(adminAgent);
+		Agent adminAgent = agentRepository.findByMatricule("AGT-ADMIN").orElseGet(() -> {
+			Agent a = new Agent();
+			a.setMatricule("AGT-ADMIN");
+			a.setNom("AQADDAR");
+			a.setPrenom("Marieme");
+			a.setCin("BK000001");
+			a.setSituation("Mariée");
+			a.setEntiteName("Direction SI & Transformation Digitale");
+			a.setEmail("admin@srm-ms.ma");
+			return agentRepository.save(a);
+		});
 
-		Agent operAgent = new Agent();
-		operAgent.setMatricule("AGT-OPER");
-		operAgent.setNom("Benali");
-		operAgent.setPrenom("Youssef");
-		operAgent.setCin("BK000002");
-		operAgent.setSituation("Célibataire");
-		operAgent.setEntiteName("Direction SI & Transformation Digitale");
-		operAgent.setEmail("operateur@srm-ms.ma");
-		operAgent = agentRepository.save(operAgent);
+		Agent operAgent = agentRepository.findByMatricule("AGT-OPER").orElseGet(() -> {
+			Agent a = new Agent();
+			a.setMatricule("AGT-OPER");
+			a.setNom("Benali");
+			a.setPrenom("Youssef");
+			a.setCin("BK000002");
+			a.setSituation("Célibataire");
+			a.setEntiteName("Direction SI & Transformation Digitale");
+			a.setEmail("operateur@srm-ms.ma");
+			return agentRepository.save(a);
+		});
 
-		Agent consAgent = new Agent();
-		consAgent.setMatricule("AGT-CONS");
-		consAgent.setNom("Zahrae");
-		consAgent.setPrenom("Fatima");
-		consAgent.setCin("BK000003");
-		consAgent.setSituation("Célibataire");
-		consAgent.setEntiteName("Direction SI & Transformation Digitale");
-		consAgent.setEmail("consult@srm-ms.ma");
-		consAgent = agentRepository.save(consAgent);
+		Agent consAgent = agentRepository.findByMatricule("AGT-CONS").orElseGet(() -> {
+			Agent a = new Agent();
+			a.setMatricule("AGT-CONS");
+			a.setNom("Zahrae");
+			a.setPrenom("Fatima");
+			a.setCin("BK000003");
+			a.setSituation("Célibataire");
+			a.setEntiteName("Direction SI & Transformation Digitale");
+			a.setEmail("consult@srm-ms.ma");
+			return agentRepository.save(a);
+		});
 
 		appUserRepository.save(staff(
 				"admin@srm-ms.ma",
@@ -96,6 +102,7 @@ public class DevUserDataInitializer implements ApplicationRunner {
 		adherent.setRole(AppUserRole.ADHERENT);
 		adherent.setActive(true);
 		adherent.setAgent(agent1);
+		adherent.setForcePasswordChange(false);
 		appUserRepository.save(adherent);
 	}
 
@@ -107,6 +114,7 @@ public class DevUserDataInitializer implements ApplicationRunner {
 		u.setRole(role);
 		u.setActive(true);
 		u.setAgent(agent);
+		u.setForcePasswordChange(false);
 		return u;
 	}
 }

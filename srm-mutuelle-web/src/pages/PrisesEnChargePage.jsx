@@ -312,6 +312,347 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
     }
   };
 
+  const handlePrintPec = (p) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      addToast('error', 'Le bloqueur de fenêtres a empêché l\'ouverture de la page d\'impression.');
+      return;
+    }
+
+    const agent = agents.find((a) => String(a.id) === String(p.agentId));
+    const agentNom = (agent?.nom || '').toUpperCase();
+    const agentPrenom = agent?.prenom || '';
+
+    // Split beneficiary name
+    const bParts = (p.beneficiaire || '').trim().split(' ');
+    let bNom = '';
+    let bPrenom = '';
+    if (bParts.length > 1) {
+      bNom = bParts[bParts.length - 1].toUpperCase();
+      bPrenom = bParts.slice(0, bParts.length - 1).join(' ');
+    } else {
+      bNom = (p.beneficiaire || '').toUpperCase();
+    }
+
+    // Check if beneficiary is the agent themselves
+    const isAgentPatient = agent && (
+      `${agent.prenom} ${agent.nom}`.toLowerCase().trim() === (p.beneficiaire || '').toLowerCase().trim() ||
+      `${agent.nom} ${agent.prenom}`.toLowerCase().trim() === (p.beneficiaire || '').toLowerCase().trim()
+    );
+
+    const patientNom = isAgentPatient ? '' : bNom;
+    const patientPrenom = isAgentPatient ? '' : bPrenom;
+
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      return String(dateStr).split('-').reverse().join('/');
+    };
+
+    const datePrint = formatDate(p.dateDebut) || new Date().toLocaleDateString('fr-FR');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head>
+        <meta charset="UTF-8">
+        <title>Prise en Charge - ${p.numero}</title>
+        <style>
+          @media print {
+            body {
+              margin: 0;
+              padding: 0;
+              -webkit-print-color-adjust: exact;
+            }
+          }
+          
+          body {
+            font-family: Arial, sans-serif;
+            color: #000;
+            line-height: 1.4;
+            padding: 20px;
+            box-sizing: border-box;
+          }
+
+          .pec-container {
+            border: 2px solid #000;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            box-sizing: border-box;
+          }
+
+          .pec-table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          .pec-table td {
+            border: 1px solid #000;
+            padding: 10px;
+            vertical-align: middle;
+          }
+
+          .header-row td {
+            height: 80px;
+          }
+
+          .center-text {
+            text-align: center;
+          }
+
+          .bold-text {
+            font-weight: bold;
+          }
+
+          .banner-text {
+            border-bottom: 2px solid #000;
+            padding: 12px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            line-height: 1.5;
+          }
+
+          .section-title {
+            background-color: #f2f2f2;
+            border-bottom: 2px solid #000;
+            padding: 8px 10px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+
+          .field-box {
+            display: flex;
+            margin-bottom: 6px;
+            font-size: 13px;
+          }
+
+          .field-label {
+            font-weight: bold;
+            white-space: nowrap;
+          }
+
+          .field-value {
+            border-bottom: 1px dotted #000;
+            width: 100%;
+            padding-left: 8px;
+            min-height: 18px;
+            font-weight: bold;
+          }
+
+          .footer-section {
+            border-top: 2px solid #000;
+          }
+
+          .dotted-line {
+            border-bottom: 1px dotted #000;
+            height: 20px;
+            margin-bottom: 5px;
+          }
+
+          .signature-area {
+            min-height: 100px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="pec-container">
+          <!-- Table En-tête -->
+          <table class="pec-table" style="border-bottom: 2px solid #000;">
+            <tr class="header-row">
+              <td style="width: 30%; border-right: 2px solid #000; text-align: center;">
+                <div class="bold-text" style="font-size: 14px;">SECURITE SOCIALE</div>
+                <br>
+                <div style="font-size: 13px;">Réf : <span class="bold-text">${p.numero}</span></div>
+              </td>
+              <td style="width: 40%; border-right: 2px solid #000; text-align: center;">
+                <div class="bold-text" style="font-size: 15px;">PRISE EN CHARGE</div>
+                <br>
+                <div class="bold-text" style="font-size: 13px;">FRAIS POUR SOIN DE SANTE</div>
+              </td>
+              <td style="width: 30%; padding-left: 15px;">
+                <div class="bold-text" style="font-size: 14px;">Clinique :</div>
+                <br>
+                <div class="bold-text" style="font-size: 14px; text-transform: uppercase;">${p.etablissement}</div>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Bannière d'avertissement -->
+          <div class="banner-text">
+            CETTE PRISE EN CHARGE COUVRE LES ACTES MEDICAUX, D'ANALYSES, DE RADIOLOGIES, DE PRODUITS<br>
+            PHARMACEUTIQUES, EXECUTES ET ORDONNES PAR LES RESPONSABLES MEDICAUX DE<br>
+            <span style="text-transform: uppercase; text-decoration: underline;">${p.etablissement}</span><br>
+            PENDANT ET APRES L'HOSPITALISATION DU MALADE
+          </div>
+
+          <!-- Section 11 -->
+          <table class="pec-table" style="border-bottom: 2px solid #000;">
+            <tr>
+              <td style="width: 35%; border-right: 2px solid #000;" class="bold-text">
+                11/ NOM OU RAISON SOCIALE
+              </td>
+              <td class="bold-text" style="font-size: 14px; padding-left: 15px;">
+                SRM-MS
+              </td>
+            </tr>
+          </table>
+
+          <!-- Titre Section 12 -->
+          <div class="section-title">
+            12/ RENSEIGNEMENT CONCERNANT LE SALARIE ,LE CONJOINT OU UN ENFANT A CHARGE DU SALARIE
+          </div>
+
+          <!-- Section 12 Infos -->
+          <table class="pec-table" style="border-bottom: 2px solid #000;">
+            <tr>
+              <!-- 121 / SOIN DE -->
+              <td rowspan="3" style="width: 35%; border-right: 2px solid #000; vertical-align: top;">
+                <div class="bold-text">121/ SOIN DE</div>
+                <br><br>
+                <div class="bold-text" style="font-size: 14px; text-transform: uppercase; text-align: center; border: 1.5px solid #000; padding: 6px; background-color: #f9f9f9; border-radius: 4px;">
+                  ${p.typePrestation}
+                </div>
+              </td>
+              <!-- Nom -->
+              <td style="border-right: 1px solid #000; border-bottom: 1px solid #000;">
+                <div class="field-box">
+                  <span class="field-label">Nom :</span>
+                  <span class="field-value" style="text-transform: uppercase;">${agentNom}</span>
+                </div>
+              </td>
+              <!-- Seances -->
+              <td style="width: 25%; border-bottom: 1px solid #000; text-align: center;">
+                <div class="bold-text">SEANCES &nbsp;&nbsp;&nbsp; 0</div>
+              </td>
+            </tr>
+            <tr>
+              <!-- Prenom -->
+              <td style="border-right: 1px solid #000; border-bottom: 1px solid #000;">
+                <div class="field-box">
+                  <span class="field-label">Prénom :</span>
+                  <span class="field-value">${agentPrenom}</span>
+                </div>
+              </td>
+              <!-- Matricule -->
+              <td style="border-bottom: 1px solid #000; padding-left: 12px;">
+                <div style="font-size: 13px;">Matricule : <span class="bold-text">${p.matricule}</span></div>
+              </td>
+            </tr>
+            <tr>
+              <!-- Empty spacer -->
+              <td style="border-right: 1px solid #000;">
+                &nbsp;
+              </td>
+              <!-- Regie -->
+              <td style="padding-left: 12px;">
+                <div style="font-size: 13px;">Régie : <span class="bold-text">SRM-MS</span></div>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Section 125 Recevoir les soins -->
+          <table class="pec-table" style="border-bottom: 2px solid #000;">
+            <tr>
+              <td style="width: 35%; border-right: 2px solid #000; vertical-align: top;">
+                <div class="bold-text">125/ RECEVOIR LES SOINS</div>
+                <br>
+                <div style="font-size: 12px; color: #555; text-align: center;">Conjoint/enfant</div>
+              </td>
+              <td style="padding: 0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="border-bottom: 1px solid #000; padding: 10px;">
+                      <div class="field-box" style="margin: 0;">
+                        <span class="field-label">Nom :</span>
+                        <span class="field-value" style="text-transform: uppercase;">${patientNom}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px;">
+                      <div class="field-box" style="margin: 0;">
+                        <span class="field-label">Prénom :</span>
+                        <span class="field-value">${patientPrenom}</span>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Section 13 Malade autre que le salarie / Engagement -->
+          <table class="pec-table">
+            <tr>
+              <!-- Gauche -->
+              <td style="width: 50%; border-right: 2px solid #000; vertical-align: top; font-size: 11px; line-height: 1.5; padding: 12px;">
+                <div class="bold-text" style="font-size: 12px; margin-bottom: 8px;">NOM ET PRENOM DU MALADE AUTRE QUE LE SALARIE</div>
+                13/ Les dossiers de demande de remboursement des frais de soins de santé auprès des organismes assurant une protection sanitaire seront joints à la facture établie par l'établissement et adressés ou remis à :
+                <br><br>
+                <div class="dotted-line"></div>
+                <div class="dotted-line"></div>
+                et adressés ou remis à : <span class="bold-text">SRM-MS</span>
+              </td>
+              <!-- Droite -->
+              <td style="width: 50%; vertical-align: top; font-size: 11px; line-height: 1.5; padding: 12px;">
+                Par cette prise en charge, le soussigné s'engage à régler le montant de la facture qui lui sera présentée
+                <br>
+                Par <strong>${p.etablissement}</strong>
+                <br>
+                dans les <strong>HUITS JOURS</strong> qui suivent sa réception.
+                <br><br>
+                <strong>FAIT à MARRAKECH :</strong> le ${datePrint}
+                <br><br>
+                <strong>Etablie par :</strong> <span class="bold-text">${agentPrenom} ${agentNom}</span>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Section Procuration et Signature -->
+          <table class="pec-table" style="border-top: 2px solid #000;">
+            <tr>
+              <td style="width: 50%; border-right: 2px solid #000; vertical-align: top; font-size: 11px; line-height: 1.5; padding: 12px;">
+                Je soussigné : <span class="bold-text">${agentPrenom} ${agentNom}</span>
+                <br>
+                donne procuration à : <span style="border-bottom: 1px dotted #000; display: inline-block; width: 180px; height: 15px;"></span>
+                <br>
+                Pour présenter et encaisser en mon nom les sommes qui doivent m'être remboursées
+                <br>
+                Par <span class="bold-text">SRM-MS</span>
+                <br>
+                au titre des frais qui ont été engagés par : <span class="bold-text">${p.beneficiaire}</span>
+                <br>
+                dans le cadre de cette prise en charge.
+              </td>
+              <td style="width: 50%; vertical-align: top; padding: 12px; text-align: center;">
+                <div style="font-size: 12px;"><strong>LE :</strong> ${datePrint}</div>
+                <br><br>
+                <div class="bold-text" style="font-size: 12px;">SIGNATURE DU SALARIE</div>
+                <div class="signature-area"></div>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   const doAction = async (path, label, body) => {
     try {
       await parseJsonOrThrow(await apiFetch(path, { method: 'POST', body: body || undefined }));
@@ -601,13 +942,16 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
     return (
       <>
         <WorkflowSteps {...wf} />
-        {p.hasPdf && (
-          <div className="workflow-actions-bar" style={{ marginBottom: 12 }}>
+        <div className="workflow-actions-bar" style={{ marginBottom: 12, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {p.hasPdf && (
             <button type="button" className="btn btn-outline" onClick={() => openPdf(p.id)}>
               <FaIcon name="file-pdf" className="fa-inline-icon" /> Voir le justificatif PDF
             </button>
-          </div>
-        )}
+          )}
+          <button type="button" className="btn btn-primary" onClick={() => handlePrintPec(p)}>
+            <FaIcon name="print" className="fa-inline-icon" /> Imprimer la fiche PEC (PDF)
+          </button>
+        </div>
         <div className="pec-detail-layout">
           <DetailSection title="Informations" icon="circle-info">
             <DetailItem label="N° demande">{p.numero}</DetailItem>
@@ -835,8 +1179,16 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
                     )}
                   </td>
                   <td className="actions-cell">
-                    <button className="btn btn-icon btn-view" type="button" onClick={() => viewRecord(p)}>
+                    <button className="btn btn-icon btn-view" type="button" title="Détail" onClick={() => viewRecord(p)}>
                       <FaIcon name="eye" />
+                    </button>
+                    <button
+                      className="btn btn-icon btn-print"
+                      type="button"
+                      title="Imprimer la PEC (PDF)"
+                      onClick={() => handlePrintPec(p)}
+                    >
+                      <FaIcon name="print" />
                     </button>
                     {p.statut === 'En attente' && (isAdherent || canMutate) && (
                       <button
