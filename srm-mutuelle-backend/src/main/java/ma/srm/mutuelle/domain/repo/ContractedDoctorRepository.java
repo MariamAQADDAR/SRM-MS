@@ -10,6 +10,8 @@ public interface ContractedDoctorRepository extends JpaRepository<ContractedDoct
 
 	List<ContractedDoctor> findByDeletedFalseOrderById();
 
+	long countByDeletedFalse();
+
 	List<ContractedDoctor> findByDeletedTrueOrderById();
 
 	java.util.Optional<ContractedDoctor> findByIdAndDeletedFalse(Long id);

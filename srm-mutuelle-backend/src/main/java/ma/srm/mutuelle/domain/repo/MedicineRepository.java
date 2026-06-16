@@ -25,6 +25,8 @@ public interface MedicineRepository extends JpaRepository<Medicine, Long> {
 
 	List<Medicine> findByDeletedFalseOrderByName();
 
+	long countByDeletedFalse();
+
 	List<Medicine> findByDeletedTrueOrderByName();
 
 	java.util.Optional<Medicine> findByIdAndDeletedFalse(Long id);

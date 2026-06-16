@@ -543,7 +543,8 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
   };
 
   const staffReviewPanel = (p) => {
-    const canValidate = p.statut !== 'Clôturé';
+    const canValidate = p.statut !== 'Clôturé' && p.statut !== 'En attente';
+    if (!canValidate) return null;
     return (
       <div className="staff-review-panel">
         <h4 className="staff-review-title">Validation prise en charge</h4>
@@ -595,8 +596,73 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
     );
   };
 
-  const viewRecord = (p) => {
+  const renderDetailContent = (p) => {
     const wf = resolvePecWorkflow(p.statut);
+    return (
+      <>
+        <WorkflowSteps {...wf} />
+        {p.hasPdf && (
+          <div className="workflow-actions-bar" style={{ marginBottom: 12 }}>
+            <button type="button" className="btn btn-outline" onClick={() => openPdf(p.id)}>
+              <FaIcon name="file-pdf" className="fa-inline-icon" /> Voir le justificatif PDF
+            </button>
+          </div>
+        )}
+        <div className="pec-detail-layout">
+          <DetailSection title="Informations" icon="circle-info">
+            <DetailItem label="N° demande">{p.numero}</DetailItem>
+            <DetailItem label="Bénéficiaire">{p.beneficiaire}</DetailItem>
+            <DetailItem label="Agent">{p.nomPrenomAgent}</DetailItem>
+            <DetailItem label="Matricule">{p.matricule}</DetailItem>
+            <DetailItem label="Date demande">{formatDate(p.dateDepot)}</DetailItem>
+            <DetailItem label="Statut">{statusBadge(p.statut)}</DetailItem>
+          </DetailSection>
+
+          <DetailSection title="Détails financiers" icon="coins">
+            <DetailItem label="Montant estimé">
+              {p.montantDemande != null ? `${Number(p.montantDemande).toLocaleString('fr-FR')} DH` : '—'}
+            </DetailItem>
+            <DetailItem label="Montant accordé">
+              {p.montantPec != null && Number(p.montantPec) > 0
+                ? `${Number(p.montantPec).toLocaleString('fr-FR')} DH`
+                : '—'}
+            </DetailItem>
+            <DetailItem label="Date réponse">{formatDate(p.dateReponse)}</DetailItem>
+          </DetailSection>
+
+          <DetailSection title="Document &amp; observation" icon="file-medical">
+            <DetailItem label="Type de soin">
+              <span className="badge badge-primary">{p.typePrestation}</span>
+            </DetailItem>
+            <DetailItem label="Établissement">{p.etablissement}</DetailItem>
+            <DetailItem label="Date début">{formatDate(p.dateDebut)}</DetailItem>
+            <DetailItem label="Date fin">{formatDate(p.dateFin)}</DetailItem>
+            <DetailItem label="Date envoi">{formatDate(p.dateEnvoi)}</DetailItem>
+            <DetailItem label="Justificatif">{p.hasPdf ? 'Disponible' : '—'}</DetailItem>
+            <DetailItem label="Observation" fullWidth>
+              {p.observation}
+            </DetailItem>
+          </DetailSection>
+        </div>
+        {canMutate && !personalMode && staffReviewPanel(p)}
+        {isAdherent && p.statut === 'En attente' && (
+          <div className="workflow-actions-bar">
+            <p className="workflow-actions-hint">Étape 1/3 — Envoyez votre dossier pour lancer l&apos;instruction.</p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!p.hasPdf}
+              onClick={() => doAction(`/api/care-episodes/${p.id}/submit`, 'Demande transmise à la mutuelle')}
+            >
+              <FaIcon name="paper-plane" className="fa-inline-icon" /> Envoyer à la mutuelle
+            </button>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const viewRecord = (p) => {
     const defaultMontant =
       p.montantPec != null && Number(p.montantPec) > 0 ? p.montantPec : p.montantDemande;
     setReviewMontant(String(defaultMontant ?? ''));
@@ -604,69 +670,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
     setModal({
       title: `PEC ${p.numero}`,
       variant: 'detail',
-      content: (
-        <>
-          <WorkflowSteps {...wf} />
-          {p.hasPdf && (
-            <div className="workflow-actions-bar" style={{ marginBottom: 12 }}>
-              <button type="button" className="btn btn-outline" onClick={() => openPdf(p.id)}>
-                <FaIcon name="file-pdf" className="fa-inline-icon" /> Voir le justificatif PDF
-              </button>
-            </div>
-          )}
-          <div className="pec-detail-layout">
-            <DetailSection title="Informations" icon="circle-info">
-              <DetailItem label="N° demande">{p.numero}</DetailItem>
-              <DetailItem label="Bénéficiaire">{p.beneficiaire}</DetailItem>
-              <DetailItem label="Agent">{p.nomPrenomAgent}</DetailItem>
-              <DetailItem label="Matricule">{p.matricule}</DetailItem>
-              <DetailItem label="Date demande">{formatDate(p.dateDepot)}</DetailItem>
-              <DetailItem label="Statut">{statusBadge(p.statut)}</DetailItem>
-            </DetailSection>
-
-            <DetailSection title="Détails financiers" icon="coins">
-              <DetailItem label="Montant estimé">
-                {p.montantDemande != null ? `${Number(p.montantDemande).toLocaleString('fr-FR')} DH` : '—'}
-              </DetailItem>
-              <DetailItem label="Montant accordé">
-                {p.montantPec != null && Number(p.montantPec) > 0
-                  ? `${Number(p.montantPec).toLocaleString('fr-FR')} DH`
-                  : '—'}
-              </DetailItem>
-              <DetailItem label="Date réponse">{formatDate(p.dateReponse)}</DetailItem>
-            </DetailSection>
-
-            <DetailSection title="Document & observation" icon="file-medical">
-              <DetailItem label="Type de soin">
-                <span className="badge badge-primary">{p.typePrestation}</span>
-              </DetailItem>
-              <DetailItem label="Établissement">{p.etablissement}</DetailItem>
-              <DetailItem label="Date début">{formatDate(p.dateDebut)}</DetailItem>
-              <DetailItem label="Date fin">{formatDate(p.dateFin)}</DetailItem>
-              <DetailItem label="Date envoi">{formatDate(p.dateEnvoi)}</DetailItem>
-              <DetailItem label="Justificatif">{p.hasPdf ? 'Disponible' : '—'}</DetailItem>
-              <DetailItem label="Observation" fullWidth>
-                {p.observation}
-              </DetailItem>
-            </DetailSection>
-            <DetailModalFooter onClose={closeModal} canEdit={false} />
-          </div>
-          {canMutate && !personalMode && staffReviewPanel(p)}
-          {isAdherent && p.statut === 'En attente' && (
-            <div className="workflow-actions-bar">
-              <p className="workflow-actions-hint">Étape 1/3 — Envoyez votre dossier pour lancer l&apos;instruction.</p>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={!p.hasPdf}
-                onClick={() => doAction(`/api/care-episodes/${p.id}/submit`, 'Demande transmise à la mutuelle')}
-              >
-                <FaIcon name="paper-plane" className="fa-inline-icon" /> Envoyer à la mutuelle
-              </button>
-            </div>
-          )}
-        </>
-      ),
+      selectedRecord: p,
     });
   };
 
@@ -716,7 +720,7 @@ export default function PrisesEnChargePage({ setPageTitle, addToast, user, perso
     <>
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
-          {modal.mode === 'wizard' ? buildWizardForm() : modal.content}
+          {modal.mode === 'wizard' ? buildWizardForm() : (modal.selectedRecord ? renderDetailContent(modal.selectedRecord) : modal.content)}
         </Modal>
       )}
       {!isAdherent && (

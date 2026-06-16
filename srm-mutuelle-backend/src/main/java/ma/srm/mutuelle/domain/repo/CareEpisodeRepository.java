@@ -10,6 +10,8 @@ public interface CareEpisodeRepository extends JpaRepository<CareEpisode, Long> 
 
 	List<CareEpisode> findByDeletedFalseOrderByDateDebutDesc();
 
+	long countByStatusAndDeletedFalse(String status);
+
 	List<CareEpisode> findByDeletedTrueOrderByDateDebutDesc();
 
 	java.util.Optional<CareEpisode> findByIdAndDeletedFalse(Long id);

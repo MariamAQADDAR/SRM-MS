@@ -90,22 +90,24 @@ function StaffReviewPanel({ d, reviewPec, setReviewPec, reviewObs, setReviewObs,
   return (
     <div className="staff-review-panel">
       <h4 className="staff-review-title">Validation mutuelle</h4>
-      <div className="form-grid" style={{ marginBottom: 12 }}>
-        <div className="form-group">
-          <label>Montant prise en charge (DH)</label>
-          <input
-            type="number"
-            step="0.01"
-            className="form-control"
-            value={reviewPec}
-            onChange={(e) => setReviewPec(e.target.value)}
-          />
+      {canDecide && d.scanned && (
+        <div className="form-grid" style={{ marginBottom: 12 }}>
+          <div className="form-group">
+            <label>Montant prise en charge (DH)</label>
+            <input
+              type="number"
+              step="0.01"
+              className="form-control"
+              value={reviewPec}
+              onChange={(e) => setReviewPec(e.target.value)}
+            />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>Observation / motif</label>
+            <textarea className="form-control" rows={2} value={reviewObs} onChange={(e) => setReviewObs(e.target.value)} />
+          </div>
         </div>
-        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label>Observation / motif</label>
-          <textarea className="form-control" rows={2} value={reviewObs} onChange={(e) => setReviewObs(e.target.value)} />
-        </div>
-      </div>
+      )}
       <div className="workflow-actions-bar">
         {canScan && (
           <button type="button" className="btn btn-outline" onClick={() => doAction(`/api/quotes/${d.id}/scan`, 'Devis en instruction')}>
@@ -589,6 +591,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
   const staffReviewActions = (d) => {
     const canDecide = d.etat === 'Soumis' || d.scanned;
     const canScan = d.etat === 'Soumis' && !d.scanned;
+    if (!canScan && !canDecide) return null;
     return (
       <StaffReviewPanel
         d={d}
@@ -611,61 +614,65 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
     );
   }
 
-
   const closeModal = () => setModal(null);
 
-  const viewDevis = (d) => {
+  // Renders detail view for selected devis (fresh closures on every render - fixes stale state bug)
+  const renderDetailContent = (d) => {
     const wf = resolveDevisWorkflow(d.etat, !!d.scanned);
+    return (
+      <>
+        <WorkflowSteps {...wf} />
+        {d.hasPdf && (
+          <div className="workflow-actions-bar" style={{ marginBottom: 12 }}>
+            <button type="button" className="btn btn-outline" onClick={() => openPdf(d.id)}>
+              <FaIcon name="file-pdf" className="fa-inline-icon" /> Voir le PDF
+            </button>
+          </div>
+        )}
+        <DetailView footer={null}>
+          <DetailItem label="Matricule">{d.matricule}</DetailItem>
+          <DetailItem label="Agent">{d.nomPrenomAgent}</DetailItem>
+          <DetailItem label="Bénéficiaire">{d.beneficiaire}</DetailItem>
+          <DetailItem label="Dentiste">{d.dentiste}</DetailItem>
+          <DetailItem label="N° devis">{d.numero}</DetailItem>
+          <DetailItem label="Date devis">{formatDate(d.dateDevis)}</DetailItem>
+          <DetailItem label="Date dépôt">{formatDate(d.dateDepot)}</DetailItem>
+          <DetailItem label="Date envoi">{formatDate(d.dateEnvoi)}</DetailItem>
+          <DetailItem label="Date réponse">{formatDate(d.dateReponse)}</DetailItem>
+          <DetailItem label="État">{statusBadge(d.etat)}</DetailItem>
+          <DetailItem label="Montant devis">{Number(d.montant).toLocaleString('fr-FR')} DH</DetailItem>
+          <DetailItem label="Montant PEC">{Number(d.montantPrisEnCharge || 0).toLocaleString('fr-FR')} DH</DetailItem>
+          <DetailItem label="Document">{d.hasPdf ? d.pdfOriginalName || 'PDF' : 'Non joint'}</DetailItem>
+          <DetailItem label="Observation">{d.observation}</DetailItem>
+        </DetailView>
+        {canStaffActions && !personalMode && staffReviewActions(d)}
+        {isAdherent && (d.etat === 'En attente' || d.etat === 'Brouillon') && (
+          <div className="workflow-actions-bar">
+            <p className="workflow-actions-hint">
+              Étape 1/3 — Votre devis est enregistré. Envoyez-le à la mutuelle pour lancer l'instruction.
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!d.hasPdf}
+              onClick={() => doAction(`/api/quotes/${d.id}/submit`, 'Devis transmis à la mutuelle')}
+            >
+              <FaIcon name="paper-plane" className="fa-inline-icon" /> Envoyer à la mutuelle
+            </button>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const viewDevis = (d) => {
     const defaultPec = d.montantPrisEnCharge ?? Math.round((Number(d.montant) * d.taux) / 100);
     setReviewPec(String(defaultPec));
     setReviewObs(d.observation && d.observation !== '—' ? d.observation : '');
     setModal({
       title: `Devis ${d.numero}`,
       variant: 'detail',
-      content: (
-        <>
-          <WorkflowSteps {...wf} />
-          {d.hasPdf && (
-            <div className="workflow-actions-bar" style={{ marginBottom: 12 }}>
-              <button type="button" className="btn btn-outline" onClick={() => openPdf(d.id)}>
-                <FaIcon name="file-pdf" className="fa-inline-icon" /> Voir le PDF
-              </button>
-            </div>
-          )}
-          <DetailView footer={<DetailModalFooter onClose={closeModal} canEdit={false} />}>
-            <DetailItem label="Matricule">{d.matricule}</DetailItem>
-            <DetailItem label="Agent">{d.nomPrenomAgent}</DetailItem>
-            <DetailItem label="Bénéficiaire">{d.beneficiaire}</DetailItem>
-            <DetailItem label="Dentiste">{d.dentiste}</DetailItem>
-            <DetailItem label="N° devis">{d.numero}</DetailItem>
-            <DetailItem label="Date devis">{formatDate(d.dateDevis)}</DetailItem>
-            <DetailItem label="Date dépôt">{formatDate(d.dateDepot)}</DetailItem>
-            <DetailItem label="Date envoi">{formatDate(d.dateEnvoi)}</DetailItem>
-            <DetailItem label="Date réponse">{formatDate(d.dateReponse)}</DetailItem>
-            <DetailItem label="État">{statusBadge(d.etat)}</DetailItem>
-            <DetailItem label="Montant devis">{Number(d.montant).toLocaleString('fr-FR')} DH</DetailItem>
-            <DetailItem label="Montant PEC">{Number(d.montantPrisEnCharge || 0).toLocaleString('fr-FR')} DH</DetailItem>
-            <DetailItem label="Document">{d.hasPdf ? d.pdfOriginalName || 'PDF' : 'Non joint'}</DetailItem>
-            <DetailItem label="Observation">{d.observation}</DetailItem>
-          </DetailView>
-          {canStaffActions && !personalMode && staffReviewActions(d)}
-          {isAdherent && (d.etat === 'En attente' || d.etat === 'Brouillon') && (
-            <div className="workflow-actions-bar">
-              <p className="workflow-actions-hint">
-                Étape 1/3 — Votre devis est enregistré. Envoyez-le à la mutuelle pour lancer l’instruction.
-              </p>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={!d.hasPdf}
-                onClick={() => doAction(`/api/quotes/${d.id}/submit`, 'Devis transmis à la mutuelle')}
-              >
-                <FaIcon name="paper-plane" className="fa-inline-icon" /> Envoyer à la mutuelle
-              </button>
-            </div>
-          )}
-        </>
-      ),
+      selectedRecord: d,
     });
   };
 
@@ -702,7 +709,7 @@ export default function DevisPage({ setPageTitle, addToast, user, personalMode =
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
           {modal.mode === 'create' || modal.mode === 'edit'
             ? renderQuoteForm(modal.mode, modal.quote)
-            : modal.content}
+            : (modal.selectedRecord ? renderDetailContent(modal.selectedRecord) : modal.content)}
         </Modal>
       )}
       {!isAdherent && (

@@ -521,6 +521,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
   const staffReviewPanel = (d) => {
     const canScan = d.etatReponse === 'En cours' && !d.scanned;
     const canDecide = d.etatReponse !== 'Clôturé' && (d.scanned || d.etatReponse === 'Traité' || d.etatReponse === 'Rejeté');
+    if (!canScan && !canDecide) return null;
     return (
       <div className="staff-review-panel">
         <h4 className="staff-review-title">Validation mutuelle</h4>
@@ -583,8 +584,54 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
     );
   };
 
-  const viewRemboursement = (d) => {
+  // Renders the detail view for the selected reimbursement (called on every render so closures are fresh)
+  const renderDetailContent = (d) => {
     const wf = resolveRemboursementWorkflow(d.etatReponse, !!d.scanned);
+    return (
+      <>
+        <WorkflowSteps {...wf} />
+        {d.hasPdf && (
+          <div className="workflow-actions-bar" style={{ marginBottom: 12 }}>
+            <button type="button" className="btn btn-outline" onClick={() => openPdf(d.id)}>
+              <FaIcon name="file-pdf" className="fa-inline-icon" /> Voir le justificatif PDF
+            </button>
+          </div>
+        )}
+        <DetailView footer={null}>
+          <DetailItem label="N° demande">{d.numero}</DetailItem>
+          <DetailItem label="Bénéficiaire">{d.beneficiaire}</DetailItem>
+          <DetailItem label="Type soin">{d.typeSoin}</DetailItem>
+          <DetailItem label="Médicament">{d.medicineName || '—'}</DetailItem>
+          <DetailItem label="Établissement">{d.etablissementMed}</DetailItem>
+          <DetailItem label="Date dépôt">{formatDate(d.dateDepot)}</DetailItem>
+          <DetailItem label="Date envoi">{formatDate(d.dateEnvoi)}</DetailItem>
+          <DetailItem label="Date réponse">{formatDate(d.dateReponse)}</DetailItem>
+          <DetailItem label="État">{statusBadge(d.etatReponse)}</DetailItem>
+          <DetailItem label="Montant demandé">{Number(d.montantDemande).toLocaleString('fr-FR')} DH</DetailItem>
+          <DetailItem label="Montant remboursé">
+            {Number(d.montantValide) > 0 ? `${Number(d.montantValide).toLocaleString('fr-FR')} DH` : '—'}
+          </DetailItem>
+          <DetailItem label="Observation">{d.observation}</DetailItem>
+        </DetailView>
+        {canMutate && !personalMode && staffReviewPanel(d)}
+        {isAdherent && d.etatReponse === 'En attente' && (
+          <div className="workflow-actions-bar">
+            <p className="workflow-actions-hint">Étape 1/3 — Envoyez votre dossier pour lancer l&apos;instruction.</p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!d.hasPdf}
+              onClick={() => doAction(`/api/reimbursements/${d.id}/submit`, 'Demande transmise à la mutuelle')}
+            >
+              <FaIcon name="paper-plane" className="fa-inline-icon" /> Envoyer à la mutuelle
+            </button>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const viewRemboursement = (d) => {
     const defaultMontant = Number(d.montantValide) > 0 ? d.montantValide : d.montantDemande;
     setReviewMontant(String(defaultMontant));
     setReviewTaux(d.taux != null ? String(d.taux) : '80');
@@ -592,48 +639,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
     setModal({
       title: `Remboursement ${d.numero}`,
       variant: 'detail',
-      content: (
-        <>
-          <WorkflowSteps {...wf} />
-          {d.hasPdf && (
-            <div className="workflow-actions-bar" style={{ marginBottom: 12 }}>
-              <button type="button" className="btn btn-outline" onClick={() => openPdf(d.id)}>
-                <FaIcon name="file-pdf" className="fa-inline-icon" /> Voir le justificatif PDF
-              </button>
-            </div>
-          )}
-          <DetailView footer={<DetailModalFooter onClose={closeModal} canEdit={false} />}>
-            <DetailItem label="N° demande">{d.numero}</DetailItem>
-            <DetailItem label="Bénéficiaire">{d.beneficiaire}</DetailItem>
-            <DetailItem label="Type soin">{d.typeSoin}</DetailItem>
-            <DetailItem label="Médicament">{d.medicineName || '—'}</DetailItem>
-            <DetailItem label="Établissement">{d.etablissementMed}</DetailItem>
-            <DetailItem label="Date dépôt">{formatDate(d.dateDepot)}</DetailItem>
-            <DetailItem label="Date envoi">{formatDate(d.dateEnvoi)}</DetailItem>
-            <DetailItem label="Date réponse">{formatDate(d.dateReponse)}</DetailItem>
-            <DetailItem label="État">{statusBadge(d.etatReponse)}</DetailItem>
-            <DetailItem label="Montant demandé">{Number(d.montantDemande).toLocaleString('fr-FR')} DH</DetailItem>
-            <DetailItem label="Montant remboursé">
-              {Number(d.montantValide) > 0 ? `${Number(d.montantValide).toLocaleString('fr-FR')} DH` : '—'}
-            </DetailItem>
-            <DetailItem label="Observation">{d.observation}</DetailItem>
-          </DetailView>
-          {canMutate && !personalMode && staffReviewPanel(d)}
-          {isAdherent && d.etatReponse === 'En attente' && (
-            <div className="workflow-actions-bar">
-              <p className="workflow-actions-hint">Étape 1/3 — Envoyez votre dossier pour lancer l&apos;instruction.</p>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={!d.hasPdf}
-                onClick={() => doAction(`/api/reimbursements/${d.id}/submit`, 'Demande transmise à la mutuelle')}
-              >
-                <FaIcon name="paper-plane" className="fa-inline-icon" /> Envoyer à la mutuelle
-              </button>
-            </div>
-          )}
-        </>
-      ),
+      selectedRecord: d,
     });
   };
 
@@ -683,7 +689,7 @@ export default function RemboursementsPage({ setPageTitle, addToast, user, perso
     <>
       {modal && (
         <Modal title={modal.title} onClose={closeModal} variant={modal.variant}>
-          {modal.mode === 'wizard' ? buildWizardForm() : modal.content}
+          {modal.mode === 'wizard' ? buildWizardForm() : (modal.selectedRecord ? renderDetailContent(modal.selectedRecord) : modal.content)}
         </Modal>
       )}
       {!isAdherent && (

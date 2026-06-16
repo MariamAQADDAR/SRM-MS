@@ -613,7 +613,7 @@ export default function AppShell() {
         return isAdherent ? (
           <DevisPage {...pageProps} personalMode />
         ) : (
-          <DashboardPage {...pageProps} />
+          <DashboardPage {...pageProps} onNavigate={setCurrentPage} />
         );
       case 'beneficiaires':
         return isAdherent ? forbiddenForAdherent() : <BeneficiairesPage {...pageProps} />;

@@ -7,6 +7,8 @@ public interface MedicalFacilityRepository extends JpaRepository<MedicalFacility
 
 	java.util.List<MedicalFacility> findByDeletedFalseOrderByName();
 
+	long countByDeletedFalse();
+
 	java.util.List<MedicalFacility> findByDeletedTrueOrderByName();
 
 	java.util.Optional<MedicalFacility> findByIdAndDeletedFalse(Long id);

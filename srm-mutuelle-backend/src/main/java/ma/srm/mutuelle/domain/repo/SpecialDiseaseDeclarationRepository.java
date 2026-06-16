@@ -10,6 +10,8 @@ public interface SpecialDiseaseDeclarationRepository extends JpaRepository<Speci
 
 	List<SpecialDiseaseDeclaration> findByDeletedFalseOrderByDeclarationDateDesc();
 
+	long countByDeletedFalse();
+
 	List<SpecialDiseaseDeclaration> findByDeletedTrueOrderByDeclarationDateDesc();
 
 	java.util.Optional<SpecialDiseaseDeclaration> findByIdAndDeletedFalse(Long id);

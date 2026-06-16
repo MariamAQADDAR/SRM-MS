@@ -9,6 +9,8 @@ public interface MutualCardRequestRepository extends JpaRepository<MutualCardReq
 
 	List<MutualCardRequest> findByDeletedFalseOrderByRequestDateDescIdDesc();
 
+	long countByStatusAndDeletedFalse(String status);
+
 	List<MutualCardRequest> findByAgent_IdAndDeletedFalseOrderByRequestDateDescIdDesc(Long agentId);
 
 	List<MutualCardRequest> findByDeletedTrueOrderByRequestDateDescIdDesc();
